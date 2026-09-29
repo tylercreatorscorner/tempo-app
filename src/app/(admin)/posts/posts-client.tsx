@@ -1,49 +1,31 @@
 'use client';
 
 /**
- * Posts page — every video in the window, one dense sortable table.
- *
- * Rebuilt 2026-07-23 to the approved mockup:
- *   - The TABLE is the page. No cards mode, no view toggle, nothing between
- *     the KPI strip and the rows but a single toolbar.
- *   - Brand scoping is a DROPDOWN in the header (synced with the sidebar
- *     switcher via the shared ?brand= param) — the old pill wall is gone.
- *   - Default scope is ALL creators; Managed is the opt-in toggle.
- *   - Each row carries a small lazy TikTok cover. Clicking the cover opens
- *     the QUICK-WATCH modal: the video plays inside Tempo (official embed)
- *     and "Next post" steps down the current filtered list. Clicking
- *     anywhere else on the row opens the full review page.
- *   - The review queue (All / Unreviewed / Mine / Flagged) lives in the
- *     toolbar as filter chips with live counts — a pure client-side
- *     predicate over fields already on every row, zero refetches.
- *
- * Engagement (views/likes/comments/shares) is WINDOWED from
- * video_performance (migrations 088/090) and NULLABLE — null means "no
- * engagement data in this window" and renders as an em dash placeholder,
- * never a fake 0. Money is windowed per migration 079.
+ * Video sales and engagement for a selected window. Date basis and creator
+ * scope change the server query; age, search, review, and sorting are applied
+ * to the loaded rows. Engagement is nullable because some videos lack daily
+ * tracking data; missing values must not be displayed as zero.
  */
-import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Download, Eye, Loader2, Search, ExternalLink,
-  AlertTriangle, MessageSquare, Star, Play,
+  AlertTriangle, MessageSquare, Star, Play, ArrowDown, ArrowUp, X,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useInView } from '@/hooks/use-in-view';
 import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { StatCard } from '@/components/dashboard/stat-card';
 import { QuickWatchModal } from '@/components/posts/quick-watch-modal';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { PageHeader } from '@/components/ui/page-header';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { SegmentedControl } from '@/components/ui/segmented';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TableCard } from '@/components/ui/table';
@@ -99,14 +81,15 @@ interface PostsResponse {
 // thousands of posts) stays in memory for instant sort/search; we just grow
 // the rendered slice as the user scrolls so we never mount thousands of DOM
 // nodes up front.
-const RENDER_CHUNK = 300;
+const RENDER_CHUNK = 120;
 
-type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'shares' | 'engagement_rate' | 'post_date' | 'post_age';
+type SortKey = 'gmv' | 'orders' | 'items_sold' | 'views' | 'likes' | 'comments' | 'shares' | 'engagement_rate' | 'post_date' | 'post_age';
+type MetricsView = 'sales' | 'engagement';
 type SortDir = 'asc' | 'desc';
 type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
 type AgeBucket = 'all' | '0-30' | '30-60' | '60-90' | '90-180' | '180+' | 'unknown';
 
-const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'shares', 'engagement_rate', 'post_date', 'post_age'];
+const SORT_KEYS: SortKey[] = ['gmv', 'orders', 'items_sold', 'views', 'likes', 'comments', 'shares', 'engagement_rate', 'post_date', 'post_age'];
 const AGE_BUCKETS: { value: AgeBucket; label: string }[] = [
   { value: 'all', label: 'All ages' }, { value: '0-30', label: '0–30d' },
   { value: '30-60', label: '30–60d' }, { value: '60-90', label: '60–90d' },
@@ -174,6 +157,7 @@ export function PostsClient({
     const fromUrl = searchParams.get('review');
     return isReviewFilter(fromUrl) ? fromUrl : 'all';
   });
+  const [metricsView, setMetricsView] = useState<MetricsView>('sales');
   // Quick-watch: index into the CURRENT filtered + sorted list, so "Next
   // post" steps down exactly what the user is looking at.
   const [watchIndex, setWatchIndex] = useState<number | null>(null);
@@ -348,22 +332,6 @@ export function PostsClient({
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'managed') params.set('managed', 'true');
     else params.delete('managed');
-    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
-    //
-    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
-    // browser this control does not navigate: the onClick fires, throws nothing,
-    // and history.pushState is never called. Switching to an absolute path did
-    // NOT change that, which argues the query-only form was not the cause.
-    //
-    // That same browser showed a half-hydrated page (two <main> elements, orphan
-    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
-    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
-    // before anyone concludes either way. The absolute path is kept because it
-    // is the more correct form regardless.
-    //
-    // What IS proven: loading the page with ?brand=<slug> by hand filters
-    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
-    // and the data are fine either way.
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
@@ -372,22 +340,6 @@ export function PostsClient({
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'posted') params.set('basis', 'posted');
     else params.delete('basis');
-    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
-    //
-    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
-    // browser this control does not navigate: the onClick fires, throws nothing,
-    // and history.pushState is never called. Switching to an absolute path did
-    // NOT change that, which argues the query-only form was not the cause.
-    //
-    // That same browser showed a half-hydrated page (two <main> elements, orphan
-    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
-    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
-    // before anyone concludes either way. The absolute path is kept because it
-    // is the more correct form regardless.
-    //
-    // What IS proven: loading the page with ?brand=<slug> by hand filters
-    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
-    // and the data are fine either way.
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
@@ -396,22 +348,6 @@ export function PostsClient({
     const params = new URLSearchParams(searchParams.toString());
     if (slug === 'all') params.delete('brand');
     else params.set('brand', slug);
-    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
-    //
-    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
-    // browser this control does not navigate: the onClick fires, throws nothing,
-    // and history.pushState is never called. Switching to an absolute path did
-    // NOT change that, which argues the query-only form was not the cause.
-    //
-    // That same browser showed a half-hydrated page (two <main> elements, orphan
-    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
-    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
-    // before anyone concludes either way. The absolute path is kept because it
-    // is the more correct form regardless.
-    //
-    // What IS proven: loading the page with ?brand=<slug> by hand filters
-    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
-    // and the data are fine either way.
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
@@ -461,50 +397,28 @@ export function PostsClient({
     : undefined;
 
   const watching = watchIndex !== null ? visiblePosts[watchIndex] ?? null : null;
+  const selectedAge = AGE_BUCKETS.find(bucket => bucket.value === age)?.label ?? 'All ages';
+  const filterDescription = [
+    age !== 'all' ? selectedAge : null,
+    creator ? `@${creator.trim().replace(/^@/, '')}` : null,
+    search ? 'search' : null,
+    reviewFilter !== 'all' ? reviewFilter.replace('reviewed-by-me', 'my reviews') : null,
+  ].filter(Boolean).join(' · ');
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-4">
       <PageHeader
-        wide
         eyebrow="Content"
-        title="Posts"
+        title="Video performance"
         subtitle={dateBasis === 'earned'
-          ? 'All GMV in the window, whenever the video was posted.'
-          : 'Only videos posted in the window.'}
+          ? 'See which videos generated sales in the selected period, regardless of publish date.'
+          : 'Review videos published in the selected period and the sales they generated.'}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="w-44">
-              <Select
-                value={selectedBrand ?? 'all'}
-                onChange={(e) => setBrand(e.target.value)}
-                aria-label="Brand filter"
-                className="py-1.5 text-xs"
-              >
-                <option value="all">All Brands</option>
-                {brands.map(b => <option key={b} value={b}>{brandMeta.label(b)}</option>)}
-              </Select>
+          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+            <div className="min-w-40 flex-1 lg:w-44 lg:flex-none">
+              <ChoiceMenu compact triggerClassName="w-full" label="Brand filter" value={selectedBrand ?? 'all'} onChange={setBrand}
+                options={[{ value: 'all', label: 'All Brands' }, ...brands.map(b => ({ value: b, label: brandMeta.label(b) }))]} />
             </div>
-            <SegmentedControl
-              ariaLabel="Creator scope"
-              size="sm"
-              value={managedOnly ? 'managed' : 'all'}
-              onValueChange={(v) => setManaged(v as 'all' | 'managed')}
-              options={[
-                { value: 'all', label: 'All creators' },
-                { value: 'managed', label: 'Managed' },
-              ]}
-            />
-            <SegmentedControl
-              ariaLabel="Date basis"
-              size="sm"
-              value={dateBasis}
-              onValueChange={(v) => setBasis(v as 'earned' | 'posted')}
-              options={[
-                { value: 'earned', label: 'Earned in range' },
-                { value: 'posted', label: 'Posted in range' },
-              ]}
-            />
             <DateRangePicker staleThrough={staleThrough} />
           </div>
         }
@@ -514,21 +428,30 @@ export function PostsClient({
         <div className="rounded-xl bg-[var(--pulse-neg-bg)] border border-[var(--pulse-neg)]/25 px-4 py-3 text-sm text-[var(--pulse-neg)]">{error}</div>
       )}
 
-      {/* KPI strip. Engagement values are windowed (mig 090) and honest:
-          "—" means no engagement data, never zero. */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <StatCard className="col-span-2" hero label="Total GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'}
-          info={dateBasis === 'earned'
-            ? 'All video-attributed GMV earned during the selected period, whenever the videos were posted. Excludes live-stream and product-showcase sales, which aren\'t tied to a specific video, so this runs below the creator-level total.'
-            : 'GMV earned during the selected period by videos POSTED in the period. Evergreen videos posted earlier are excluded here; switch to Earned in range to include them.'} />
-        <StatCard label={dateBasis === 'earned' ? 'Videos earning' : 'Posts'} value={data ? formatNumber(data.totals.postCount) : '—'} />
-        <StatCard label="Total Views"  value={data ? fmtN(data.totals.totalViews)   : '—'}
-          subValue={viewsCoverage}
-          info="Views accrued during the selected period, from the daily Video Data uploads. Posts whose uploads predate engagement tracking show no view data and are excluded." />
-        <StatCard label="Total Likes"  value={data ? fmtN(data.totals.totalLikes)   : '—'} />
-        <StatCard label="Avg Engagement" value={data ? (data.totals.avgEngagement === null ? '—' : `${data.totals.avgEngagement.toFixed(2)}%`) : '—'}
-          info="(Likes + comments) / views across posts with engagement data in the window." />
-      </div>
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm" aria-label="Video performance overview">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Sales window</span>
+            <SegmentedControl ariaLabel="Date basis" size="sm" value={dateBasis}
+              onValueChange={(v) => setBasis(v as 'earned' | 'posted')}
+              options={[{ value: 'earned', label: 'Sales earned' }, { value: 'posted', label: 'New posts only' }]} />
+          </div>
+          <SegmentedControl ariaLabel="Creator scope" size="sm" value={managedOnly ? 'managed' : 'all'}
+            onValueChange={(v) => setManaged(v as 'all' | 'managed')}
+            options={[{ value: 'all', label: 'All creators' }, { value: 'managed', label: 'Managed only' }]} />
+        </div>
+        <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-5 sm:divide-y-0">
+          <OverviewMetric label="Video GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'} prominent
+            detail="Sales attributed to videos in this window" />
+          <OverviewMetric label={dateBasis === 'earned' ? 'Videos earning' : 'Videos posted'} value={data ? formatNumber(data.totals.postCount) : '—'}
+            detail="Across the selected brand and scope" />
+          <OverviewMetric label="Views" value={data ? fmtN(data.totals.totalViews) : '—'} detail={viewsCoverage ?? 'Recorded during this window'} />
+          <OverviewMetric label="Likes" value={data ? fmtN(data.totals.totalLikes) : '—'} detail="Recorded during this window" />
+          <OverviewMetric label="Engagement" value={data ? (data.totals.avgEngagement === null ? '—' : `${data.totals.avgEngagement.toFixed(2)}%`) : '—'}
+            detail="Likes and comments ÷ views" />
+        </div>
+        <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground sm:px-5">Video GMV excludes live and product showcase sales that cannot be attributed to an individual video.</p>
+      </section>
 
       {/* Capped-window notice. The KPI totals above are always computed over
           the full window server-side; this only fires when the row payload
@@ -542,57 +465,77 @@ export function PostsClient({
         </div>
       )}
 
-      {/* Toolbar: review queue chips + search + CSV, one row. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-3">
-        <span className="mr-1 text-xs font-semibold text-foreground">Video age</span>
-        <div className="flex max-w-full gap-1.5 overflow-x-auto" role="group" aria-label="Filter by age of post at window end">
-          {AGE_BUCKETS.map(bucket => <button key={bucket.value} type="button" aria-pressed={age === bucket.value} onClick={() => setAge(bucket.value)} className={cn('shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary', age === bucket.value ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:text-foreground')}>{bucket.label}{bucket.value !== 'all' && <span className="ml-1.5 text-[10px] tabular-nums opacity-75">{loading ? 'Loading…' : `${ageStats.get(bucket.value)?.videos ?? 0} · ${formatCurrency(ageStats.get(bucket.value)?.gmv ?? 0)}`}</span>}</button>)}
-        </div>
-        <label className="ml-auto flex items-center gap-2 text-xs font-medium text-foreground">Creator <Input value={creator} onChange={event => setCreator(event.target.value)} placeholder="Exact @handle" aria-label="Filter by exact creator handle" className="w-40 py-1.5 text-xs" /></label>
-        <p className="w-full text-[11px] text-muted-foreground">Age is measured at the end of the selected sales window, matching the report. GMV remains sales earned during that window.{data?.capped ? ' Bucket totals cover only the videos loaded into this table; narrow the brand or date window for a complete breakdown.' : ''}</p>
-      </div>
-      {hasTableFilters && !loading && data && <p role="status" className="-mt-3 text-xs text-foreground"><strong className="font-semibold">Filtered view:</strong> {formatNumber(visiblePosts.length)} videos · {formatCurrency(filteredGmv)} GMV earned in this window. <span className="text-muted-foreground">The KPI cards above show the full selected brand and date range.</span></p>}
-      <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-        <ReviewFilterPills active={reviewFilter} onChange={setReviewFilter} totals={data?.totals} />
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div className="relative flex-1 sm:flex-initial">
-            <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
-            <Input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search title or creator..."
-              aria-label="Search posts"
-              className="pl-8 py-1.5 text-sm w-full sm:w-64"
-            />
+      <section className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm sm:px-5" aria-label="Find videos">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-[180px] flex-1 text-xs font-semibold text-foreground sm:max-w-72">
+            Search videos
+            <span className="relative mt-1.5 block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Title or creator" aria-label="Search posts" className="h-9 w-full pl-9 text-sm" />
+            </span>
+          </label>
+          <label className="min-w-[150px] flex-1 text-xs font-semibold text-foreground sm:max-w-48">
+            Creator handle
+            <Input value={creator} onChange={e => setCreator(e.target.value)} placeholder="Exact @handle" aria-label="Filter by exact creator handle" className="mt-1.5 h-9 w-full text-sm" />
+          </label>
+          <div className="min-w-[145px] flex-1 text-xs font-semibold text-foreground sm:max-w-48">
+            <span>Video age</span>
+            <div className="mt-1.5"><ChoiceMenu compact triggerClassName="w-full" label="Video age" value={age} onChange={v => setAge(v as AgeBucket)}
+              options={AGE_BUCKETS.map(bucket => ({ value: bucket.value, label: bucket.label,
+                description: bucket.value === 'all' || loading ? undefined : `${ageStats.get(bucket.value)?.videos ?? 0} videos · ${formatCurrency(ageStats.get(bucket.value)?.gmv ?? 0)} GMV`,
+              }))} /></div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={downloadCsv}
-            disabled={!visiblePosts.length}
-          >
-            <Download className="h-3.5 w-3.5" /> CSV
-          </Button>
+          {hasTableFilters && <Button variant="ghost" size="sm" className="h-9" onClick={() => { setSearch(''); setCreator(''); setAge('all'); setReviewFilter('all'); }}><X className="h-3.5 w-3.5" /> Clear</Button>}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">Video age is measured at the end of the selected sales window. The sales shown were earned inside that window.</p>
+        {hasTableFilters && !loading && data && <div role="status" className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-border pt-3 text-sm">
+          <strong className="font-semibold text-foreground">{formatNumber(visiblePosts.length)} videos · {formatCurrency(filteredGmv)} video GMV</strong>
+          <span className="text-xs text-muted-foreground">{filterDescription}. Overview above remains the full brand, date and creator scope.</span>
+        </div>}
+      </section>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <ReviewFilterPills active={reviewFilter} onChange={setReviewFilter} totals={data?.totals} />
+        <div className="flex items-center gap-2">
+          <SegmentedControl ariaLabel="Table metrics" size="sm" value={metricsView} onValueChange={v => setMetricsView(v as MetricsView)}
+            options={[{ value: 'sales', label: 'Sales' }, { value: 'engagement', label: 'Engagement' }]} />
+          <Button variant="outline" size="sm" onClick={downloadCsv} disabled={!visiblePosts.length}><Download className="h-3.5 w-3.5" /> CSV</Button>
         </div>
       </div>
 
-      {/* The table IS the page. */}
       <TableCard className="relative">
         <TableLoadBar active={showBar} />
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Videos</h2>
+            <p className="text-xs text-muted-foreground">{metricsView === 'sales' ? 'Orders, units and GMV earned in the selected window' : 'Audience activity recorded in the selected window'}</p>
+          </div>
+          <span className="text-xs tabular-nums text-muted-foreground">{formatNumber(visiblePosts.length)} results</span>
+        </div>
+        <div className="space-y-0 md:hidden">
+          {loading && !data ? <div className="px-5 py-10 text-center text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Loading videos...</div>
+            : visiblePosts.length === 0 ? <PostsEmptyState reviewFilter={reviewFilter} filtered={Boolean(creator || search || age !== 'all')} />
+              : renderedPosts.map((p, i) => <PostMobileCard key={`${p.video_id}|${p.brand_slug}`} post={p} windowEnd={endDate}
+                  metricsView={metricsView} reviewHref={reviewHref(p)} onWatch={() => setWatchIndex(i)} />)}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="text-left">
                 <Th>Post</Th>
                 <SortableTh label="Posted"       sortKey="post_date"      current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                 <SortableTh label="Age"          sortKey="post_age"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="Views"        sortKey="views"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="Likes"        sortKey="likes"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="Comments"     sortKey="comments"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="Shares"       sortKey="shares"         current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="Engagement"   sortKey="engagement_rate" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="GMV"          sortKey="gmv"            current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                {metricsView === 'sales' ? <>
+                  <SortableTh label="Orders" sortKey="orders" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Units" sortKey="items_sold" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="GMV" sortKey="gmv" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                </> : <>
+                  <SortableTh label="Views" sortKey="views" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Likes" sortKey="likes" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Comments" sortKey="comments" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Shares" sortKey="shares" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Engagement" sortKey="engagement_rate" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                </>}
                 <Th align="right">Reviews</Th>
               </tr>
             </thead>
@@ -600,16 +543,17 @@ export function PostsClient({
               showBar && visiblePosts.length > 0 ? 'opacity-60 transition-opacity duration-200' : 'opacity-100',
             )}>
               {loading && !data ? (
-                <tr><td colSpan={10} className="text-center text-muted-foreground py-12 text-sm">
+                <tr><td colSpan={metricsView === 'sales' ? 7 : 9} className="text-center text-muted-foreground py-12 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
                 </td></tr>
               ) : visiblePosts.length === 0 ? (
-                <tr><td colSpan={10} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} filtered={Boolean(creator || search || age !== 'all')} /></td></tr>
+                <tr><td colSpan={metricsView === 'sales' ? 7 : 9} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} filtered={Boolean(creator || search || age !== 'all')} /></td></tr>
               ) : (
                 renderedPosts.map((p, i) => (
                   <PostRowView
                     key={`${p.video_id}|${p.brand_slug}`}
                     post={p}
+                    metricsView={metricsView}
                     windowEnd={endDate}
                     onClick={handleRowClick}
                     onWatch={() => setWatchIndex(i)}
@@ -625,7 +569,7 @@ export function PostsClient({
               ? `Showing ${renderedPosts.length.toLocaleString()} of ${visiblePosts.length.toLocaleString()}. Scroll to load more.`
               : `${visiblePosts.length.toLocaleString()} ${visiblePosts.length === 1 ? 'post' : 'posts'}`}
           </span>
-          <span>Sorted by {sortKey === 'engagement_rate' ? 'engagement' : sortKey === 'post_date' ? 'post date' : sortKey === 'post_age' ? 'post age' : sortKey}, earned in window</span>
+          <span>Sorted by {sortKey === 'engagement_rate' ? 'engagement' : sortKey === 'post_date' ? 'post date' : sortKey === 'post_age' ? 'post age' : sortKey === 'items_sold' ? 'units' : sortKey}, {dateBasis === 'earned' ? 'earned' : 'posted'} in window</span>
         </div>
       </TableCard>
 
@@ -717,13 +661,47 @@ function RowCover({
   );
 }
 
+function PostMobileCard({ post: p, windowEnd, metricsView, reviewHref, onWatch }: {
+  post: PostRow;
+  windowEnd: string;
+  metricsView: MetricsView;
+  reviewHref: string;
+  onWatch: () => void;
+}) {
+  const brandMeta = useBrandMeta();
+  const age = postAgeDays(p.post_date, windowEnd);
+  return <article className="border-b border-border px-4 py-3 last:border-b-0">
+    <div className="flex items-start gap-3">
+      <RowCover videoUrl={p.video_url} creatorHandle={p.creator_handle} videoId={p.video_id}
+        brandColor={brandMeta.color(p.brand_slug)} onWatch={onWatch} />
+      <div className="min-w-0 flex-1">
+        <Link href={reviewHref} className="line-clamp-2 text-sm font-semibold leading-snug text-foreground hover:text-primary">{p.video_title}</Link>
+        <p className="mt-1 truncate text-xs text-muted-foreground">@{p.creator_handle} · {p.brand_name}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{p.post_date ? new Date(`${p.post_date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : 'No publish date'}{age === null ? '' : ` · ${age} days old`}</p>
+      </div>
+      <div className="shrink-0 text-right"><p className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(p.gmv)}</p><p className="text-[10px] text-muted-foreground">Video GMV</p></div>
+    </div>
+    <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/70 pt-2.5 text-xs">
+      {metricsView === 'sales' ? <div className="flex gap-4 text-muted-foreground">
+        <span><strong className="tabular-nums text-foreground">{formatNumber(p.orders)}</strong> orders</span>
+        <span><strong className="tabular-nums text-foreground">{formatNumber(p.items_sold)}</strong> units</span>
+      </div> : <div className="flex gap-4 text-muted-foreground">
+        <span><strong className="tabular-nums text-foreground">{fmtN(p.views)}</strong> views</span>
+        <span><strong className="tabular-nums text-foreground">{p.engagement_rate === null ? '—' : `${p.engagement_rate.toFixed(2)}%`}</strong> engagement</span>
+      </div>}
+      <ReviewCell post={p} />
+    </div>
+  </article>;
+}
+
 // ── Row + cells ────────────────────────────────────────────────────
 
 function PostRowView({
-  post: p, windowEnd, onClick, onWatch,
+  post: p, windowEnd, metricsView, onClick, onWatch,
 }: {
   post: PostRow;
   windowEnd: string;
+  metricsView: MetricsView;
   onClick: (p: PostRow) => void;
   onWatch: () => void;
 }) {
@@ -733,10 +711,10 @@ function PostRowView({
   return (
     <tr
       onClick={() => onClick(p)}
-      className="border-t border-border hover:bg-muted/50 cursor-pointer transition-colors"
+      className="border-t border-border hover:bg-muted/40 cursor-pointer transition-colors"
     >
-      <td className="px-4 py-2.5 align-middle max-w-md">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <td className="max-w-[340px] px-4 py-2.5 align-middle sm:px-5">
+        <div className="flex min-w-0 items-center gap-3">
           <RowCover
             videoUrl={p.video_url}
             creatorHandle={p.creator_handle}
@@ -746,7 +724,7 @@ function PostRowView({
           />
           <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="truncate text-[13px] font-medium text-[var(--foreground)]" title={p.video_title}>
+              <span className="truncate text-[13px] font-semibold text-foreground" title={p.video_title}>
                 {p.video_title}
               </span>
               {p.video_url && (
@@ -763,10 +741,10 @@ function PostRowView({
               )}
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="font-semibold">@{p.creator_handle}</span>
-              {p.is_managed && <Badge variant="positive" size="sm">Managed</Badge>}
-              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: brandColor }} />
+              <span className="font-medium text-foreground/75">@{p.creator_handle}</span>
+              <span aria-hidden="true">·</span>
               <span className="truncate">{p.brand_name}</span>
+              {p.is_managed && <span className="rounded bg-primary/8 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Managed</span>}
             </div>
           </div>
         </div>
@@ -777,25 +755,17 @@ function PostRowView({
           : '—'}
       </td>
       <td className="px-4 py-2.5 align-middle text-right text-xs tabular-nums text-muted-foreground whitespace-nowrap">{postAgeDays(p.post_date, windowEnd) === null ? '—' : `${postAgeDays(p.post_date, windowEnd)}d`}</td>
-      <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.views)}</td>
-      <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.likes)}</td>
-      <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.comments)}</td>
-      <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.shares)}</td>
-      <td className="px-4 py-2.5 align-middle text-right tabular-nums">
-        <span className={cn(
-          'font-medium',
-          p.engagement_rate === null
-            ? 'text-muted-foreground'
-            : p.engagement_rate >= 5
-              ? 'text-[var(--pulse-pos)]'
-              : p.engagement_rate >= 2
-                ? 'text-[var(--pulse-warn)]'
-                : 'text-muted-foreground',
-        )}>
-          {p.engagement_rate === null ? '—' : `${p.engagement_rate.toFixed(2)}%`}
-        </span>
-      </td>
-      <td className="px-4 py-2.5 align-middle text-right tabular-nums font-bold text-[var(--primary)]">{formatCurrency(p.gmv)}</td>
+      {metricsView === 'sales' ? <>
+        <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{formatNumber(p.orders)}</td>
+        <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{formatNumber(p.items_sold)}</td>
+        <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(p.gmv)}</td>
+      </> : <>
+        <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{fmtN(p.views)}</td>
+        <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{fmtN(p.likes)}</td>
+        <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{fmtN(p.comments)}</td>
+        <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{fmtN(p.shares)}</td>
+        <td className="px-4 py-2.5 text-right tabular-nums font-medium text-foreground">{p.engagement_rate === null ? '—' : `${p.engagement_rate.toFixed(2)}%`}</td>
+      </>}
       <td className="px-4 py-2.5 align-middle text-right">
         <ReviewCell post={p} />
       </td>
@@ -846,35 +816,33 @@ function ReviewFilterPills({
   onChange: (next: ReviewFilter) => void;
   totals?: PostsResponse['totals'];
 }) {
-  // Counts come from the unfiltered scope so they stay stable as the user
-  // switches between pills. Show "—" while data is in flight.
   const fmt = (n: number | undefined) => (n === undefined ? '—' : n.toLocaleString());
-  const items: Array<{ key: ReviewFilter; label: string; count?: number; icon?: React.ReactNode }> = [
+  const items: Array<{ key: ReviewFilter; label: string; count?: number }> = [
     { key: 'all',             label: 'All',        count: totals?.postCount },
     { key: 'unreviewed',      label: 'Unreviewed', count: totals?.unreviewedCount },
     { key: 'reviewed-by-me',  label: 'Mine',       count: totals?.reviewedByMeCount },
-    { key: 'flagged',         label: 'Flagged',    count: totals?.flaggedCount, icon: <AlertTriangle className="h-3 w-3" /> },
+    { key: 'flagged',         label: 'Flagged',    count: totals?.flaggedCount },
   ];
   return (
-    <div className="overflow-x-auto">
-      <SegmentedControl
-        ariaLabel="Review queue filter"
-        size="sm"
-        value={active}
-        onValueChange={onChange}
-        options={items.map(it => ({
-          value: it.key,
-          label: (
-            <span className="inline-flex items-center gap-1.5">
-              {it.icon}
-              {it.label}
-              <span className="text-[10px] tabular-nums text-muted-foreground">{fmt(it.count)}</span>
-            </span>
-          ),
-        }))}
-      />
+    <div className="w-full text-xs font-semibold text-foreground sm:w-44">
+      <span>Review status</span>
+      <div className="mt-1.5"><ChoiceMenu compact triggerClassName="w-full" label="Review status" value={active} onChange={v => onChange(v as ReviewFilter)}
+        options={items.map(it => ({ value: it.key, label: `${it.label} · ${fmt(it.count)}` }))} /></div>
     </div>
   );
+}
+
+function OverviewMetric({ label, value, detail, prominent = false }: {
+  label: string;
+  value: string;
+  detail: string;
+  prominent?: boolean;
+}) {
+  return <div className="min-w-0 px-4 py-4 sm:px-5">
+    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+    <p className={cn('mt-1 tabular-nums font-semibold tracking-tight text-foreground', prominent ? 'text-2xl' : 'text-xl')}>{value}</p>
+    <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={detail}>{detail}</p>
+  </div>;
 }
 
 function SortableTh({
@@ -888,17 +856,18 @@ function SortableTh({
   align?: 'left' | 'right';
 }) {
   const active = current === sortKey;
-  const arrow = active ? <InterfaceIcon name={dir === "asc" ? "increase" : "decrease"}/> : null;
   return (
     <th
-      onClick={() => onClick(sortKey)}
+      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}
       className={cn(
-        'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors whitespace-nowrap',
+        'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap',
         align === 'right' ? 'text-right' : 'text-left',
-        active ? 'text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground',
       )}
     >
-      {label}{arrow && <span className="ml-1">{arrow}</span>}
+      <button type="button" onClick={() => onClick(sortKey)} aria-label={`Sort by ${label}`}
+        className={cn('inline-flex items-center gap-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary', align === 'right' && 'ml-auto', active ? 'text-primary' : 'text-muted-foreground hover:text-foreground')}>
+        {label}{active && (dir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+      </button>
     </th>
   );
 }
