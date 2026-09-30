@@ -22,4 +22,10 @@ assert.equal(complete.priorStart, '2026-07-01');
 assert.equal(complete.priorEnd, '2026-07-31');
 assert.equal(complete.periodLabel, 'August 2026');
 
+const weekly = agencyPeriod('2026-09-21', '2026-09-27', 'weekly');
+assert.equal(weekly.priorStart, '2026-09-14');
+assert.equal(weekly.priorEnd, '2026-09-20');
+assert.equal(weekly.periodLabel, 'September 21–27, 2026');
+assert.equal(agencyPeriod('2026-09-28', '2026-10-04', 'weekly').periodLabel, 'September 28–October 4, 2026');
+
 console.log('PASS agency period: MTD, short prior month, year boundary, existing completed-month comparison');

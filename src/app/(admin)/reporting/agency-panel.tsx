@@ -17,6 +17,7 @@ import { Loader2, Building2, Check, Copy, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { NavigationLink } from '@/components/ui/navigation-link';
 
 /** Last 12 complete months, newest first. */
 function monthChoices(): { value: string; label: string; start: string; end: string }[] {
@@ -142,6 +143,9 @@ export function AgencyPanel() {
           </div>
         </div>
       )}
+      <div className="mt-4 border-t border-border pt-3">
+        <NavigationLink href="/reporting/agency/weekly">Open weekly agency brief</NavigationLink>
+      </div>
     </div>
   );
 }

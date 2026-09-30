@@ -109,7 +109,7 @@ export interface AgencySnapshot {
   periodLabel: string;
   priorLabel: string;
   /** Absent on reports frozen before month-to-date was available. */
-  periodKind?: 'mtd' | 'complete-month';
+  periodKind?: 'mtd' | 'complete-month' | 'weekly';
   totals: {
     clients: number;
     storeGmv: number;
@@ -326,8 +326,11 @@ async function loadRosterQuality(supabase: Admin, context: ClientReportContext):
   return out;
 }
 
-export async function buildAgencySnapshot(start: string, end: string, context: ClientReportContext, periodKind: 'mtd' | 'complete-month' = 'complete-month'): Promise<AgencySnapshot> {
-  await ensureAgreementPeriods({tenantId:context.tenantId,brandIds:context.registry.rows.map(b=>b.id)});
+export async function buildAgencySnapshot(start: string, end: string, context: ClientReportContext, periodKind: 'mtd' | 'complete-month' | 'weekly' = 'complete-month'): Promise<AgencySnapshot> {
+  // The weekly brief does not display commitments and is read-only.
+  if (periodKind !== 'weekly') {
+    await ensureAgreementPeriods({tenantId:context.tenantId,brandIds:context.registry.rows.map(b=>b.id)});
+  }
   const supabase = await createAdminClient();
 
   // Prior period is the SAME length ending the day before this one starts, so
@@ -344,8 +347,8 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
     }),
     Promise.resolve(context.registry),
     findGaps(supabase, start, end, context),
-    periodKind === 'mtd' ? Promise.resolve(undefined) : buildTrend(supabase, e, context),
-    loadInvoices(supabase, start, context),
+    periodKind === 'complete-month' ? buildTrend(supabase, e, context) : Promise.resolve(undefined),
+    periodKind === 'weekly' ? Promise.resolve(new Map<string, { total: number; count: number }>()) : loadInvoices(supabase, start, context),
     loadRosterQuality(supabase, context),
   ]);
   if (portfolio.error) {
@@ -384,7 +387,7 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
       sharePts: sharePct !== null && priorSharePct !== null && priorRosterGmv > 0 ? sharePct - priorSharePct : null,
       storeMomPct: priorStoreGmv > 0 ? ((storeGmv - priorStoreGmv) / priorStoreGmv) * 100 : null,
       // A partial month's GMV against a full monthly commitment is not ROI.
-      returnX: periodKind === 'mtd' ? null : committedRetainer > 0 ? rosterGmv / committedRetainer : null,
+      returnX: periodKind !== 'complete-month' ? null : committedRetainer > 0 ? rosterGmv / committedRetainer : null,
       invoiced: inv ? inv.total : null,
       invoiceCount: inv ? inv.count : 0,
       noHandle: quality.get(slug) ?? 0,
@@ -411,7 +414,9 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
       }
     : undefined;
   const caveats = [
-    ...(periodKind === 'mtd' ? [
+    ...(periodKind === 'weekly' ? [
+      'Weekly GMV compares matched seven-day windows. Monthly retainer commitments and return multiples are omitted from this brief.',
+    ] : periodKind === 'mtd' ? [
       'This is a partial month through the latest recorded day. The prior comparison uses the same calendar dates last month; monthly retainer commitments are shown in full, and return multiples are withheld until the month is complete.',
       ...(period.shorterPrior ? ['The prior month was shorter, so its comparison has fewer days.'] : []),
     ] : []),
