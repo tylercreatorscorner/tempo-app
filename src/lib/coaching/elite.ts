@@ -25,5 +25,5 @@ export function compareWeeks(current: ReturnType<typeof summarizeWeek>, previous
     : current.gmv.days < 7 || current.posts.days < 7 ? 'Coverage incomplete' : 'Steady activity';
   return { gmv, posts, signal };
 }
-export type EliteRow = { id: string; name: string; avatar: string | null; current: ReturnType<typeof summarizeWeek>; previous: ReturnType<typeof summarizeWeek>; change: ReturnType<typeof compareWeeks>; days: HistoryDay[]; unavailable: boolean };
-export type EliteBrief = { brand: string; week: string; end: string; previousStart: string; rows: EliteRow[]; unmatched: number };
+export type EliteRow = { id: string; brand: string; brandName: string; name: string; avatar: string | null; current: ReturnType<typeof summarizeWeek>; previous: ReturnType<typeof summarizeWeek>; change: ReturnType<typeof compareWeeks>; days: HistoryDay[]; unavailable: boolean };
+export type EliteBrief = { selection: string; brands: { slug: string; name: string }[]; week: string; end: string; previousStart: string; rows: EliteRow[]; unmatched: number };
