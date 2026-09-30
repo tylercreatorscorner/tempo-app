@@ -970,6 +970,7 @@ function FullRosterTable({
           Every creator we run for you, sorted by what they earned this period.{' '}
           <b className="text-[#171a33]">{num(g.roster.affiliateOnly)}</b> of your roster are
           affiliate-only &mdash; commission, with no post requirement, so they carry no posting target.
+          {' '}Partnership dates are the earliest recorded in Tempo; older records may have been backfilled.
         </p>
         {/* Downloads the FULL list, including the dormant rows folded behind
             the disclosure below. Hiding them is a density decision, not a

@@ -30,6 +30,13 @@ function num(n: number): string {
   return Math.round(n).toLocaleString('en-US');
 }
 
+function dateLabel(value: string | null | undefined): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  return new Date(`${value}T12:00:00Z`).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  });
+}
+
 function handleOf(name: string): string {
   return name.trim().replace(/^@+/, '').toLowerCase();
 }
@@ -70,7 +77,7 @@ function CreatorRows({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-[13px]">
+      <table className="w-full min-w-[760px] border-collapse text-[13px]">
         <thead>
           {/* Every column but the two identity ones is nowrap. "19 / 30" was
               breaking across two lines, and a wrapped number reads as two
@@ -80,7 +87,7 @@ function CreatorRows({
             <th className={TH_L}>Creator</th>
             <th className={TH_L}>TikTok</th>
             <th className={`${TH_L} whitespace-nowrap`}>Agreement</th>
-            <th className={`${TH_R} whitespace-nowrap`}>Agreed</th>
+            <th className={`${TH_L} whitespace-nowrap`}>Agreed terms</th>
             {showLevel && <th className={`${TH_L} whitespace-nowrap`}>Level</th>}
             <th className={`${TH_R} whitespace-nowrap`}>{judgeQuota ? 'Posts' : 'Posts this period'}</th>
             {showEarned && <th className={`${TH_R} whitespace-nowrap`}>Earned</th>}
@@ -97,6 +104,9 @@ function CreatorRows({
             const extras = (c.handles ?? [])
               .map((x) => handleOf(x))
               .filter((x) => x && x !== h);
+            const partnershipStart = dateLabel(c.ccStartDate);
+            const termStart = dateLabel(c.agreement?.periodStart);
+            const termEnd = dateLabel(c.agreement?.periodEnd);
             return (
               <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${muted ? 'opacity-70' : ''}`}>
                 {/* Identity: the person's name, falling back to the handle
@@ -173,15 +183,37 @@ function CreatorRows({
                   ) : (
                     <span className="whitespace-nowrap font-semibold">Retainer</span>
                   )}
-                  {c.agreement?.periodStart && <small className="block text-[10px] text-[#6b7191]">{c.agreement.periodStart} to {c.agreement.periodEnd}</small>}
                   {c.agreement && !c.agreement.reportPeriodComparable && <small className="block text-[10px] text-[#6b7191]">Payment requires agreement-period review</small>}
                 </td>
-                {/* Blank for affiliate-only: there is no agreed amount, and a
-                    $0 would read as "we agreed zero" rather than "n/a". */}
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
-                  {!c.departed && !c.isAffiliate && c.retainer > 0
-                    ? <>{money(c.retainer)}<span className="text-[#8a8fb0]">{c.agreement ? "/period" : "/mo"}</span></>
-                    : <span className="text-[#b9bcd0]">&mdash;</span>}
+                {/* Terms stay visible in both weekly and monthly reports. A
+                    weekly post count is never judged against this full-month
+                    or full-agreement commitment. */}
+                <td className="min-w-[190px] px-4 py-2.5 align-top tabular-nums text-[#33375c]">
+                  {!c.departed && !c.isAffiliate && c.retainer > 0 ? (
+                    <>
+                      <span className="block whitespace-nowrap font-semibold text-[#171a33]">
+                        {money(c.retainer)}<span className="font-normal text-[#8a8fb0]">{c.agreement ? '/term' : '/mo'}</span>
+                      </span>
+                      <span className="block whitespace-nowrap text-[11px] text-[#6b7191]">
+                        {c.quota != null
+                          ? `${num(c.quota)} posts/${c.agreement ? 'term' : 'month'}`
+                          : 'Post target not recorded'}
+                      </span>
+                    </>
+                  ) : null}
+                  {partnershipStart && (
+                    <span className="block whitespace-nowrap text-[11px] text-[#6b7191]" title="Earliest recorded partnership date in Tempo; older records may be backfilled.">
+                      Partner since {partnershipStart}
+                    </span>
+                  )}
+                  {termStart && termEnd && (
+                    <span className="block whitespace-nowrap text-[11px] text-[#6b7191]">
+                      Term {termStart} to {termEnd}
+                    </span>
+                  )}
+                  {!partnershipStart && !termStart && (
+                    <span className="block text-[11px] text-[#8a8fb0]">Partnership date not recorded</span>
+                  )}
                 </td>
                 {showLevel && (
                   <td className="whitespace-nowrap px-4 py-2.5 text-[#6b7093]">

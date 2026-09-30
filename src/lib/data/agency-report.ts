@@ -44,6 +44,7 @@ import { ensureAgreementPeriods } from "@/lib/agreements/renewals";
 import { createAdminClient } from '@/lib/supabase/server';
 import type { ClientReportContext } from '@/lib/auth/client-report-access';
 import { brandColor } from '@/lib/data/brand-registry-core';
+import { agencyPeriod } from '@/lib/data/agency-period';
 
 export interface AgencyBrandRow {
   slug: string;
@@ -107,6 +108,8 @@ export interface AgencySnapshot {
   periodEnd: string;
   periodLabel: string;
   priorLabel: string;
+  /** Absent on reports frozen before month-to-date was available. */
+  periodKind?: 'mtd' | 'complete-month';
   totals: {
     clients: number;
     storeGmv: number;
@@ -152,10 +155,6 @@ const num = (v: unknown): number => {
 };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
-
-function monthLabel(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-}
 
 type Admin = Awaited<ReturnType<typeof createAdminClient>>;
 
@@ -327,28 +326,25 @@ async function loadRosterQuality(supabase: Admin, context: ClientReportContext):
   return out;
 }
 
-export async function buildAgencySnapshot(start: string, end: string, context: ClientReportContext): Promise<AgencySnapshot> {
+export async function buildAgencySnapshot(start: string, end: string, context: ClientReportContext, periodKind: 'mtd' | 'complete-month' = 'complete-month'): Promise<AgencySnapshot> {
   await ensureAgreementPeriods({tenantId:context.tenantId,brandIds:context.registry.rows.map(b=>b.id)});
   const supabase = await createAdminClient();
 
   // Prior period is the SAME length ending the day before this one starts, so
   // a month compares against a month and a fortnight against a fortnight.
-  const s = new Date(`${start}T00:00:00Z`);
   const e = new Date(`${end}T00:00:00Z`);
-  const days = Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1;
-  const priorEnd = new Date(s.getTime() - 86_400_000);
-  const priorStart = new Date(priorEnd.getTime() - (days - 1) * 86_400_000);
+  const period = agencyPeriod(start, end, periodKind);
 
   const [portfolio, reg, gapCaveats, trendRaw, invoices, quality] = await Promise.all([
     supabase.rpc('get_agency_portfolio_workspace', { p_tenant_id: context.tenantId,
       p_start: start,
       p_end: end,
-      p_prior_start: iso(priorStart),
-      p_prior_end: iso(priorEnd),
+      p_prior_start: period.priorStart,
+      p_prior_end: period.priorEnd,
     }),
     Promise.resolve(context.registry),
     findGaps(supabase, start, end, context),
-    buildTrend(supabase, e, context),
+    periodKind === 'mtd' ? Promise.resolve(undefined) : buildTrend(supabase, e, context),
     loadInvoices(supabase, start, context),
     loadRosterQuality(supabase, context),
   ]);
@@ -387,7 +383,8 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
       // this period did not gain share, it arrived.
       sharePts: sharePct !== null && priorSharePct !== null && priorRosterGmv > 0 ? sharePct - priorSharePct : null,
       storeMomPct: priorStoreGmv > 0 ? ((storeGmv - priorStoreGmv) / priorStoreGmv) * 100 : null,
-      returnX: committedRetainer > 0 ? rosterGmv / committedRetainer : null,
+      // A partial month's GMV against a full monthly commitment is not ROI.
+      returnX: periodKind === 'mtd' ? null : committedRetainer > 0 ? rosterGmv / committedRetainer : null,
       invoiced: inv ? inv.total : null,
       invoiceCount: inv ? inv.count : 0,
       noHandle: quality.get(slug) ?? 0,
@@ -413,15 +410,22 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
         gapMonths: [...new Set(trendRaw.gapSlugs.map((g) => g.month))],
       }
     : undefined;
-  const caveats = [...gapCaveats, ...trendGaps];
+  const caveats = [
+    ...(periodKind === 'mtd' ? [
+      'This is a partial month through the latest recorded day. The prior comparison uses the same calendar dates last month; monthly retainer commitments are shown in full, and return multiples are withheld until the month is complete.',
+      ...(period.shorterPrior ? ['The prior month was shorter, so its comparison has fewer days.'] : []),
+    ] : []),
+    ...gapCaveats, ...trendGaps,
+  ];
 
   return {
     v: 2,
     generatedAt: new Date().toISOString(),
     periodStart: start,
     periodEnd: end,
-    periodLabel: monthLabel(e),
-    priorLabel: monthLabel(priorEnd),
+    periodLabel: period.periodLabel,
+    priorLabel: period.priorLabel,
+    periodKind,
     totals: {
       clients: num(t.clients),
       storeGmv: num(t.storeGmv),

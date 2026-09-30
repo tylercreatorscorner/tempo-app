@@ -28,21 +28,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  let body: { start?: unknown; end?: unknown };
+  let body: { start?: unknown; end?: unknown; period?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const start = typeof body.start === 'string' && ISO.test(body.start) ? body.start : null;
-  const end = typeof body.end === 'string' && ISO.test(body.end) ? body.end : null;
+  const mtd = body.period === 'mtd';
+  if (body.period !== undefined && !mtd) {
+    return NextResponse.json({ error: 'Unsupported reporting period.' }, { status: 400 });
+  }
+  let start = typeof body.start === 'string' && ISO.test(body.start) ? body.start : null;
+  let end = typeof body.end === 'string' && ISO.test(body.end) ? body.end : null;
+  const context = await clientReportContext(scope, 'all');
+  if (mtd) {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const part = (kind: string) => parts.find(p => p.type === kind)?.value ?? '';
+    const today = `${part('year')}-${part('month')}-${part('day')}`;
+    start = `${today.slice(0, 7)}-01`;
+    const admin = await createAdminClient();
+    const latest = await admin.from('creator_performance').select('report_date')
+      .eq('tenant_id', context.tenantId).eq('period_type', 'daily')
+      .gte('report_date', start).lte('report_date', today)
+      .order('report_date', { ascending: false }).limit(1);
+    if (latest.error) return NextResponse.json({ error: 'Could not check the latest recorded day.' }, { status: 500 });
+    end = latest.data?.[0]?.report_date ?? null;
+    if (!end) return NextResponse.json({ error: 'No agency data has been recorded for this month yet.' }, { status: 409 });
+  }
   if (!start || !end || start > end) {
     return NextResponse.json({ error: 'Send `start` and `end` as YYYY-MM-DD, start first.' }, { status: 400 });
   }
 
   try {
-    const snapshot = await buildAgencySnapshot(start, end, await clientReportContext(scope, 'all'));
+    const snapshot = await buildAgencySnapshot(start, end, context, mtd ? 'mtd' : 'complete-month');
 
     const session = await createClient();
     const { data: userData } = await session.auth.getUser();

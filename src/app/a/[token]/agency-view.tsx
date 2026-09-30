@@ -215,7 +215,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
   };
   const byShare = [...moved].sort((a, b) => groupOf(a) - groupOf(b) || Math.abs(b.swing) - Math.abs(a.swing));
 
-  const perDollar = t.committedRetainer > 0 ? t.rosterGmv / t.committedRetainer : null;
+  const perDollar = s.periodKind === 'mtd' ? null : t.committedRetainer > 0 ? t.rosterGmv / t.committedRetainer : null;
 
   const watch: WatchRow[] = isV2
     ? s.brands
@@ -458,12 +458,16 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
               <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
                 {watch.length === 0 ? (
                   <p className="text-[14px] text-[#5c6183]">
-                    No client returns under 1.0x on committed retainer, and none lost ground on share.
+                    {s.periodKind === 'mtd'
+                      ? 'No client lost ground on managed share against the same dates last month.'
+                      : 'No client returns under 1.0x on committed retainer, and none lost ground on share.'}
                   </p>
                 ) : (
                   <>
                     <p className="mb-1 text-[13.5px] leading-[1.6] text-[#5c6183]">
-                      Clients under 1.0x on committed retainer, or that lost ground on share. Largest commitment first.
+                      {s.periodKind === 'mtd'
+                        ? 'Clients that lost managed share against the same dates last month. Largest commitment first.'
+                        : 'Clients under 1.0x on committed retainer, or that lost ground on share. Largest commitment first.'}
                     </p>
                     {watch.map(({ b, returns, share: sh }) => {
                       const swing = b.priorRosterGmv > 0 ? b.rosterGmv - b.priorRosterGmv : null;
@@ -746,8 +750,9 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
             </div>
             <p className="mt-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
               On retainer / signed counts creators on the roster today, not at the end of the period.
-              {isV2 &&
+              {isV2 && s.periodKind !== 'mtd' &&
                 ` GMV per $1 divides ${s.periodLabel} GMV by the full monthly retainer of everyone on the roster as of ${preparedOn}; under 1.0x is marked red.`}
+              {s.periodKind === 'mtd' && ' Return multiples are withheld while the month is incomplete.'}
             </p>
           </div>
         </div>

@@ -66,9 +66,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     return NextResponse.json({ error: 'This report has no creator detail.' }, { status: 404 });
   }
 
-  // The quota is MONTHLY. Only pair it with a count covering that month, for
-  // the same reason the on-page table stopped doing so: over a week "0 / 30" is
-  // a unit mismatch, not a shortfall.
+  // Keep the agreed target in its own column for every report. Only the
+  // published count describes the report window; a weekly count must never
+  // be presented as progress against a full-month commitment.
   const start = report.startDate;
   const end = report.endDate;
   const lastOfMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
@@ -87,12 +87,16 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     // spreadsheet is ordinary; a column of dashes on a client-facing page is
     // not, which is why the rendered table gates on coverage and this does not.
     'Level',
-    hasAgreements ? 'Agreement fee' : 'Monthly retainer',
-    ...(windowIsMonth ? ['Posts published', 'Monthly post target'] : ['Posts this period']),
+    'Retainer rate',
+    'Retainer period',
+    'Agreed posts',
+    'Post commitment period',
+    'Partnership start date',
+    windowIsMonth ? 'Posts published' : 'Posts this period',
     'Videos earning',
     'Orders',
     'GMV',
-    ...(hasAgreements ? ['Agreement period start', 'Agreement period end', 'Agreement post requirement', 'Agreement revision', 'Review required'] : []),
+    ...(hasAgreements ? ['Agreement period start', 'Agreement period end', 'Agreement revision', 'Review required'] : []),
   ];
 
   const rows = creators.map((c) => {
@@ -110,13 +114,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       // Blank, never 0: affiliate-only creators have no agreed amount, and a
       // zero would read as a negotiated figure.
       !c.departed && !c.isAffiliate && c.retainer > 0 ? c.retainer.toFixed(2) : '',
-      ...(windowIsMonth
-        ? [c.postsPublished, c.agreement && !c.agreement.reportPeriodComparable ? '' : c.quota ?? '']
-        : [c.postsPublished]),
+      !c.departed && !c.isAffiliate && c.retainer > 0 ? (c.agreement ? 'Agreement term' : 'Month') : '',
+      !c.departed && !c.isAffiliate ? c.quota ?? '' : '',
+      !c.departed && !c.isAffiliate && c.quota != null ? (c.agreement ? 'Agreement term' : 'Month') : '',
+      c.ccStartDate ?? '',
+      c.postsPublished,
       c.videosEarning ?? '',
       c.orders,
       c.gmv.toFixed(2),
-      ...(hasAgreements ? [c.agreement?.periodStart ?? '', c.agreement?.periodEnd ?? '', c.agreement?.quota ?? '', c.agreement?.revision ?? '', c.agreement && !c.agreement.reportPeriodComparable ? 'Agreement period / payment rules' : ''] : []),
+      ...(hasAgreements ? [c.agreement?.periodStart ?? '', c.agreement?.periodEnd ?? '', c.agreement?.revision ?? '', c.agreement && !c.agreement.reportPeriodComparable ? 'Agreement period / payment rules' : ''] : []),
     ];
   });
 
