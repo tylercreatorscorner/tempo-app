@@ -7,9 +7,9 @@
  * same job (freeze a period, get a link to send) for a different audience, and
  * a separate destination for one button would be a nav row nobody remembers.
  *
- * ⚠️ Defaults to LAST COMPLETE MONTH, never the current one. A portfolio report
- * for a month still running invites comparison against a full prior month and
- * reads as a collapse; the client reports learned the same lesson.
+ * Defaults to the last complete month. Month to date is an explicit choice,
+ * anchored server-side to the latest recorded day and compared with the same
+ * elapsed portion of the prior month.
  */
 
 import { useState } from 'react';
@@ -50,15 +50,20 @@ export function AgencyPanel() {
   const [copied, setCopied] = useState(false);
 
   const chosen = months.find((x) => x.value === month);
+  const isMtd = month === 'mtd';
+  const options = [
+    { value: 'mtd', label: 'Month to date · latest recorded day' },
+    ...months,
+  ];
 
   async function generate() {
-    if (!chosen) return;
+    if (!chosen && !isMtd) return;
     setBusy(true); setError(null); setMade(null);
     try {
       const res = await fetch('/api/agency-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start: chosen.start, end: chosen.end }),
+        body: JSON.stringify(isMtd ? { period: 'mtd' } : { start: chosen!.start, end: chosen!.end }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -93,13 +98,14 @@ export function AgencyPanel() {
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
-          <Label htmlFor="ag-month">Month</Label>
-          <ChoiceMenu compact label="Agency reporting month" value={month} disabled={busy} onChange={value => { setMonth(value); setMade(null); }} options={months} />
+          <Label htmlFor="ag-month">Period</Label>
+          <ChoiceMenu compact label="Agency reporting period" value={month} disabled={busy} onChange={value => { setMonth(value); setMade(null); }} options={options} />
         </div>
-        <Button onClick={generate} disabled={busy || !chosen} className="shrink-0">
+        <Button onClick={generate} disabled={busy || (!chosen && !isMtd)} className="shrink-0">
           {busy ? <><Loader2 className="animate-spin" />Building…</> : <>Generate link</>}
         </Button>
       </div>
+      {isMtd && <p className="mt-2 text-[12px] text-muted-foreground">Uses the latest recorded day in the current month. Compared with the same dates last month; monthly retainer commitments are shown separately.</p>}
 
       {error && (
         <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12.5px] text-red-600">

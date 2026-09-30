@@ -342,6 +342,28 @@ function fmtWeekEnd(iso: string): string {
     month: 'short', day: 'numeric', timeZone: 'UTC',
   });
 }
+function fmtCompactDate(iso: string | null | undefined): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
+  return match ? `${Number(match[2])}/${Number(match[3])}/${match[1].slice(2)}` : null;
+}
+function creatorTermsLabel(c: NonNullable<BrandClientReportData['granular']>['creators'][number]): string {
+  const lines: string[] = [];
+  if (c.departed) lines.push('Left');
+  else if (c.isAffiliate) lines.push('Affiliate');
+  else if (c.retainer > 0) {
+    lines.push(`${fmtCurrency(c.retainer)}/${c.agreement ? 'term' : 'mo'}`);
+    lines.push(c.quota != null
+      ? `${fmtNumber(c.quota)} posts/${c.agreement ? 'term' : 'mo'}`
+      : 'Post target not recorded');
+  }
+  const since = fmtCompactDate(c.ccStartDate);
+  if (since) lines.push(`Partner since ${since}`);
+  const termStart = fmtCompactDate(c.agreement?.periodStart);
+  const termEnd = fmtCompactDate(c.agreement?.periodEnd);
+  if (termStart && termEnd) lines.push(`Term ${termStart} to ${termEnd}`);
+  if (!since && !termStart) lines.push('Date not recorded');
+  return lines.join('\n');
+}
 function fmtPct(n: number, decimals = 0): string { return (n || 0).toFixed(decimals) + '%'; }
 function medal(rank: number): string {
   // Ranks render as "1." "2." "3." via the `medal(i) || \`${i+1}.\`` callers.
@@ -1441,7 +1463,8 @@ export function BrandClientReportPDF({
             </Text>
             <Text style={[styles.gStatNote, { marginBottom: 6 }]}>
               {fmtNumber(gran.roster.affiliateOnly)} are affiliate-only: they take commission and carry
-              no post requirement, so no target is shown for them.
+              no post requirement, so no target is shown for them. Partnership dates are the earliest
+              recorded in Tempo; older records may have been backfilled.
             </Text>
             {/* The PDF lists only creators who posted or sold. On Lemme that is
                 48 of 142 and turns six pages of mostly-blank rows into two.
@@ -1454,15 +1477,14 @@ export function BrandClientReportPDF({
                 activity and are listed in full on the web version of this report.
               </Text>
             )}
-            {/* Flex values sum to 8.8 and mirror the row below EXACTLY. A header
+            {/* Flex values mirror the row below EXACTLY. A header
                 whose flex differs from its rows misaligns silently in @react-pdf
                 — there is no layout error, the columns just drift. */}
             <View style={styles.gHead} wrap={false} fixed>
               <Text style={[styles.gHeadCell, { flex: 1.7 }]}>CREATOR</Text>
               <Text style={[styles.gHeadCell, { flex: 1.7 }]}>TIKTOK</Text>
-              <Text style={[styles.gHeadCell, { flex: 1.3 }]}>AGREEMENT</Text>
+              <Text style={[styles.gHeadCell, { flex: 2.4 }]}>AGREED TERMS</Text>
               {showLevel && <Text style={[styles.gHeadCell, { flex: 1.1 }]}>LEVEL</Text>}
-              <Text style={[styles.gHeadCell, { flex: 1.1, textAlign: 'right' }]}>AGREED</Text>
               <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>
                 {wholeMonth ? 'POSTS' : 'POSTS THIS PERIOD'}
               </Text>
@@ -1481,19 +1503,14 @@ export function BrandClientReportPDF({
                     ? `@${c.handle.replace(/^@+/, '')}${(c.handleCount ?? 0) > 1 ? ` +${(c.handleCount ?? 1) - 1}` : ''}`
                     : '\u2014'}
                 </Text>
-                <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 1.3 }]}>
-                  {c.departed ? 'Left' : c.isAffiliate ? 'Affiliate' : 'Retainer'}
+                <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 2.4 }]}>
+                  {creatorTermsLabel(c)}
                 </Text>
                 {showLevel && (
                   <Text style={[styles.gCellMuted, { flex: 1.1 }]}>
                     {c.role?.trim() ? c.role : '\u2014'}
                   </Text>
                 )}
-                {/* Em dash, not $0: there is no agreed amount for affiliate-only,
-                    and a zero would read as a negotiated figure. */}
-                <Text style={[styles.gCellMuted, { flex: 1.1, textAlign: 'right' }]}>
-                  {!c.departed && !c.isAffiliate && c.retainer > 0 ? `${fmtCurrency(c.retainer)}/${c.agreement ? "period" : "mo"}` : '\u2014'}
-                </Text>
                 {/* The monthly target belongs beside a monthly count only.
                     Over a week "0 / 30" is a unit mismatch, not a shortfall. */}
                 <Text style={[styles.gCellMuted, { flex: 0.9, textAlign: 'right' }]}>
