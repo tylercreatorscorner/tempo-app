@@ -1,0 +1,10 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+html { font-family: Inter, sans-serif; }
+body { margin: 0; background: var(--background); }
+.fixtureToolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 13px; padding: 11px 20px; font-size: 10px; background: var(--card); color: var(--foreground); border-bottom: 1px solid var(--border); }
+.fixtureToolbar strong { color: var(--primary); margin-right: auto; }
+.fixtureToolbar button { cursor: pointer; padding: 3px 5px; }
+.fixtureMain { padding: 32px; max-width: 1450px; margin: 0 auto; }
+@media (max-width: 760px) { .fixtureMain { padding: 23px 16px; } }

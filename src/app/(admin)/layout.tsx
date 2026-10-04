@@ -5,6 +5,7 @@ import { TenantSwitcherServer } from '@/components/layout/tenant-switcher-server
 import { ViewAsBannerServer } from '@/components/layout/view-as-banner-server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { can, SCREENS } from '@/lib/auth/permissions';
+import { canAccessAgency } from '@/lib/agency/access';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Impersonation-aware finance visibility for the sidebar: when "viewing as" a
@@ -31,6 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   navPerms.coaching = Boolean(scope && !scope.impersonating
     && ['owner', 'admin', 'manager', 'coach'].includes(scope.role)
     && can(scope, 'reporting', 'read'));
+  navPerms.agency = canAccessAgency(scope);
   // Fail CLOSED on finance. getWorkspaceScope returns null precisely when the
   // user can't be identified as a Workspace user (no profile, no tenant, a
   // portal role, an unknown role, or a failed profile read) — and `?? true`

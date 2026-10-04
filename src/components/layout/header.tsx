@@ -27,6 +27,10 @@ interface HeaderProps {
 // Invoicing, Products, Team, Upload, Workflows…) displayed the wrong page name
 // in the breadcrumb. The tab consolidation added the routes but not the map.
 const BREADCRUMB_MAP: Record<string, string> = {
+  '/agency': 'Agency overview',
+  '/agency/clients': 'Agency · Clients',
+  '/agency/revenue': 'Agency · Revenue',
+  '/agency/reports': 'Agency · Reports',
   '/': 'Dashboard',
   '/dashboard': 'Dashboard',
   // Creators
