@@ -23,14 +23,36 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   if (!anchor || anchor.revoked_at || !anchor.tenant_id || !anchor.brand_slug || anchor.brand_slug === 'all' || !['weekly','monthly'].includes(anchor.report_type)) {
     return NextResponse.json({ error: 'Report history is unavailable for this link.' }, { status: 404, headers });
   }
-  const { data, error } = await admin.from('client_reports')
-    .select('token,period_label,period_start,period_end,created_at')
-    .eq('tenant_id', anchor.tenant_id).eq('brand_slug', anchor.brand_slug)
-    .eq('report_type', anchor.report_type).is('revoked_at', null)
-    .order('period_end', { ascending: false }).order('period_start', { ascending: false })
-    .order('created_at', { ascending: false }).order('id', { ascending: false })
-    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  if (error) return NextResponse.json({ error: 'Report history is temporarily unavailable.' }, { status: 503, headers });
-  const rows = data ?? [];
-  return NextResponse.json({ reports: rows.slice(0, PAGE_SIZE), nextPage: rows.length > PAGE_SIZE ? page + 1 : null }, { headers });
+  // Group before paginating: multiple snapshots of August must not become
+  // multiple client-facing August choices, including across database batches.
+  const reports: { token: string; period_label: string; period_start: string; period_end: string; created_at: string }[] = [];
+  const seen = new Set<string>();
+  const batchSize = 200;
+  const needed = (page + 1) * PAGE_SIZE + 1;
+  for (let offset = 0; offset < 10000; offset += batchSize) {
+    const { data, error } = await admin.from('client_reports')
+      .select('token,period_label,period_start,period_end,created_at')
+      .eq('tenant_id', anchor.tenant_id).eq('brand_slug', anchor.brand_slug)
+      .eq('report_type', anchor.report_type).is('revoked_at', null)
+      .order('period_end', { ascending: false }).order('period_start', { ascending: false })
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .range(offset, offset + batchSize - 1);
+    if (error) return NextResponse.json({ error: 'Report history is temporarily unavailable.' }, { status: 503, headers });
+    for (const report of data ?? []) {
+      const period = `${report.period_start}:${report.period_end}`;
+      if (!seen.has(period)) {
+        seen.add(period);
+        reports.push(report);
+      }
+    }
+    if (reports.length >= needed || (data ?? []).length < batchSize) {
+      return NextResponse.json({
+        reports: reports.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+        nextPage: reports.length > (page + 1) * PAGE_SIZE ? page + 1 : null,
+      }, { headers });
+    }
+  }
+  // Never silently return an incomplete history if an unusually large archive
+  // exceeds the bounded scan. Saved report links remain independently usable.
+  return NextResponse.json({ error: 'Report history is temporarily unavailable.' }, { status: 503, headers });
 }
