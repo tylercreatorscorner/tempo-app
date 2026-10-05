@@ -1,0 +1,78 @@
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { PGlite } from '@electric-sql/pglite';
+const db = new PGlite();
+const legacyBrand = 'b0000000-0000-0000-0000-000000000001';
+const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
+create table tenants(id uuid primary key);
+create table brands_v2(id uuid primary key, tenant_id uuid, parent_brand_id uuid);
+create table user_profiles(user_id uuid primary key, tenant_id uuid, role text);
+insert into tenants values ('${id(1)}'),('${id(2)}');
+insert into brands_v2 values ('${legacyBrand}','${id(1)}',null),('${id(10)}','${id(1)}',null),('${id(11)}','${id(2)}',null),('${id(12)}','${id(1)}',null),('${id(13)}','${id(1)}','${id(10)}');
+insert into user_profiles values ('${id(20)}','${id(1)}','owner'),('${id(21)}','${id(2)}','admin'),('${id(22)}','${id(1)}','manager');
+grant usage on schema public to service_role;
+grant select on all tables in schema public to service_role;
+grant update on brands_v2 to service_role;`);
+const migration = readdirSync('supabase/migrations').find(name => name.endsWith('_agency_business_clients.sql'));
+await db.exec(readFileSync(`supabase/migrations/${migration}`, 'utf8'));
+const legacyFix = readdirSync('supabase/migrations').find(name => name.endsWith('_agency_business_legacy_brand_ids.sql'));
+await db.exec(readFileSync(`supabase/migrations/${legacyFix}`, 'utf8'));
+const save = (payload, tenant = id(1), actor = id(20)) => db.query('select agency_business_save_client($1,$2,$3) as value', [tenant, actor, JSON.stringify(payload)]).then(result => result.rows[0].value);
+const list = (tenant = id(1)) => db.query('select agency_business_list_clients($1) as value', [tenant]).then(result => result.rows[0].value);
+const draft = { expectedRevision: 0, name: 'Client A', brandIds: [id(10)], serviceStart: '2026-01-15', serviceEnd: null, exitReason: null, terms: [] };
+for (const role of ['anon', 'authenticated']) {
+  await db.exec(`set role ${role}`);
+  await assert.rejects(save(draft), /permission denied/);
+  await assert.rejects(list(), /permission denied/);
+  for (const query of ['select * from agency_business_client_revisions', 'delete from agency_business_client_revisions', 'update agency_business_client_revisions set revision=2', `insert into agency_business_client_revisions values('${id(1)}','${id(5)}',1,'${id(20)}','{}')`]) await assert.rejects(db.query(query), /permission denied/);
+  await db.exec('reset role');
+}
+for (const signature of ['agency_business_list_clients(uuid)', 'agency_business_save_client(uuid,uuid,jsonb)']) {
+  const row = (await db.query('select prosecdef from pg_proc where oid=$1::regprocedure', [signature])).rows[0];
+  assert.equal(row.prosecdef, false);
+}
+await db.exec('set role service_role');
+await assert.rejects(save(draft, id(1), id(21)), /Invalid agency scope/);
+await assert.rejects(save(draft, id(1), id(22)), /Invalid agency scope/);
+await assert.rejects(save({ ...draft, brandIds: [id(11)] }), /Invalid agency brands/);
+await assert.rejects(save({ ...draft, brandIds: [id(13)] }), /Invalid agency brands/);
+for (const bad of [{ ...draft, extra: true }, { ...draft, expectedRevision: 0.5 }, { ...draft, serviceStart: '2026-02-30' }, { ...draft, serviceEnd: '2025-01-01', exitReason: 'Exit' }, { ...draft, brandIds: [id(10), id(10)] }, { ...draft, terms: [{ effectiveMonth: '2026-01', feeModel: 'fixed' }] }]) await assert.rejects(save(bad), /Invalid agency/);
+const first = await save(draft);
+assert.equal(first.revision, 1);
+assert.deepEqual(first.terms, []);
+assert.deepEqual(await list(id(2)), []);
+await assert.rejects(save({ ...draft, name: 'Overlapping client' }), /already belongs/);
+const update = { ...draft, id: first.id, expectedRevision: 1, terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 0, revSharePercent: 0, feeModel: 'fixed' }] };
+const second = await save(update);
+assert.equal(second.revision, 2);
+assert.equal(second.terms[0].monthlyRetainer, 0);
+await assert.rejects(save(update), /changed/);
+await assert.rejects(save({ ...update, brandIds: [id(11)] }, id(2), id(21)), /changed/);
+const competing = await Promise.allSettled([save({ ...update, expectedRevision: 2, name: 'Winner one' }), save({ ...update, expectedRevision: 2, name: 'Winner two' })]);
+assert.equal(competing.filter(result => result.status === 'fulfilled').length, 1);
+assert.equal(competing.filter(result => result.status === 'rejected').length, 1);
+// PGlite serializes its connection; this verifies stale competing CAS, not multi-session lock scheduling.
+const winner = competing.find(result => result.status === 'fulfilled').value;
+const exit = await save({ ...update, expectedRevision: 3, serviceEnd: '2026-08-31', exitReason: 'Service completed' });
+assert.equal(exit.revision, 4);
+assert.equal((await list())[0].serviceEnd, '2026-08-31');
+assert.equal((await db.query('select count(*)::int as n from agency_business_client_revisions')).rows[0].n, 4);
+assert.deepEqual((await db.query('select snapshot from agency_business_client_revisions where revision=1')).rows[0].snapshot, first);
+await assert.rejects(db.query('update agency_business_client_revisions set revision=99'), /permission denied/);
+await assert.rejects(db.query('delete from agency_business_client_revisions'), /permission denied/);
+await db.exec('reset role');
+await assert.rejects(db.query('update agency_business_client_revisions set revision=99'), /immutable/);
+await assert.rejects(db.query('delete from agency_business_client_revisions'), /immutable/);
+assert.equal(winner.revision, 3);
+
+console.log('PASS agency SQL: service-only invoker RPCs, tenant/actor/brand scope, strict data, CAS, unique current grouping, immutable revisions and retained exits');
+
+await db.exec('set role service_role');
+const legacyClient = await save({ ...draft, name: 'Legacy brand client', brandIds: [legacyBrand] });
+assert.deepEqual(legacyClient.brandIds, [legacyBrand]);
+await assert.rejects(save({ ...draft, brandIds: ['b0000000-0000-0000-0000-000000000099'] }), /Invalid agency brands/);
+await assert.rejects(save({ ...draft, brandIds: [legacyBrand] }, id(2), id(21)), /Invalid agency brands/);
+await db.exec('reset role');
+
+await db.close();

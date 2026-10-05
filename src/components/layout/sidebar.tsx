@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, UserRoundPlus, Users, PlaySquare, GraduationCap, FileBarChart, MessagesSquare, Hash, Wallet, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
+import { Building2, LayoutDashboard, UserRoundPlus, Users, PlaySquare, GraduationCap, FileBarChart, MessagesSquare, Hash, Wallet, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
@@ -35,6 +35,13 @@ const PRIMARY: Dest[] = [
   { href: '/messages',  label: 'Communications',     icon: MessagesSquare,  match: ['/messages'], screen: 'messages' },
   { href: '/drops',     label: 'Discord',            icon: Hash,            match: ['/drops'], screen: 'messages' },
   { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true, screen: 'earnings' },
+];
+
+const AGENCY: Dest[] = [
+  { href: '/agency', label: 'Overview', icon: LayoutDashboard, match: ['/agency'], exclude: ['/agency/clients', '/agency/revenue', '/agency/reports'] },
+  { href: '/agency/clients', label: 'Clients', icon: Building2, match: ['/agency/clients'] },
+  { href: '/agency/revenue', label: 'Revenue', icon: Wallet, match: ['/agency/revenue'] },
+  { href: '/agency/reports', label: 'Reports', icon: FileBarChart, match: ['/agency/reports'] },
 ];
 
 /**
@@ -87,8 +94,10 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brand = searchParams.get('brand');
+  const agencyAllowed = navPerms?.agency === true;
+  const agencyMode = agencyAllowed && (pathname === '/agency' || pathname.startsWith('/agency/'));
 
-  const withBrand = (href: string) => (brand ? `${href}?brand=${brand}` : href);
+  const withBrand = (href: string) => (brand && !href.startsWith('/agency') ? `${href}?brand=${encodeURIComponent(brand)}` : href);
   const matches = (prefix: string) => pathname === prefix || pathname.startsWith(prefix + '/');
   const isActive = (d: Dest) => d.match.some(matches) && !d.exclude?.some(matches);
   // ⚠️ AND-ed with the old rules, never instead of them: the matrix can hide a
@@ -133,14 +142,19 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
         {collapsed ? <TempoIcon size={26} /> : <TempoLogo size="md" animated />}
       </div>
 
+      {agencyAllowed && <nav aria-label="Workspace mode" className={cn('mx-2 mb-3 rounded-lg border border-border bg-muted/40 p-1', collapsed ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-1')}>
+        {[{ label: 'Brands', href: withBrand('/dashboard'), icon: Users, active: !agencyMode }, { label: 'Agency', href: '/agency', icon: Building2, active: agencyMode }].map(({ label, href, icon: Icon, active }) => <Link key={label} href={href} title={collapsed ? `${label} workspace` : undefined} aria-label={`${label} workspace`} aria-current={active ? 'true' : undefined} className={cn('flex min-h-8 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors', active ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60' : 'text-muted-foreground hover:bg-card/60 hover:text-foreground')}><NavIcon icon={Icon} active={active} />{!collapsed && label}</Link>)}
+      </nav>}
+
       {/* Destinations — one flat list. Settings remains in the account menu. */}
-      <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-1 space-y-0.5">
-        {PRIMARY.filter(visible).map(renderItem)}
+      <nav aria-label={agencyMode ? 'Agency navigation' : 'Brand navigation'} className="flex-1 min-h-0 overflow-y-auto px-2 py-1 space-y-0.5">
+        {(agencyMode ? AGENCY : PRIMARY.filter(visible)).map(renderItem)}
       </nav>
 
       {/* Bottom cluster — brand (expanded only) + collapse toggle. */}
       <div className="border-t border-border px-2 py-2 space-y-2">
-        {!collapsed && <BrandSwitcher />}
+        {!collapsed && !agencyMode && <BrandSwitcher />}
+        {!collapsed && agencyMode && <p className="px-3 py-1 text-[11px] leading-relaxed text-muted-foreground">Internal agency workspace</p>}
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}

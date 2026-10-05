@@ -42,6 +42,7 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
       />
       {/* Drawer — slides in from the left, out to the left */}
       <div
+        onClick={event => { if ((event.target as HTMLElement).closest('a[href]')) onClose(); }}
         className={cn(
           'fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : '-translate-x-full',

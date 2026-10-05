@@ -3,6 +3,7 @@
 import styles from './workspace.module.css';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { NavigationLink } from '@/components/ui/navigation-link';
 import { ArrowLeft } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
@@ -14,19 +15,22 @@ import { FreshnessBanner } from './freshness-banner';
 import { AgencyPanel } from './agency-panel';
 
 export default function ReportingPage() {
+  const params = useSearchParams();
+  const requestedView = params.get('view');
+  const initialView = requestedView === 'agency' || requestedView === 'library' ? requestedView : 'clients';
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   useEffect(() => {
     const reset = () => setWorkspaceVersion(version => version + 1);
     window.addEventListener('workspace-context-changed', reset);
     return () => window.removeEventListener('workspace-context-changed', reset);
   }, []);
-  return <ReportingWorkspace key={workspaceVersion} />;
+  return <ReportingWorkspace key={`${workspaceVersion}:${initialView}`} initialView={initialView} />;
 }
 
-function ReportingWorkspace() {
+function ReportingWorkspace({ initialView }: { initialView: 'clients' | 'agency' | 'library' }) {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [view, setView] = useState<'clients' | 'agency' | 'library'>('clients');
-  const [visited, setVisited] = useState<Set<string>>(() => new Set(['clients']));
+  const [view, setView] = useState<'clients' | 'agency' | 'library'>(initialView);
+  const [visited, setVisited] = useState<Set<string>>(() => new Set([initialView]));
   const [target, setTarget] = useState<{ slug: string; name: string } | null>(null);
   return (
     <div className={`${styles.workspace} space-y-5`}>
@@ -44,7 +48,7 @@ function ReportingWorkspace() {
             ))}
             <Link href="/reporting/coaching" className="whitespace-nowrap px-1 pb-3 text-sm font-medium text-muted-foreground hover:text-foreground">Coaching</Link>
           </nav>
-          <div hidden={view !== 'clients'} className="space-y-4"><FreshnessBanner /><BrandTable refreshKey={refreshKey} onGenerate={(slug, name) => setTarget({ slug, name })} /></div>
+          {visited.has('clients') && <div hidden={view !== 'clients'} className="space-y-4"><FreshnessBanner /><BrandTable refreshKey={refreshKey} onGenerate={(slug, name) => setTarget({ slug, name })} /></div>}
           {visited.has('agency') && <div hidden={view !== 'agency'} className="max-w-3xl space-y-4"><AgencyPanel /><NavigationLink href="/reporting/weekly">Open internal weekly review</NavigationLink></div>}
           {visited.has('library') && <div hidden={view !== 'library'}><SentFeed refreshKey={refreshKey} /></div>}
         </div>
