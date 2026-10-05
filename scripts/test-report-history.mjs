@@ -4,6 +4,10 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { NextRequest, NextResponse } from 'next/server.js';
 const token = 'a'.repeat(24);
+const middleware=readFileSync('src/lib/supabase/middleware.ts','utf8');
+const publicPaths=middleware.match(/const PUBLIC_PATHS = \[([\s\S]*?)\];/)[1];
+assert.ok(publicPaths.includes("'/api/report-history/'"),'Shared history must work without a Tempo session');
+assert.ok(!/^\s*'\/api\/client-reports/m.test(publicPaths),'Internal report management must remain authenticated');
 const base = {tenant_id:'tenant-a',brand_slug:'brand-a',report_type:'weekly',revoked_at:null,period_label:'Sep 13–19',period_start:'2026-09-13',period_end:'2026-09-19',created_at:'2026-09-20T00:00:00Z'};
 let rows=[], fail=false, selects=[];
 function from(){let filters=[],start=0,end=999,fields='';const q={
