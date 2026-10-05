@@ -29,6 +29,11 @@ reset({...owner,permissions:new Set(['reporting:read','earnings:read'])});await 
 for(const [headers,raw,expected]of [[{origin:'https://evil.invalid'},undefined,403],[{'content-type':'text/plain'},undefined,415],[{},'{',400],[{},'x'.repeat(20001),413]]){reset();await status(post(draft,headers,raw),expected);assert.equal(events.length,0);}
 for(const patch of [{tenantId:id(9)},{actorId:id(9)},{calculatedCents:1},{month:'2026-10'},{clientId:'bad'},{expectedRevision:-1}]){reset();await status(post({...draft,...patch}),400);assert.equal(events.length,0);}
 reset();const reviewed=await status(post(),200);assert.equal(reviewed.record.review.reviewedCents,150000);assert.equal(reviewed.evidence.managedGmvCents,1000000);const append=events.find(e=>e.name==='agency_billing_append');assert.equal(append.args.p_actor_id,owner.userId);assert.equal(append.args.p_client_revision,2);
+reset();client.serviceEnd='2026-09-15';client.exitReason='Service ended';
+const manual=await status(post({...draft,expectedCalculatedCents:null,manualReviewedCents:70000,reason:'Agreed fee for partial month'}),200);
+assert.equal(manual.record.review.calculatedCents,null);assert.equal(manual.record.review.reviewedCents,70000);assert.equal(manual.evidence.calculationStatus,'review_required');
+reset();await status(post({...draft,expectedCalculatedCents:null,manualReviewedCents:70000}),400);assert.ok(!events.some(e=>e.name==='agency_billing_append'));
+client.serviceEnd=null;client.exitReason=null;
 reset();gmv=11000;await status(post(),409);assert.ok(!events.some(e=>e.name==='agency_billing_append'));
 reset();gmv=null;await status(post(),400);assert.ok(!events.some(e=>e.name==='agency_billing_append'));
 reset();await status(post({...draft,clientRevision:1}),409);assert.ok(!events.some(e=>e.name==='agency_billing_append'));
