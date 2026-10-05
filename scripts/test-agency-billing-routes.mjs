@@ -24,7 +24,7 @@ const origin='https://fixture.invalid',endpoint=`${origin}/api/agency/billing`;
 const post=(body=draft,headers={},raw)=>route.POST(new NextRequest(endpoint,{method:'POST',headers:{origin,'content-type':'application/json',...headers},body:raw??JSON.stringify(body)}));
 const get=(query='')=>route.GET(new NextRequest(`${endpoint}${query}`));
 async function status(pending,expected){const r=await pending;const body=await r.json();assert.equal(r.status,expected,JSON.stringify(body));assert.equal(r.headers.get('cache-control'),'private, no-store');return body;}
-for(const s of [null,...['manager','coach','brand','viewer'].map(role=>({...owner,role})),{...owner,impersonating:{userId:id(9)}},{...owner,brandScope:{kind:'scoped',brandIds:[id(4)]}},{...owner,canViewFinance:false},{...owner,permissions:new Set()}]){reset(s);await status(get(),s?403:401);await status(post(),s?403:401);assert.equal(events.length,0);}
+for(const s of [null,...['admin','manager','coach','brand','viewer'].map(role=>({...owner,role})),{...owner,impersonating:{userId:id(9)}},{...owner,brandScope:{kind:'scoped',brandIds:[id(4)]}},{...owner,canViewFinance:false},{...owner,permissions:new Set()}]){reset(s);await status(get(),s?403:401);await status(post(),s?403:401);assert.equal(events.length,0);}
 reset({...owner,permissions:new Set(['reporting:read','earnings:read'])});await status(post(),403);assert.equal(events.length,0);assert.equal((await status(get(),200)).canEdit,false);
 for(const [headers,raw,expected]of [[{origin:'https://evil.invalid'},undefined,403],[{'content-type':'text/plain'},undefined,415],[{},'{',400],[{},'x'.repeat(20001),413]]){reset();await status(post(draft,headers,raw),expected);assert.equal(events.length,0);}
 for(const patch of [{tenantId:id(9)},{actorId:id(9)},{calculatedCents:1},{month:'2026-10'},{clientId:'bad'},{expectedRevision:-1}]){reset();await status(post({...draft,...patch}),400);assert.equal(events.length,0);}
@@ -43,3 +43,6 @@ reset();previous=reviewed;const invoice=await status(post({action:'invoice',clie
 reset();previous=invoice;await status(post({action:'receipt',clientId:client.id,month:draft.month,expectedRevision:2,requestId:id(7),reference:'BANK-1',receivedOn:'2026-10-04',amountCents:150001}),400);
 reset();sqlError={code:'PGRST202',message:'missing'};const missing=await status(get(),200);assert.equal(missing.storageReady,false);assert.equal(missing.canEdit,false);
 console.log('PASS agency billing routes: scoped access, origin, payload limits, server evidence, stale calculations, safe retries, immutable invoice amount and unavailable storage.');
+
+for (const designation of ['owner','vp']) {reset({...owner,role:'admin',agencyLeadership:designation});await status(get(),200);}
+reset({...owner,role:'manager',agencyLeadership:'vp'});await status(get(),403);await status(post(),403);assert.equal(events.length,0);

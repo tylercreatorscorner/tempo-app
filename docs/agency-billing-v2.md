@@ -5,7 +5,7 @@ V1 is released through PR #202. V2 starts on a separate branch so new financial 
 ## Delivery order
 
 1. Client readiness: finish actual service dates, end dates/reasons, and effective agency terms. Unknowns remain excluded with coverage labels. Never infer dates from a first sale, import, or archive flag. Quick setup stays available; historical changes use the detailed editor.
-2. Monthly billing review: a row per client and completed service month. Calculated -> Reviewed -> Invoiced -> Partially paid / Paid. May can review the source amount, enter a documented adjustment, and freeze a snapshot. Recording an invoice is distinct from sending it. No automatic emails or payment execution.
+2. Monthly billing review: a row per client and completed service month. Calculated -> Reviewed -> Invoiced -> Partially paid / Paid. An authorized leader can review the source amount, enter a documented adjustment, and freeze a snapshot. Recording an invoice is distinct from sending it. No automatic emails or payment execution.
 3. Invoice and collection history: store external invoice reference, issue/due dates, currency, partial receipts, corrections, and reversals with actor/time. Invoice and payment facts come from accounting records; absence remains unknown. Changes append audit events and do not rewrite a reviewed snapshot.
 4. Leadership view: month-by-month calculated fees, reviewed fees, invoices, and cash receipts shown separately; client starts/exits, churn, and GMV growth by tenure. Each metric names its population and coverage. Cash follows receipt date; invoices follow issue date; reviewed fees follow service month. Team compensation and creator funding remain separate. Contribution after team compensation waits for sourced payout records.
 
@@ -17,7 +17,7 @@ The reviewer never supplies tenant, actor, source GMV, or source fee through a w
 
 ## Access
 
-Keep V1 leadership access unchanged until the billing permissions are implemented. Give accounting specific view/review/invoice/receipt capabilities scoped to the agency; do not make May an administrator to expose this queue. Brand users never see agency financials. Confirm the correct account through the existing team directory before assigning capabilities.
+Agency is restricted to owners and explicitly designated VPs. General Admin, manager, coach, viewer, brand access and finance permissions do not independently grant Agency access. Tenant owners qualify automatically; Admin accounts require a server-managed owner or VP designation in agency_leadership_access. The same predicate controls navigation, direct pages, business APIs and billing APIs. Missing designation storage fails closed. Accounting access is not included in this release.
 
 ## UI
 
@@ -39,4 +39,4 @@ Automated tests cover monetary precision, tenant access, same-origin mutation gu
 
 ### Operational boundaries
 
-Existing leadership access is preserved. Assigning May or another accounting user new agency-finance access is a separate access decision; no existing user is promoted by this build. Historical invoices and receipts must be entered from accounting records. No prior payments are inferred from GMV, calculated fees or a zero balance. Creator funding and team compensation stay outside agency service-fee totals.
+General Admin access to Agency is removed. Assigning May or another accounting user new agency-finance access is a separate access decision; no existing user is promoted by this build. Historical invoices and receipts must be entered from accounting records. No prior payments are inferred from GMV, calculated fees or a zero balance. Creator funding and team compensation stay outside agency service-fee totals.
