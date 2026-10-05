@@ -1,2 +1,2 @@
-import { AgencyWorkspace } from '../workspace';
-export default function AgencyRevenuePage() { return <AgencyWorkspace view="revenue" />; }
+import { BillingWorkspace } from '../billing-workspace';
+export default function AgencyRevenuePage() { return <BillingWorkspace />; }

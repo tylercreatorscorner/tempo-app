@@ -38,9 +38,9 @@
     "test:agreements": "node --import tsx scripts/test-agreement-model.ts && node scripts/test-agreement-ledger-sql.mjs && node scripts/test-agreement-service.mjs && node scripts/test-agreement-spend.mjs && node scripts/test-agreement-renewals.mjs && node scripts/test-creator-agreement-consumers.mjs && node scripts/test-brand-agreement-consumers.mjs && node scripts/test-renewal-agreement-consumers.mjs && node scripts/test-creator-published-count.mjs",
     "test:operations-bridge": "node scripts/test-operations-bridge.mjs && node scripts/test-operations-review.mjs",
     "test:drops": "node scripts/test-drops-route.mjs && node --import tsx scripts/test-drops-board.ts",
-    "test:agency-billing": "node --import tsx scripts/test-agency-billing-model.ts",
+    "test:agency-billing": "node --import tsx scripts/test-agency-billing-model.ts && node scripts/test-agency-billing-routes.mjs && node --import tsx scripts/test-agency-leadership-trends.ts && node scripts/test-agency-billing-sql.mjs && node --import tsx scripts/test-agency-billing-transitions.ts",
     "test:agency": "npm run test:agency-billing && node --import tsx scripts/test-agency-business-model.ts && node scripts/test-agency-business-model-sql.mjs && node scripts/test-agency-business-performance.mjs && node scripts/test-agency-business-routes.mjs",
-    "lint:agency": "eslint src/lib/agency src/app/api/agency \"src/app/(admin)/agency\" scripts/test-agency-business-*.mjs scripts/test-agency-business-model.ts scripts/test-agency-billing-model.ts"
+    "lint:agency": "eslint src/lib/agency src/app/api/agency \"src/app/(admin)/agency\" scripts/test-agency-business-*.mjs scripts/test-agency-business-model.ts scripts/test-agency-billing-model.ts scripts/test-agency-billing-routes.mjs scripts/test-agency-leadership-trends.ts scripts/preview-agency-billing.mjs scripts/design-preview/agency-billing.tsx scripts/test-agency-billing-sql.mjs scripts/test-agency-billing-transitions.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

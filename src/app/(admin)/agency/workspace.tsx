@@ -11,6 +11,7 @@ import { Input, Textarea } from '@/components/ui/input';
 import { calculateServiceRevenue, selectMonthTerms, summarizeClientRetention, summarizeTenureGrowth, type AgencyTerms, type ClientRecord } from '@/lib/agency/model';
 import styles from './agency.module.css';
 import { QuickClientSetup } from './quick-client-setup';
+import { LeadershipTrends } from './leadership-trends';
 
 export type AgencyView = 'overview' | 'clients' | 'revenue';
 export interface AgencyBrand { id: string; slug: string; name: string; logoUrl: string | null; archived: boolean }
@@ -156,6 +157,7 @@ export function AgencyWorkspaceView({ view, data, month, onMonthChange, onEdit, 
           <section className={styles.panel}><PanelHeader title="Month readiness" description="A clear view of what is ready to review." icon={<FileCheck2 size={17} />} /><div className={styles.readiness}><ReadinessRow label="Revenue ready" value={`${calculated.length} / ${relevant.length}`} description="Clients with supported terms and complete inputs" positive={ready} /><ReadinessRow label="Client setup" value={setup.length ? `${setup.length} to complete` : 'Up to date'} description="Service start and effective agency terms" positive={!setup.length} /><ReadinessRow label="Unlinked brands" value={String(unassigned.length)} description="Available to link to a client agreement" positive={!unassigned.length} /></div><Link className={styles.panelLink} href="/agency/revenue">Review revenue<ArrowUpRight size={15} /></Link></section>
         </div>
         <section className={styles.panel}><PanelHeader title="Client performance by tenure" description="Complete managed GMV for the selected month and the previous month. Groups reflect service tenure this month." icon={<Clock3 size={17} />} /><CohortPerformance rows={active} month={month} data={data} /></section>
+        <LeadershipTrends key={month} data={data} />
       </>}
       {(view === 'clients' || view === 'revenue') && <section className={styles.panel}>
         <div className={styles.tableToolbar}><div><h2>{view === 'clients' ? 'Client directory' : 'Agency revenue ledger'}<span className={styles.count}>{rows.length}</span></h2><p>{view === 'clients' ? 'Every saved client, including exited relationships.' : 'Service revenue follows the agreement in effect for this month.'}</p></div><SearchInput aria-label="Search clients" placeholder="Search clients" value={search} onChange={event => setSearch(event.target.value)} onClear={() => setSearch('')} /></div>

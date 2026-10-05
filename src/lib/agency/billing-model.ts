@@ -2,7 +2,7 @@ import { isAgencyDate } from './model';
 
 /** Internal USD billing model. Does not send invoices, collect money, or authorize access. */
 export type ReviewedFee = Readonly<{
-  calculatedCents: number;
+  calculatedCents: number | null;
   adjustmentCents: number;
   adjustmentReason: string | null;
   reviewedCents: number;

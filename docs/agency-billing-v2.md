@@ -23,6 +23,20 @@ Keep V1 leadership access unchanged until the billing permissions are implemente
 
 Agency > Revenue gains Review queue and Invoice history. A compact row shows client, service period, calculated amount, reviewed amount, status, and one explicit next action. The detail drawer contains calculation evidence, agreement version, adjustment reason, invoice references, payment history, and audit trail. Setup blockers link to the exact client. Global totals never substitute zero for missing billing records.
 
-## Current progress
+## Implementation and verification
 
-First implementation slice is the pure billing transition model and its tests. No invoice or payment is created by this slice. Storage, authorization routes, review UI, and leadership trends are the next connected build; the model is not a launched billing feature.
+The connected V2 build adds a monthly review queue, invoice and partial-receipt records, documented review corrections, invoice voids, receipt reversals, and a six-month leadership history. All mutations record facts entered by an authorized operator; they do not send invoices or move money.
+
+Review uses a server-derived fee and compares it with the calculation the reviewer saw. Agreement revision and billing revision must still match. A request ID supports exact retries without duplicate entries. Corrections append a new snapshot rather than updating the previous one. Invoice and receipt references are protected against duplicate recording.
+
+`/agency/revenue` is the monthly work queue and history. `/agency` includes expandable business history, with separate service-month, invoice-date and receipt-date totals. Missing information remains labeled. Current saved client history reconstructs calculated trends; frozen billing evidence preserves reviewed history.
+
+### Test environments
+
+`node scripts/preview-agency-billing.mjs` builds an isolated interactive fixture under `.design-preview/agency-billing`. Its synthetic clients and financial actions remain in browser memory, and its fetch adapter blocks outgoing requests. This supports Save, Cancel, validation, error, correction, mobile and dark-theme checks without adding fictional financial records to the shared live database.
+
+Automated tests cover monetary precision, tenant access, same-origin mutation guards, stale calculations, duplicate retries, lifecycle transitions, retained snapshots, and date-based leadership totals. Release status is recorded in the pull request after deployment verification.
+
+### Operational boundaries
+
+Existing leadership access is preserved. Assigning May or another accounting user new agency-finance access is a separate access decision; no existing user is promoted by this build. Historical invoices and receipts must be entered from accounting records. No prior payments are inferred from GMV, calculated fees or a zero balance. Creator funding and team compensation stay outside agency service-fee totals.
