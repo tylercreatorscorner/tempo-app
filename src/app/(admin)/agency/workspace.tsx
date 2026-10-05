@@ -10,6 +10,7 @@ import { DateField } from '@/components/ui/date-field';
 import { Input, Textarea } from '@/components/ui/input';
 import { calculateServiceRevenue, selectMonthTerms, summarizeClientRetention, summarizeTenureGrowth, type AgencyTerms, type ClientRecord } from '@/lib/agency/model';
 import styles from './agency.module.css';
+import { QuickClientSetup } from './quick-client-setup';
 
 export type AgencyView = 'overview' | 'clients' | 'revenue';
 export interface AgencyBrand { id: string; slug: string; name: string; logoUrl: string | null; archived: boolean }
@@ -101,9 +102,10 @@ export function AgencyWorkspace({ view, initialMonth }: { view: AgencyView; init
   }, [month, reload]);
   const refresh = useCallback(() => { setLoading(true); setError(null); setReload(value => value + 1); }, []);
   const openEditor = (client: ClientRecord | null, brandId?: string) => { setEditing({ client, brandId, returnFocus: document.activeElement as HTMLElement, contextEpoch: contextEpoch.current }); };
+  const renderEpoch = contextEpoch.current;
   const displayedData = data?.month === month ? data : null;
   return <>
-    {displayedData ? <AgencyWorkspaceView view={view} data={displayedData} month={month} onMonthChange={value => { setMonth(value); setLoading(true); setError(null); setNotice(null); }} onEdit={client => openEditor(client)} onAdd={brandId => openEditor(null, brandId)} loading={loading} notice={notice} /> : <div className={styles.workspace}>
+    {displayedData ? <AgencyWorkspaceView view={view} data={displayedData} month={month} onMonthChange={value => { setMonth(value); setLoading(true); setError(null); setNotice(null); }} onEdit={client => openEditor(client)} onAdd={brandId => openEditor(null, brandId)} loading={loading} notice={notice} onClientSaved={saved => { if (renderEpoch !== contextEpoch.current) return; setData(previous => previous ? { ...previous, clients: previous.clients.map(client => client.id === saved.id ? saved : client) } : previous); setNotice(`${saved.name} saved.`); }} /> : <div className={styles.workspace}>
       <WorkspaceHeading view={view} month={month} onMonthChange={value => { setMonth(value); setLoading(true); setError(null); }} />
       {loading && <div className={styles.loading} role="status"><Loader2 size={22} className={styles.spin} /><span>Loading agency workspace</span></div>}
     </div>}
@@ -117,12 +119,13 @@ function WorkspaceHeading({ view, month, onMonthChange, onAdd, busy = false }: {
   return <header className={styles.pageHeader}><div><div className={styles.eyebrow}>AGENCY WORKSPACE</div><h1>{copy[0]}</h1><p>{copy[1]}</p></div><div className={styles.headerActions}><ChoiceMenu compact label="Reporting month" value={month} options={periodOptions(month)} onChange={onMonthChange} disabled={busy} />{onAdd && <button type="button" className={styles.primaryButton} onClick={onAdd}><Plus size={15} />Add client</button>}</div></header>;
 }
 
-export function AgencyWorkspaceView({ view, data, month, onMonthChange, onEdit, onAdd, loading = false, notice }: {
-  view: AgencyView; data: AgencyBusinessResponse; month: string; onMonthChange: (month: string) => void; onEdit: (client: ClientRecord) => void; onAdd: (brandId?: string) => void; loading?: boolean; notice?: string | null;
+export function AgencyWorkspaceView({ view, data, month, onMonthChange, onEdit, onAdd, loading = false, notice, onClientSaved }: {
+  view: AgencyView; data: AgencyBusinessResponse; month: string; onMonthChange: (month: string) => void; onEdit: (client: ClientRecord) => void; onAdd: (brandId?: string) => void; loading?: boolean; notice?: string | null; onClientSaved?: (client: ClientRecord) => void;
 }) {
   const rows = useMemo(() => deriveRows(data), [data]);
   const retention = useMemo(() => summarizeClientRetention(data.clients, month), [data.clients, month]);
   const [search, setSearch] = useState('');
+  const [clientFilter, setClientFilter] = useState('configured');
   const active = rows.filter(row => clientActive(row.client, data));
   const relevant = rows.filter(row => row.revenue.status !== 'outside_service');
   const calculated = relevant.filter(row => row.revenue.status === 'calculated');
@@ -133,7 +136,8 @@ export function AgencyWorkspaceView({ view, data, month, onMonthChange, onEdit, 
   const unassigned = data.brands.filter(brand => !brand.archived && !assigned.has(brand.id));
   const allGmvReady = active.length > 0 && active.every(row => row.gmv !== null);
   const totalGmv = allGmvReady ? active.reduce((sum, row) => sum + (row.gmv ?? 0), 0) : null;
-  const visibleRows = rows.filter(row => `${row.client.name} ${row.brands.map(brand => brand.name).join(' ')}`.toLowerCase().includes(search.toLowerCase()));
+  const needsSetup = (row: ClientRow) => !row.client.serviceStart || !selectMonthTerms(row.client.terms, month);
+  const visibleRows = rows.filter(row => view !== 'clients' || clientFilter === 'all' || (clientFilter === 'setup' ? needsSetup(row) : !needsSetup(row))).filter(row => `${row.client.name} ${row.brands.map(brand => brand.name).join(' ')}`.toLowerCase().includes(search.toLowerCase()));
   return <div className={styles.workspace} aria-busy={loading}>
     <WorkspaceHeading view={view} month={month} onMonthChange={onMonthChange} onAdd={data.canEdit && data.storageReady ? () => onAdd() : undefined} />
     {notice && <div className={styles.savedNotice} role="status"><Check size={15} />{notice}</div>}
@@ -141,21 +145,23 @@ export function AgencyWorkspaceView({ view, data, month, onMonthChange, onEdit, 
     {!data.storageReady && <div className={styles.infoBanner}><CircleAlert size={17} /><span>Client agreements are not available yet. Agency revenue and retention will appear once client records can be saved.</span></div>}
     {!data.clients.length ? <EmptyClients canAdd={data.canEdit && data.storageReady} onAdd={() => onAdd()} /> : <>
       <section className={styles.metricRail} aria-label="Agency metrics">
-        <Metric label="Calculated service fees" value={ready ? headlineMoney(subtotal / 100) : 'Pending'} detail={ready ? `${calculated.length} saved ${calculated.length === 1 ? 'client' : 'clients'} · ${monthName(month, true)}` : calculated.length ? `${money.format(subtotal / 100)} · ${calculated.length} saved clients · ${relevant.length - calculated.length} pending` : 'Complete agreements and coverage needed'} accent />
+        <Metric label="Calculated service fees" value={calculated.length ? headlineMoney(subtotal / 100) : 'Not calculated'} detail={`${calculated.length} of ${relevant.length} eligible clients calculated${ready ? '' : ' · partial subtotal'} · ${monthName(month, true)}`} accent />
         <Metric label="Active clients" value={number.format(active.length)} detail={retention.missingLifecycle ? `${retention.missingLifecycle} missing service dates` : 'In service during this month'} />
-        <Metric label="Client retention" value={!retention.missingLifecycle && retention.retentionRate !== null ? `${(retention.retentionRate * 100).toFixed(0)}%` : 'Pending'} detail={retention.missingLifecycle ? 'Add service dates to complete retention' : retention.opening ? `${retention.retained} retained of ${retention.opening} opening` : 'No opening client cohort'} />
+        <Metric label="Client retention" value={retention.retentionRate !== null ? `${(retention.retentionRate * 100).toFixed(0)}%` : 'No opening cohort'} detail={`${retention.retained} retained of ${retention.opening} opening clients · ${retention.missingLifecycle} excluded without dates`} />
         <Metric label="Managed GMV" value={totalGmv === null ? 'Pending' : headlineMoney(totalGmv)} detail={allGmvReady ? 'Linked brands · active clients' : 'Complete linked-brand coverage needed'} />
       </section>
       {view === 'overview' && <>
         <div className={styles.overviewGrid}>
-          <section className={styles.panel}><PanelHeader title="Client lifecycle" description="Verified service dates define the client relationship." icon={<Users size={17} />} /><div className={styles.lifecycleStats}><SmallStat label="Opening clients" value={retention.opening} /><SmallStat label="New this month" value={retention.newClients} /><SmallStat label="Exited this month" value={retention.exitedClients} /><SmallStat label="Retained" value={retention.retained} /></div><div className={styles.churnNote}><span>Opening-cohort churn</span><strong>{!retention.missingLifecycle && retention.churnRate !== null ? `${(retention.churnRate * 100).toFixed(0)}%` : 'Pending'}</strong><span>{retention.missingLifecycle ? 'Service dates needed' : `${retention.churned} exits / ${retention.opening} opening clients`}</span></div><TenureDistribution rows={active} month={month} missing={retention.missingLifecycle} /></section>
+          <section className={styles.panel}><PanelHeader title="Client lifecycle" description="Verified service dates define the client relationship." icon={<Users size={17} />} /><div className={styles.lifecycleStats}><SmallStat label="Opening clients" value={retention.opening} /><SmallStat label="New this month" value={retention.newClients} /><SmallStat label="Exited this month" value={retention.exitedClients} /><SmallStat label="Retained" value={retention.retained} /></div><div className={styles.churnNote}><span>Opening-cohort churn</span><strong>{retention.churnRate !== null ? `${(retention.churnRate * 100).toFixed(0)}%` : 'Pending'}</strong><span>{`${retention.churned} exits / ${retention.opening} opening clients · ${retention.missingLifecycle} excluded without dates`}</span></div><TenureDistribution rows={active} month={month} missing={retention.missingLifecycle} /></section>
           <section className={styles.panel}><PanelHeader title="Month readiness" description="A clear view of what is ready to review." icon={<FileCheck2 size={17} />} /><div className={styles.readiness}><ReadinessRow label="Revenue ready" value={`${calculated.length} / ${relevant.length}`} description="Clients with supported terms and complete inputs" positive={ready} /><ReadinessRow label="Client setup" value={setup.length ? `${setup.length} to complete` : 'Up to date'} description="Service start and effective agency terms" positive={!setup.length} /><ReadinessRow label="Unlinked brands" value={String(unassigned.length)} description="Available to link to a client agreement" positive={!unassigned.length} /></div><Link className={styles.panelLink} href="/agency/revenue">Review revenue<ArrowUpRight size={15} /></Link></section>
         </div>
         <section className={styles.panel}><PanelHeader title="Client performance by tenure" description="Complete managed GMV for the selected month and the previous month. Groups reflect service tenure this month." icon={<Clock3 size={17} />} /><CohortPerformance rows={active} month={month} data={data} /></section>
       </>}
       {(view === 'clients' || view === 'revenue') && <section className={styles.panel}>
         <div className={styles.tableToolbar}><div><h2>{view === 'clients' ? 'Client directory' : 'Agency revenue ledger'}<span className={styles.count}>{rows.length}</span></h2><p>{view === 'clients' ? 'Every saved client, including exited relationships.' : 'Service revenue follows the agreement in effect for this month.'}</p></div><SearchInput aria-label="Search clients" placeholder="Search clients" value={search} onChange={event => setSearch(event.target.value)} onClear={() => setSearch('')} /></div>
-        {visibleRows.length ? <ClientTable rows={visibleRows} data={data} view={view} onEdit={onEdit} /> : <div className={styles.noMatches}>No clients match “{search}”.<button type="button" className={styles.textButton} onClick={() => setSearch('')}>Clear search</button></div>}
+        {view === 'clients' && <div className={styles.tableToolbar}><ChoiceMenu compact label="Client setup status" value={clientFilter} options={[{ value: 'configured', label: `Configured (${rows.length - setup.length})` }, { value: 'setup', label: `Needs setup (${setup.length})` }, { value: 'all', label: `All clients (${rows.length})` }]} onChange={setClientFilter} /></div>}
+        {visibleRows.length ? <ClientTable rows={visibleRows} data={data} view={view} onEdit={onEdit} /> : <div className={styles.noMatches}>No clients match this view{search ? ` for “${search}”` : ''}.<button type="button" className={styles.textButton} onClick={() => setSearch('')}>Clear search</button></div>}
+        {view === 'clients' && data.canEdit && data.storageReady && onClientSaved && <QuickClientSetup key={month} clients={setup.map(row => row.client)} month={month} onSaved={onClientSaved} onEdit={onEdit} />}
         {view === 'revenue' && <div className={styles.tableNote}><CircleAlert size={14} /><span>Calculated service revenue is not invoiced or collected cash. Manager payees and creator retainers are excluded. Partial service months and refund adjustments require review. Historical views use the current client-to-brand links and saved terms; they are not frozen invoices.</span></div>}
       </section>}
     </>}
