@@ -5,9 +5,9 @@ import { ChartLoading, LoadingStatus } from '@/components/ui/loading-status';
 export default function Loading() {
   return <div className="space-y-6" aria-busy="true">
     <div className="flex flex-wrap items-center justify-between gap-4">
-      <div><p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-primary">Agency overview</p>
+      <div><p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-primary">Brand portfolio</p>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1></div>
-      <LoadingStatus label="Loading dashboard" detail="Preparing your workspace overview" />
+      <LoadingStatus label="Loading dashboard" detail="Preparing your brand portfolio" />
     </div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-hidden="true">
       {Array.from({ length:5 }, (_,i) => <div key={i} className="space-y-4 rounded-2xl border border-border bg-card p-4 last:col-span-2 lg:last:col-span-1">

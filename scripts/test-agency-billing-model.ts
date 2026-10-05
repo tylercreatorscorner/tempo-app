@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import { reviewCalculatedFee, recordInvoice, recordReceipt, billingPosition } from '../src/lib/agency/billing-model';
+assert.throws(() => reviewCalculatedFee({ calculatedCents: null, clientRevision: 1 }), /blockers/);
+assert.throws(() => reviewCalculatedFee({ calculatedCents: 1.1, clientRevision: 1 }), /integer cents/);
+assert.throws(() => reviewCalculatedFee({ calculatedCents: 1000, adjustmentCents: -1, clientRevision: 1 }), /Explain/);
+assert.throws(() => reviewCalculatedFee({ calculatedCents: 100, adjustmentCents: -101, adjustmentReason: 'Correction', clientRevision: 1 }), /integer cents/);
+assert.throws(() => reviewCalculatedFee({ calculatedCents: Number.MAX_SAFE_INTEGER, adjustmentCents: 1, adjustmentReason: 'Correction', clientRevision: 1 }), /integer cents/);
+const reviewed = reviewCalculatedFee({ calculatedCents: 100000, adjustmentCents: -10000, adjustmentReason: 'Approved service credit', clientRevision: 3 });
+assert.equal(reviewed.review.reviewedCents, 90000);
+assert.equal(billingPosition(reviewed, '2026-10-01').invoicedCents, null);
+assert.equal(billingPosition(reviewed, '2026-10-01').balanceCents, null);
+assert.throws(() => recordReceipt(reviewed, { id: 'r1', reference: 'bank1', receivedOn: '2026-10-01', amountCents: 100 }), /invoice/);
+assert.throws(() => recordInvoice(reviewed, { reference: 'inv1', issuedOn: '2026-10-01', dueOn: '2026-09-01' }), /dates/);
+const invoiced = recordInvoice(reviewed, { reference: 'inv1', issuedOn: '2026-10-01', dueOn: '2026-10-15' });
+assert.equal(reviewed.invoice, null); // Original review snapshot is untouched.
+assert.throws(() => recordInvoice(invoiced, { reference: 'inv2', issuedOn: '2026-10-01', dueOn: '2026-10-15' }), /already recorded/);
+const receipt = { id: 'r1', reference: 'bank1', receivedOn: '2026-10-10', amountCents: 30000 };
+const partial = recordReceipt(invoiced, receipt);
+assert.equal(billingPosition(partial, '2026-10-05').status, 'invoiced');
+assert.equal(billingPosition(partial, '2026-10-10').status, 'partially_paid');
+assert.equal(billingPosition(partial, '2026-10-16').overdue, true);
+assert.equal(billingPosition(partial, '2026-10-16').balanceCents, 60000);
+assert.equal(recordReceipt(partial, receipt), partial); // Idempotent retry does not double count.
+assert.throws(() => recordReceipt(partial, { ...receipt, amountCents: 40000 }), /different details/);
+assert.throws(() => recordReceipt(partial, { ...receipt, id: 'r2' }), /reference already/);
+assert.throws(() => recordReceipt(partial, { ...receipt, id: 'r2', reference: 'bank2', amountCents: 60001 }), /exceeds/);
+const paid = recordReceipt(partial, { id: 'r2', reference: 'bank2', receivedOn: '2026-10-20', amountCents: 60000 });
+assert.equal(billingPosition(paid, '2026-10-20').status, 'paid');
+assert.equal(billingPosition(paid, '2026-10-20').balanceCents, 0);
+assert.equal(billingPosition(paid, '2026-10-20').overdue, false);
+assert.equal(invoiced.receipts.length, 0);
+const zero = recordInvoice(reviewCalculatedFee({ calculatedCents: 0, clientRevision: 1 }), { reference: 'zero', issuedOn: '2026-10-01', dueOn: '2026-10-01' });
+assert.equal(billingPosition(zero, '2026-10-01').balanceCents, 0);
+assert.equal(billingPosition(zero, '2026-10-01').status, 'no_payment_due');
+console.log('PASS agency billing foundation: review blockers, exact cents, credits, missing versus zero, invoice isolation, partial receipts, as-of dates, idempotency and overpayment guards');

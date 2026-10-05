@@ -518,7 +518,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Header */}
       <PageHeader
-        eyebrow={brandFilter ? activeBrandName ?? "Dashboard" : "Agency overview"}
+        eyebrow={brandFilter ? activeBrandName ?? "Dashboard" : "Brand portfolio"}
         title="Dashboard"
         actions={
           <div className="flex flex-wrap items-center gap-2">

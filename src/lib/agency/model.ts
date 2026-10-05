@@ -151,6 +151,7 @@ export type TenureGrowthCohort = {
   currentGmvCents: number | null;
   priorGmvCents: number | null;
   growthRate: number | null;
+  members: Array<{ clientId: string; status: 'comparable' | 'service_period' | 'missing_data' | 'review'; missingMonths: string[] }>;
 };
 /** Calendar service months, comparing the SAME current client/brand population in both months.
  * Caller must aggregate both periods over identical brand IDs and report complete coverage.
@@ -171,6 +172,19 @@ export function summarizeTenureGrowth(
       const tenure = (year - startYear) * 12 + part - startMonth + 1;
       return key === "1-3" ? tenure <= 3 : key === "4-6" ? tenure >= 4 && tenure <= 6 : key === "7-12" ? tenure >= 7 && tenure <= 12 : tenure >= 13;
     });
+    const diagnostics: TenureGrowthCohort['members'] = members.map(client => {
+      if (client.serviceStart! > priorStart || (client.serviceEnd && client.serviceEnd < end)) {
+        return { clientId: client.id, status: 'service_period', missingMonths: [] };
+      }
+      const data = performance[client.id];
+      const missingMonths = [
+        ...(!data?.priorComplete || data.priorGmvCents === null ? [priorMonth] : []),
+        ...(!data?.currentComplete || data.currentGmvCents === null ? [month] : []),
+      ];
+      if (missingMonths.length) return { clientId: client.id, status: 'missing_data', missingMonths };
+      const review = !Number.isSafeInteger(data.currentGmvCents) || !Number.isSafeInteger(data.priorGmvCents) || data.currentGmvCents! < 0 || data.priorGmvCents! < 0;
+      return { clientId: client.id, status: review ? 'review' : 'comparable', missingMonths: [] };
+    });
     const eligible = members.filter(client => client.serviceStart! <= priorStart && (!client.serviceEnd || client.serviceEnd >= end));
     let missingDataCount = 0, reviewCount = 0, comparableCount = 0;
     let currentSum = BigInt(0), priorSum = BigInt(0);
@@ -190,7 +204,7 @@ export function summarizeTenureGrowth(
     const complete = comparableCount > 0 && missingDataCount === 0 && reviewCount === 0 && safeTotals;
     const currentGmvCents = complete ? Number(currentSum) : null, priorGmvCents = complete ? Number(priorSum) : null;
     return { key, label: `${key === "1-3" ? "1–3" : key === "4-6" ? "4–6" : key === "7-12" ? "7–12" : "13+"} months`, clientCount: members.length,
-      comparableCount, nonComparableCount: members.length - eligible.length, missingDataCount, reviewCount,
+      comparableCount, nonComparableCount: members.length - eligible.length, missingDataCount, reviewCount, members: diagnostics,
       currentGmvCents, priorGmvCents,
       growthRate: currentGmvCents !== null && priorGmvCents !== null && priorGmvCents > 0 ? (currentGmvCents - priorGmvCents) / priorGmvCents : null };
   });
