@@ -17,6 +17,7 @@
 .status[data-tone=paid] {background:color-mix(in srgb,#22845c 10%,var(--card));color:#22845c;}
 .status[data-tone=warning] {background:color-mix(in srgb,#a96917 10%,var(--card));color:#a96917;}
 .empty {text-align:center;padding:48px 20px;color:var(--muted-foreground);font-size:12px;}.empty strong {display:block;color:var(--foreground);margin-bottom:6px;}
+.empty p {max-width:480px;margin:0 auto;line-height:1.7;}.empty button,.empty a {margin-top:16px;}.emptyIcon {margin:0 auto 12px;color:var(--primary);}
 .notice {display:flex;align-items:center;gap:9px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:15px;font-size:12px;line-height:1.6;background:var(--secondary);}
 .notice[data-error=true] {color:#b6404b;background:color-mix(in srgb,#b6404b 6%,var(--card));}.notice button {margin-left:auto;}
 .overlay {position:fixed;inset:0;z-index:60;background:#13131b55;backdrop-filter:blur(3px);}

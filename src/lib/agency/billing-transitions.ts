@@ -36,16 +36,26 @@ export function transitionBilling(previous: AgencyBillingRecord | null, input: B
   }
   if (!previous) return fail('Review the service fee first.');
   let record = previous.record;
+  // Reversals release invoice balance only on their effective date. Preserve
+  // that dependency when a later write uses the released balance or invoice slot.
+  const lastInvoiceIndex = previous.events.findLastIndex(event => event.action === 'invoice');
+  const invoiceReversalDate = previous.events.slice(lastInvoiceIndex + 1)
+    .filter(event => event.action === 'reverse_receipt' && event.effectiveOn)
+    .reduce((latest, event) => event.effectiveOn! > latest ? event.effectiveOn! : latest, '');
+  const lastVoidDate = previous.events.findLast(event => event.action === 'void_invoice')?.effectiveOn;
   try {
     if (input.action === 'invoice') {
       if (input.issuedOn > date) return fail('An issued invoice cannot have a future issue date.');
+      if (lastVoidDate && input.issuedOn < lastVoidDate) return fail('A replacement invoice cannot be dated before the prior invoice was voided.');
       record = recordInvoice(record,input);
     } else if (input.action === 'receipt') {
       if (input.receivedOn > date) return fail('A receipt cannot have a future date.');
+      if (input.receivedOn < invoiceReversalDate) return fail('A replacement receipt cannot be dated before this invoice\'s latest receipt reversal.');
       record = recordReceipt(record,{id:input.requestId,reference:input.reference,receivedOn:input.receivedOn,amountCents:input.amountCents});
     } else if (input.action === 'void_invoice') {
       if (!record.invoice || record.receipts.length) return fail('Reverse all receipts before voiding the invoice.');
       if (input.effectiveOn < record.invoice.issuedOn || input.effectiveOn > date) return fail('Use a reversal date between the invoice date and today.');
+      if (input.effectiveOn < invoiceReversalDate) return fail('An invoice cannot be voided before its receipt reversals take effect.');
       record = { ...record, invoice: null };
     } else if (input.action === 'reverse_receipt') {
       const receipt = record.receipts.find(r => r.id === input.receiptId);
