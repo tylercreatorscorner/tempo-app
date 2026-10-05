@@ -46,6 +46,7 @@ function ReportingWorkspace({ initialView }: { initialView: 'clients' | 'agency'
             {([['clients', 'Client reports'], ['agency', 'Agency reports'], ['library', 'Report library']] as const).map(([key, label]) => (
               <button key={key} type="button" aria-current={view === key ? 'page' : undefined} onClick={() => { setView(key); setVisited(previous => new Set([...previous, key])); }} className={`whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium ${view === key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>
             ))}
+            <Link href="/reporting/historical" className="whitespace-nowrap px-1 pb-3 text-sm font-medium text-muted-foreground hover:text-foreground">Historical drafts</Link>
             <Link href="/reporting/coaching" className="whitespace-nowrap px-1 pb-3 text-sm font-medium text-muted-foreground hover:text-foreground">Coaching</Link>
           </nav>
           {visited.has('clients') && <div hidden={view !== 'clients'} className="space-y-4"><FreshnessBanner /><BrandTable refreshKey={refreshKey} onGenerate={(slug, name) => setTarget({ slug, name })} /></div>}
