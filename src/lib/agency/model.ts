@@ -23,6 +23,8 @@ export type ClientSaveInput = Omit<ClientRecord, "id" | "revision" | "updatedAt"
 export class AgencyValidationError extends Error {
   constructor(message: string) { super(message); this.name = "AgencyValidationError"; }
 }
+// Client IDs are generated UUIDs; legacy brand IDs are canonical PostgreSQL UUIDs.
+const brandUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const fail = (message: string): never => { throw new AgencyValidationError(message); };
 function object(value: unknown, keys: string[], label: string): Record<string, unknown> {
@@ -52,7 +54,7 @@ export function validateClientSaveInput(input: unknown): ClientSaveInput {
   if (!Number.isSafeInteger(row.expectedRevision) || (row.expectedRevision as number) < 0 || (row.expectedRevision as number) > 2147483646 ||
     (row.id === undefined && row.expectedRevision !== 0) || (row.id !== undefined && row.expectedRevision === 0)) fail("Invalid expected revision.");
   if (typeof row.name !== "string" || !row.name.trim() || row.name.trim().length > 200) fail("Client name must contain 1–200 characters.");
-  if (!Array.isArray(row.brandIds) || row.brandIds.length > 100 || row.brandIds.some(id => typeof id !== "string" || !uuid.test(id))) fail("Invalid brand IDs.");
+  if (!Array.isArray(row.brandIds) || row.brandIds.length > 100 || row.brandIds.some(id => typeof id !== "string" || !brandUuid.test(id))) fail("Invalid brand IDs.");
   const brandIds = (row.brandIds as string[]).map(id => id.toLowerCase());
   if (new Set(brandIds).size !== brandIds.length) fail("Brand IDs must be unique.");
   for (const key of ["serviceStart", "serviceEnd"] as const) if (row[key] !== null && !isAgencyDate(row[key])) fail(`Invalid ${key}.`);
