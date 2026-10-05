@@ -29,6 +29,7 @@ export function ReportHistory({ token, cadence, periodLabel, preview }: { token:
     return () => controller.abort();
   }, [open, token, page, retry]);
   const date = (value: string) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const prepared = (value: string) => new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' });
   return <div className={styles.bar}>
     <div className={styles.inner}>
       <span className={styles.current}>{cadence === 'weekly' ? 'Weekly' : 'Monthly'} report <span>{periodLabel}</span></span>
@@ -38,7 +39,7 @@ export function ReportHistory({ token, cadence, periodLabel, preview }: { token:
           <div className={styles.heading}>Previous {cadence === 'weekly' ? 'weeks' : 'months'}<span>Saved reports for this brand</span></div>
           <div className={styles.list} aria-busy={loading}>
             {entries.map(item => <a key={item.token} href={`/r/${encodeURIComponent(item.token)}${preview ? '?preview=1' : ''}`} aria-current={item.token === token ? 'page' : undefined} className={styles.item}>
-              <span><strong>{item.period_label || `${date(item.period_start)} – ${date(item.period_end)}`}</strong><small>Prepared {date(item.created_at)}{item.token === token ? ' · Viewing now' : ''}</small></span>{item.token === token && <Check size={15} />}
+              <span><strong>{item.period_label || `${date(item.period_start)} – ${date(item.period_end)}`}</strong><small>Prepared {prepared(item.created_at)}{item.token === token ? ' · Viewing now' : ''}</small></span>{item.token === token && <Check size={15} />}
             </a>)}
             {loaded && !entries.length && !error && <p className={styles.notice}>No other saved reports are available yet.</p>}
             {loading && <p className={styles.notice} role="status"><Loader2 size={14} className={styles.spin} />Loading reports</p>}
