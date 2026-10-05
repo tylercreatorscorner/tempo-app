@@ -1,12 +1,12 @@
 .bar{background:#fff;border-bottom:1px solid #e8e7ed;color:#25232c}
 .inner{max-width:1000px;margin:auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .current{font-size:12px;font-weight:600}.current span{margin-left:12px;font-weight:400;color:#706c79}
-.trigger{display:inline-flex;align-items:center;gap:8px;border:1px solid #dedbe5;border-radius:9px;padding:8px 11px;background:#fff;color:#35313d;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
+.trigger{display:inline-flex;align-items:center;gap:8px;border:1px solid #dedbe5;border-radius:9px;padding:6px 9px;background:#fff;color:#35313d;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
 .trigger:hover{background:#f7f5fa}.trigger:focus-visible,.item:focus-visible,.more:focus-visible{outline:2px solid #7855d7;outline-offset:2px}
-.menu{z-index:100;max-width:calc(100vw - 24px);width:340px;background:#fff;color:#25232c;border:1px solid #e3dfea;border-radius:13px;box-shadow:0 14px 40px #26203320;overflow:hidden;font-family:inherit}
-.heading{padding:14px 15px 11px;font-size:13px;font-weight:650;border-bottom:1px solid #eeecf2}.heading span{display:block;font-size:11px;font-weight:400;color:#77717f;margin-top:3px}
+.menu{z-index:100;max-width:calc(100vw - 24px);width:230px;background:#fff;color:#25232c;border:1px solid #e3dfea;border-radius:9px;box-shadow:0 14px 40px #26203320;overflow:hidden;font-family:inherit}
+.heading{padding:9px 11px;font-size:11px;font-weight:650;border-bottom:1px solid #eeecf2}.heading span{display:block;font-size:11px;font-weight:400;color:#77717f;margin-top:3px}
 .list{max-height:min(340px,50vh);overflow-y:auto;padding:5px;overscroll-behavior:contain}
-.item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border-radius:8px;text-decoration:none;color:inherit}
+.item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border-radius:5px;font-size:12px;text-decoration:none;color:inherit}
 .item:hover{background:#f6f3fb}.item[aria-current]{background:#f2edfb;color:#6843b3}.item strong{display:block;font-size:12px;font-weight:600}.item small{display:block;font-size:10px;color:#77717f;margin-top:4px}
 .notice{padding:13px 10px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;color:#6d6677}.notice button{color:#6843b3;text-decoration:underline}
 .more{width:100%;padding:10px;font-size:12px;font-weight:600;color:#6843b3;border-top:1px solid #eeecf2;cursor:pointer}

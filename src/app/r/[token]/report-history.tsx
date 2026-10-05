@@ -29,24 +29,22 @@ export function ReportHistory({ token, cadence, periodLabel, preview }: { token:
     return () => controller.abort();
   }, [open, token, page, retry]);
   const date = (value: string) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-  const prepared = (value: string) => new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' });
   return <div className={styles.bar}>
     <div className={styles.inner}>
       <span className={styles.current}>{cadence === 'weekly' ? 'Weekly' : 'Monthly'} report <span>{periodLabel}</span></span>
       <Popover.Root open={open} onOpenChange={value => { setOpen(value); if (value) { setLoading(true); setError(false); setPage(0); setLoaded(false); setEntries([]); } }}>
         <Popover.Trigger className={styles.trigger}><History size={15} />Report history<ChevronDown size={14} /></Popover.Trigger>
         <Popover.Portal><Popover.Content align="end" sideOffset={8} collisionPadding={12} className={styles.menu} aria-label={`${cadence === 'weekly' ? 'Weekly' : 'Monthly'} report history`}>
-          <div className={styles.heading}>Previous {cadence === 'weekly' ? 'weeks' : 'months'}<span>Saved reports for this brand</span></div>
+          <div className={styles.heading}>Previous {cadence === 'weekly' ? 'weeks' : 'months'}</div>
           <div className={styles.list} aria-busy={loading}>
             {entries.map(item => <a key={item.token} href={`/r/${encodeURIComponent(item.token)}${preview ? '?preview=1' : ''}`} aria-current={item.token === token ? 'page' : undefined} className={styles.item}>
-              <span><strong>{item.period_label || `${date(item.period_start)} – ${date(item.period_end)}`}</strong><small>Prepared {prepared(item.created_at)}{item.token === token ? ' · Viewing now' : ''}</small></span>{item.token === token && <Check size={15} />}
+              <span>{cadence === 'monthly' ? new Date(`${item.period_start}T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : item.period_label || `${date(item.period_start)} to ${date(item.period_end)}`}</span>{item.token === token && <Check size={15} />}
             </a>)}
             {loaded && !entries.length && !error && <p className={styles.notice}>No other saved reports are available yet.</p>}
             {loading && <p className={styles.notice} role="status"><Loader2 size={14} className={styles.spin} />Loading reports</p>}
             {error && <div className={styles.notice} role="alert">History couldn’t load. Your current report is still available.<button onClick={() => { setLoading(true); setError(false); setRetry(value => value + 1); }}>Try again</button></div>}
           </div>
           {!loading && !error && nextPage !== null && <button className={styles.more} onClick={() => { setLoading(true); setError(false); setPage(nextPage); }}>Load older reports</button>}
-          <p className={styles.footnote}>Each link opens the saved report. Figures stay as originally prepared.</p>
         </Popover.Content></Popover.Portal>
       </Popover.Root>
     </div>
