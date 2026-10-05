@@ -159,3 +159,5 @@
 @media (max-width: 390px) { .pageHeader h1 { font-size: 24px; } .headerActions { gap: 6px; } .primaryButton { padding: 8px 10px; } .panelHeader, .tableToolbar { padding: 17px 15px; } .lifecycleStats { padding-left: 15px; padding-right: 15px; grid-template-columns: 1fr 1fr; gap: 17px; } .tenure, .readiness { padding-left: 15px; padding-right: 15px; } .tenureRow { grid-template-columns: 98px minmax(25px, 1fr) 18px; gap: 10px; } .readinessRow p { font-size: 9px; } .editorHeader { padding: 19px; } .editorBody { padding-left: 19px; padding-right: 19px; } .editorFooter { padding: 14px 19px; } .editorFooter > p { max-width: 70px; } .fieldPair { grid-template-columns: 1fr; } .sectionHeading { align-items: flex-start; } }
 @media (pointer: coarse) { .iconButton { min-width: 40px; min-height: 40px; } .primaryButton, .secondaryButton { min-height: 40px; } .brandOption { min-height: 48px; } }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2s; } }
+
+.editorForm > .editorNotice { margin: 0; border-radius: 0; padding: 12px 25px; flex-shrink: 0; }
