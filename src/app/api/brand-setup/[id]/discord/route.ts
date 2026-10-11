@@ -24,7 +24,10 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{id:string}>
   }catch{check='Discord verification timed out. Retry verification.';}
  }
  if(!body.verifyOnly){const {error:saveError}=await db.from('brands_v2').update({discord_guild_id:body.guildId,updated_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',scope!.tenantId);if(saveError)return NextResponse.json({error:'Server link could not be saved.'},{status:503});}
- const appId=process.env.DISCORD_CLIENT_ID;
+ let appId=process.env.DISCORD_CLIENT_ID;
+ if(token&&!appId){
+  try{const self=await fetch('https://discord.com/api/v10/users/@me',{headers:{Authorization:`Bot ${token}`},cache:'no-store',signal:AbortSignal.timeout(8000)});if(self.ok){const bot=await self.json();if(bot.bot&&typeof bot.id==='string')appId=bot.id;}}catch{}
+ }
  const botInviteUrl=appId&&/^\d{17,20}$/.test(appId)?`https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot%20applications.commands&permissions=68608&guild_id=${body.guildId}&disable_guild_select=true`:null;
  return NextResponse.json({saved:true,accessible,serverName,message:check,botInviteUrl});
 }
