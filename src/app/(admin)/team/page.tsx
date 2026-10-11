@@ -99,21 +99,25 @@ export default async function TeamPage({searchParams}:{searchParams:Promise<{bra
     pending: !signedIn.has(m.user_id),
   }));
 
+  const focusedBrand=requestedBrand?brands?.find(b=>b.slug===requestedBrand):null;
+  if(requestedBrand&&!focusedBrand)redirect('/team');
+  const displayedUsers=focusedBrand?users.filter(u=>u.brand_access.includes(focusedBrand.id)):users;
   return (
     <div className="space-y-4">
       <PageHeader
         eyebrow="Access"
-        title="People & access"
+        title={focusedBrand?`${focusedBrand.display_name||focusedBrand.name} team`:'People & access'}
         subtitle="Invite your team, assign brands, and manage financial visibility."
       />
       {/* Roles and the access matrix, below the members list: you look up who
           someone is before you look up what their role can do. */}
 
       <TeamManagement
-        users={users}
+        users={displayedUsers}
         brands={brands ?? []}
         tenantId={scope.tenantId}
         currentUserId={user?.id ?? ''}
+        initialBrandId={focusedBrand?.id}
       />
       <details className="group rounded-xl border border-border bg-card">
         <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Roles & permissions <span className="ml-2 text-xs font-normal text-muted-foreground">Review what each role can do</span></summary>

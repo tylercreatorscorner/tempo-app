@@ -72,16 +72,17 @@ interface Props {
   brands: Brand[];
   tenantId: string;
   currentUserId: string;
+  initialBrandId?: string;
 }
 
-export function TeamManagement({ users, brands, tenantId, currentUserId }: Props) {
+export function TeamManagement({ users, brands, tenantId, currentUserId, initialBrandId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [showInvite, setShowInvite] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamUser | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('manager');
-  const [inviteBrandIds, setInviteBrandIds] = useState<string[]>([]);
+  const [inviteRole, setInviteRole] = useState(initialBrandId?'coach':'manager');
+  const [inviteBrandIds, setInviteBrandIds] = useState<string[]>(initialBrandId?[initialBrandId]:[]);
   const [inviteFinance, setInviteFinance] = useState(false);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -97,7 +98,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
   }
 
   function resetInvite() {
-    setInviteEmail(''); setInviteRole('manager'); setInviteBrandIds([]); setInviteFinance(false);
+    setInviteEmail(''); setInviteRole(initialBrandId?'coach':'manager'); setInviteBrandIds(initialBrandId?[initialBrandId]:[]); setInviteFinance(false);
   }
 
   function handleInvite() {
