@@ -25,7 +25,7 @@ export async function GET(req:NextRequest){
   if(checks.some(r=>r.error))return NextResponse.json({error:'Import status could not be verified.'},{status:503});
   imports=Object.fromEntries(tables.map((t,i)=>[t,checks[i].data?.[0]?.report_date??null]));
  }
- return NextResponse.json({brands:(brands??[]).map(b=>{const managerId=assignments?.find(a=>a.brand_id===b.id)?.manager_user_id??null;return {...b,managerId,managerName:managers?.find(m=>m.user_id===managerId)?.name??null};}),managers:manage?managers??[]:[],manage,imports},{headers:{'Cache-Control':'private, no-store'}});
+ return NextResponse.json({brands:(brands??[]).map(b=>{const managerId=assignments?.find(a=>a.brand_id===b.id)?.manager_user_id??null;return {...b,managerId,canInviteTeam:manage||managerId===scope!.userId,managerName:managers?.find(m=>m.user_id===managerId)?.name??null};}),managers:manage?managers??[]:[],manage,imports},{headers:{'Cache-Control':'private, no-store'}});
 }
 export async function POST(req:NextRequest){
  const scope=await getWorkspaceScope();if(!canManageBrandSetup(scope))return NextResponse.json({error:'Forbidden'},{status:403});

@@ -6,6 +6,7 @@ import ts from 'typescript';
 const ids = ['nello-id', 'neurogum-id'];
 let scope = { userId: 'kyle-id', tenantId: 'tenant-id', role: 'manager',
   brandScope: { kind: 'scoped', brandIds: ids } };
+let ownedIds=ids;
 let accounts = [];
 let target = null;
 let events = [];
@@ -18,6 +19,7 @@ const admin = {
       } };
       return q;
     }
+    if(table==='brand_manager_assignments'){const q={select:()=>q,eq:()=>q,in:(_k,values)=>Promise.resolve({data:values.filter(id=>ownedIds.includes(id)).map(brand_id=>({brand_id})),error:null})};return q;}
     assert.equal(table, 'user_profiles');
     const q = { select: () => q, eq: () => q, maybeSingle: async () => {
       events.push('target-check');
@@ -34,7 +36,7 @@ const admin = {
   } },
   rpc: async (name, input) => {
     events.push('provision');
-    assert.equal(name, 'provision_manager_invited_member');
+    assert.equal(name, 'provision_accountable_manager_invited_member');
     assert.equal(input.p_actor_id, 'kyle-id');
     assert.deepEqual(Array.from(input.p_brand_ids), ids);
     assert.ok(['manager', 'coach', 'brand'].includes(input.p_role));
@@ -83,3 +85,9 @@ target={tenant_id:'tenant-id',role:'coach',status:'active'};events=[];
 await invite({email:'person@example.invalid',role:'coach',brandIds:ids});
 assert.deepEqual(events.slice(-2), ['provision','send-signin']);
 console.log('PASS manager invitation service: invalid/off-scope requests send no email, tenant ownership, atomic provisioning before existing-user sign-in');
+
+// An accessible brand without manager ownership must fail before any email.
+scope.brandScope.brandIds=[...ids,'view-only-id'];events=[];
+await assert.rejects(()=>invite({email:'coach@example.invalid',role:'coach',brandIds:['view-only-id']}));
+assert.ok(!events.includes('send-invite')&&!events.includes('send-signin')&&!events.includes('provision'));
+console.log('PASS view-only brand cannot authorize an invitation or trigger email');

@@ -56,7 +56,7 @@ export function ManagerInvitations({ brands }: { brands: Brand[] }) {
         </div>
         <fieldset className="space-y-2"><legend className="text-sm font-medium text-foreground">Brand access</legend>
           <p className="text-xs text-muted-foreground">Select at least one. Access to other brands cannot be granted here.</p>
-          <div className="grid gap-2 sm:grid-cols-2">{brands.map(brand => <label key={brand.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm hover:border-primary/40">
+          {!brands.length&&<p className="rounded-lg bg-muted/30 p-3 text-sm text-muted-foreground">No brands are assigned to you as their manager. Ask an owner to assign your portfolio in Brand setup.</p>}<div className="grid gap-2 sm:grid-cols-2">{brands.map(brand => <label key={brand.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm hover:border-primary/40">
             <input type="checkbox" checked={brandIds.includes(brand.id)} disabled={pending} onChange={() => setBrandIds(current => current.includes(brand.id) ? current.filter(id => id !== brand.id) : [...current,brand.id])} className="h-4 w-4 accent-primary"/>
             <span>{brand.display_name || brand.name}</span>
           </label>)}</div>

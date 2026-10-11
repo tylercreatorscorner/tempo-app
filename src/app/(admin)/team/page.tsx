@@ -19,10 +19,13 @@ export default async function TeamPage({searchParams}:{searchParams:Promise<{bra
   if (scope.role === 'manager' && !scope.impersonating
     && scope.brandScope.kind === 'scoped' && scope.brandScope.brandIds.length > 0) {
     const admin = await createAdminClient();
+    const {data:ownership,error:ownershipError}=await admin.from('brand_manager_assignments').select('brand_id').eq('manager_user_id',scope.userId).in('brand_id',scope.brandScope.brandIds);
+    if(ownershipError)throw new Error('Manager assignments could not be loaded.');
+    const ownedIds=(ownership??[]).map(a=>a.brand_id);
     const { data: assignedBrands, error } = await admin.from('brands_v2')
       .select('id,name,slug,display_name')
       .eq('tenant_id', scope.tenantId).eq('is_archived', false)
-      .in('id', scope.brandScope.brandIds).order('name');
+      .in('id', ownedIds.length?ownedIds:['00000000-0000-0000-0000-000000000000']).order('name');
     if (error) throw new Error('Assigned brands could not be loaded.');
     const visibleBrands=requestedBrand?(assignedBrands??[]).filter(b=>b.slug===requestedBrand):(assignedBrands??[]);
     if(requestedBrand&&!visibleBrands.length)redirect('/team');

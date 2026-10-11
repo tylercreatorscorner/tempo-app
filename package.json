@@ -27,7 +27,7 @@
     "test:role-administration": "node scripts/test-role-administration.mjs",
     "test:finance-access": "node scripts/test-finance-access.mjs",
     "test:role-transactions": "node scripts/test-role-transactions.mjs",
-    "test:brand-setup": "node scripts/test-brand-setup.mjs && node scripts/test-brand-setup-access.mjs && node scripts/test-brand-setup-imports.mjs",
+    "test:brand-setup": "node scripts/test-brand-setup.mjs && node scripts/test-brand-setup-access.mjs && node scripts/test-brand-setup-imports.mjs && node scripts/test-accountable-manager-invitations.mjs",
     "test:invitations": "node scripts/test-invitation-ownership.mjs",
     "test:background-access": "node scripts/test-background-access.mjs",
     "lint:background": "eslint \"src/app/api/automations/[id]/route.ts\" \"src/app/api/automations/[id]/run/route.ts\" \"src/app/api/automations/route.ts\" \"src/app/api/broadcasts/[id]/cancel/route.ts\" \"src/app/api/broadcasts/[id]/route.ts\" \"src/app/api/broadcasts/route.ts\" \"src/app/api/cron/run-automations/route.ts\" \"src/app/api/cron/send-broadcasts/route.ts\" \"src/app/api/integrations/[id]/channels/route.ts\" \"src/app/api/integrations/[id]/test-send/route.ts\" \"src/app/api/integrations/route.ts\" \"src/app/api/integrations/slack/oauth/callback/route.ts\" \"src/app/api/integrations/slack/oauth/start/route.ts\" \"src/lib/automations/dispatch.ts\" \"src/lib/comms/send.ts\" \"src/lib/data/integrations.ts\" \"src/lib/integrations/actions/registry.ts\" \"src/lib/auth/background-access.ts\" \"scripts/test-background-access.mjs\"",
