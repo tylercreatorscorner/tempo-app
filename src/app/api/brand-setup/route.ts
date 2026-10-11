@@ -19,7 +19,9 @@ export async function GET(req:NextRequest){
  let imports:Record<string,string|null>|null=null;
  if(selected && canReadBrandSetup(scope,selected)){
   const tables=['creator_performance','video_performance','product_performance'];
-  const checks=await Promise.all(tables.map(table=>db.from(table).select('report_date').eq('tenant_id',scope!.tenantId).eq('brand',selected.slug).order('report_date',{ascending:false}).limit(1)));
+  // Product exports are legacy global-slug records. The selected slug is resolved
+  // from this tenant's authorized brand registry before querying that table.
+  const checks=await Promise.all(tables.map(table=>{let source=db.from(table).select('report_date').eq('brand',selected.slug);if(table!=='product_performance')source=source.eq('tenant_id',scope!.tenantId);return source.order('report_date',{ascending:false}).limit(1);}));
   if(checks.some(r=>r.error))return NextResponse.json({error:'Import status could not be verified.'},{status:503});
   imports=Object.fromEntries(tables.map((t,i)=>[t,checks[i].data?.[0]?.report_date??null]));
  }
