@@ -15,8 +15,8 @@ const ROLES = [
 
 export function ManagerInvitations({ brands }: { brands: Brand[] }) {
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('manager');
-  const [brandIds, setBrandIds] = useState<string[]>([]);
+  const [role, setRole] = useState('coach');
+  const [brandIds, setBrandIds] = useState<string[]>(brands.length===1?[brands[0].id]:[]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -32,8 +32,8 @@ export function ManagerInvitations({ brands }: { brands: Brand[] }) {
       }
       setMessage({ type: 'success', text: `Access saved and sign-in email sent to ${email.trim()}.` });
       setEmail('');
-      setRole('manager');
-      setBrandIds([]);
+      setRole('coach');
+      setBrandIds(brands.length===1?[brands[0].id]:[]);
     });
   }
 

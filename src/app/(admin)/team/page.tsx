@@ -10,7 +10,8 @@ import { ManagerInvitations } from '@/components/team/manager-invitations';
 
 export const metadata = { title: 'Team — Tempo' };
 
-export default async function TeamPage() {
+export default async function TeamPage({searchParams}:{searchParams:Promise<{brand?:string}>}) {
+  const requestedBrand=(await searchParams).brand;
   // Real managers see only a scoped invitation form. The full member directory
   // and editing tools remain owner/admin only, including during impersonation.
   const scope = await getWorkspaceScope();
@@ -23,9 +24,11 @@ export default async function TeamPage() {
       .eq('tenant_id', scope.tenantId).eq('is_archived', false)
       .in('id', scope.brandScope.brandIds).order('name');
     if (error) throw new Error('Assigned brands could not be loaded.');
+    const visibleBrands=requestedBrand?(assignedBrands??[]).filter(b=>b.slug===requestedBrand):(assignedBrands??[]);
+    if(requestedBrand&&!visibleBrands.length)redirect('/team');
     return <div className="space-y-4">
       <PageHeader eyebrow="Access" title="Invite people" subtitle="Add a manager, coach, or brand contact to the brands you manage." />
-      <ManagerInvitations brands={assignedBrands ?? []}/>
+      <ManagerInvitations brands={visibleBrands}/>
     </div>;
   }
   if (scope.role !== 'owner' && scope.role !== 'admin') redirect('/dashboard');

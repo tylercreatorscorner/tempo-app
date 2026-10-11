@@ -21,7 +21,7 @@ import {
   type TextChannel,
 } from 'discord.js';
 import { commands, commandMap } from './commands';
-import { getGuildConfig } from './config';
+import { getGuildConfig, refreshGuildConfigs } from './config';
 import { logMessage } from './relay';
 import { getSupabase } from './supabase';
 import { startReminderChecker, scheduleDailyBriefs } from './scheduler';
@@ -115,7 +115,9 @@ export async function registerCommands(
 
 /** Set up event handlers on the client */
 export function setupEventHandlers(client: Client): void {
-  client.once(Events.ClientReady, (c) => {
+  client.once(Events.ClientReady, async (c) => {
+    await refreshGuildConfigs();
+    setInterval(()=>{void refreshGuildConfigs();},60000);
     console.log(`[tempo-bot] Logged in as ${c.user.tag} — serving ${c.guilds.cache.size} guilds`);
     startReminderChecker(client);
     scheduleDailyBriefs(client);

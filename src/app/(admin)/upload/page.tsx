@@ -9,7 +9,8 @@ export const metadata = { title: 'Data Pipeline — Tempo' };
 
 const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
 
-export default async function UploadPage() {
+export default async function UploadPage({searchParams}:{searchParams:Promise<{brand?:string}>}) {
+  const requestedBrand=(await searchParams).brand;
   // Server-side gate: only owner/admin can render this page.
   const profile = await requireAdmin();
   if (!profile) {
@@ -23,10 +24,11 @@ export default async function UploadPage() {
   const { data: brandRows } = await admin
     .from('brands_v2')
     .select('slug, name')
+    .eq('tenant_id', profile.tenant_id)
     .eq('is_archived', false)
     .order('name');
   const activeBrands = (brandRows as Array<{ slug: string; name: string }> | null ?? [])
-    .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug));
+    .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug) && (!requestedBrand||b.slug===requestedBrand));
 
   return (
     <div className="space-y-6">
