@@ -28,6 +28,6 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{id:string}>
  if(token&&!appId){
   try{const self=await fetch('https://discord.com/api/v10/users/@me',{headers:{Authorization:`Bot ${token}`},cache:'no-store',signal:AbortSignal.timeout(8000)});if(self.ok){const bot=await self.json();if(bot.bot&&typeof bot.id==='string')appId=bot.id;}}catch{}
  }
- const botInviteUrl=appId&&/^\d{17,20}$/.test(appId)?`https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot%20applications.commands&permissions=68608&guild_id=${body.guildId}&disable_guild_select=true`:null;
+ const botInviteUrl=appId&&/^\d{17,20}$/.test(appId)?`https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot%20applications.commands&permissions=117760&guild_id=${body.guildId}&disable_guild_select=true`:null;
  return NextResponse.json({saved:true,accessible,serverName,message:check,botInviteUrl});
 }
