@@ -25,6 +25,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { canManageBrandSetup } from '@/lib/brands/setup-access';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -55,6 +57,7 @@ function sniffImage(buf: Buffer): { mime: string; ext: string } | null {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  if (!canManageBrandSetup(await getWorkspaceScope())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -95,7 +98,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: brand, error: brandErr } = await admin
     .from('brands_v2')
     .select('id, slug, logo_url')
-    .eq('id', id)
+    .eq('id', id).eq('tenant_id', profile.tenant_id)
     .maybeSingle();
   if (brandErr) return NextResponse.json({ error: `brand lookup failed: ${brandErr.message}` }, { status: 500 });
   if (!brand) return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
@@ -115,7 +118,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { error: saveErr } = await admin
     .from('brands_v2')
     .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
-    .eq('id', brand.id);
+    .eq('id', brand.id).eq('tenant_id', profile.tenant_id);
   if (saveErr) {
     // Don't leave the object behind if the row never got the pointer.
     await admin.storage.from(BUCKET).remove([key]);
@@ -133,6 +136,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  if (!canManageBrandSetup(await getWorkspaceScope())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -141,13 +145,13 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
 
   const admin = await createAdminClient();
   const { data: brand } = await admin
-    .from('brands_v2').select('id, logo_url').eq('id', id).maybeSingle();
+    .from('brands_v2').select('id, logo_url').eq('id', id).eq('tenant_id', profile.tenant_id).maybeSingle();
   if (!brand) return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
 
   const { error } = await admin
     .from('brands_v2')
     .update({ logo_url: null, updated_at: new Date().toISOString() })
-    .eq('id', brand.id);
+    .eq('id', brand.id).eq('tenant_id', profile.tenant_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const key = keyFromPublicUrl(brand.logo_url);

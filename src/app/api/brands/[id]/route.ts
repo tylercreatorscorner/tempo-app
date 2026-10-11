@@ -74,7 +74,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data, error } = await supabase
     .from('brands_v2')
     .update(patch)
-    .eq('id', id)
+    .eq('id', id).eq('tenant_id', profile.tenant_id)
     .select()
     .single();
 

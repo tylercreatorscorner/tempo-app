@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+import {NextRequest,NextResponse} from 'next/server.js';
+const brand={id:'brand-a',tenant_id:'tenant-a',slug:'brand_a',name:'Brand A'};
+const reads=[];
+const db={from(table){let filters=[];const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(){return q},order(){return q},limit(){return q},then(resolve){reads.push({table,filters});const error=table==='product_performance'&&filters.some(([k])=>k==='tenant_id')?{message:'Legacy product table has no tenant_id'}:null;const data=table==='brands_v2'?[brand]:table==='brand_manager_assignments'?[{brand_id:brand.id,manager_user_id:'hunter'}]:table==='user_profiles'?[{user_id:'hunter',name:'Hunter'}]:[];return Promise.resolve({data,error}).then(resolve)}};return q}};
+const exports={};
+const deps={'next/server':{NextRequest,NextResponse},'@/lib/auth/workspace-scope':{getWorkspaceScope:async()=>({tenantId:'tenant-a',role:'owner',brandScope:{kind:'all'}})},'@/lib/supabase/server':{createAdminClient:async()=>db},'@/lib/brands/setup-access':{canOpenBrandSetup:()=>true,canManageBrandSetup:()=>true,canReadBrandSetup:()=>true}};
+runInNewContext(ts.transpileModule(readFileSync('src/app/api/brand-setup/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:n=>deps[n]});
+const response=await exports.GET(new NextRequest('https://tempo.invalid/api/brand-setup?id=brand-a'));
+assert.equal(response.status,200);const result=await response.json();assert.equal(result.brands[0].managerName,'Hunter');
+assert.deepEqual(result.imports,{creator_performance:null,video_performance:null,product_performance:null});
+assert.ok(reads.find(r=>r.table==='brands_v2').filters.some(([k,v])=>k==='tenant_id'&&v==='tenant-a'));
+for(const table of ['creator_performance','video_performance'])assert.ok(reads.find(r=>r.table===table).filters.some(([k,v])=>k==='tenant_id'&&v==='tenant-a'));
+assert.ok(reads.find(r=>r.table==='product_performance').filters.some(([k,v])=>k==='brand'&&v===brand.slug));
+console.log('PASS setup imports: tenant-owned brand resolution, tenant source filters, legacy product compatibility, empty data states and manager metadata');

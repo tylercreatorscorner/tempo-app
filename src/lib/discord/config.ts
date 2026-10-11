@@ -5,6 +5,8 @@
  * This is the source of truth for which server belongs to which brand.
  */
 
+import {getSupabase} from './supabase';
+
 export interface ChannelMapping {
   /** Channel for daily brief posts */
   dailyBrief?: string;
@@ -92,18 +94,46 @@ const GUILD_MAP: Record<string, GuildConfig> = {
 };
 
 /** Look up guild config; returns undefined for unknown servers */
+let configuredGuilds:Record<string,GuildConfig> = {};
+let checkedAt=0;
+let refreshing:Promise<void>|null=null;
+/** Brand setup is the source for new servers; preserve explicitly configured
+ * channel/role overrides for established servers. Failed reads never retain
+ * new database mappings or silently turn an unknown server into a brand.
+ */
+export async function refreshGuildConfigs(){
+ if(Date.now()-checkedAt<60000)return;
+ if(refreshing)return refreshing;
+ refreshing=(async()=>{
+  try{
+   const {data,error,count}=await getSupabase().from('brands_v2')
+    .select('slug,name,display_name,color,discord_guild_id',{count:'exact'}).eq('is_archived',false).not('discord_guild_id','is',null);
+   if(error||!data||count!==data.length)throw Error('Guild configuration unavailable');
+   const next:Record<string,GuildConfig>={};
+   const duplicates=new Set<string>();
+   for(const brand of data){const guild=brand.discord_guild_id;if(!/^\d{17,20}$/.test(guild))continue;if(next[guild]){duplicates.add(guild);continue;}
+    const legacy=GUILD_MAP[guild];
+    next[guild]={brandSlug:brand.slug,displayName:brand.display_name||brand.name,color:brand.color&&/^#[a-f0-9]{6}$/i.test(brand.color)?brand.color:'#7855d7',allowedChannels:legacy?.allowedChannels??[],adminRoles:legacy?.adminRoles??[],channels:legacy?.channels??{},permissions:legacy?.permissions??{alerts:'admin'}};
+   }
+   for(const guild of duplicates)delete next[guild];
+   configuredGuilds=next;
+  }catch{configuredGuilds={};}
+  finally{checkedAt=Date.now();}
+ })();
+ try{await refreshing;}finally{refreshing=null;}
+}
 export function getGuildConfig(guildId: string): GuildConfig | undefined {
-  return GUILD_MAP[guildId];
+  return configuredGuilds[guildId]??GUILD_MAP[guildId];
 }
 
 /** Get brand slug for a guild, with fallback */
 export function getBrandForGuild(guildId: string): string | null {
-  return GUILD_MAP[guildId]?.brandSlug ?? null;
+  return getGuildConfig(guildId)?.brandSlug ?? null;
 }
 
 /** All registered guild IDs */
 export function getRegisteredGuilds(): string[] {
-  return Object.keys(GUILD_MAP);
+  return [...new Set([...Object.keys(GUILD_MAP),...Object.keys(configuredGuilds)])];
 }
 
 /** Tempo brand defaults */

@@ -26,6 +26,7 @@ export async function GET() {
   let brandsQuery = supabase
     .from('brands_v2')
     .select('id, slug, name, display_name, color, logo_url, is_archived, is_umbrella, parent_brand_id, created_at')
+    .eq('tenant_id', scope.tenantId)
     .order('is_archived', { ascending: true })
     .order('name');
   if (bs.kind === 'scoped') {

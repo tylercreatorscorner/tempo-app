@@ -23,6 +23,8 @@ export async function inviteManagerMember(input: { email: string; role: string; 
   const { data: brands, error: brandError } = await admin.from('brands_v2')
     .select('id').eq('tenant_id', scope.tenantId).eq('is_archived', false).in('id', input.brandIds);
   if (brandError || brands?.length !== input.brandIds.length) throw new Error('A selected brand is unavailable.');
+  const {data:owned,error:ownershipError}=await admin.from('brand_manager_assignments').select('brand_id').eq('manager_user_id',scope.userId).in('brand_id',input.brandIds);
+  if(ownershipError||owned?.length!==input.brandIds.length)throw new Error('Choose only brands assigned to you.');
 
   let account: { id: string; email?: string } | null = null;
   const perPage = 1000;
@@ -50,7 +52,7 @@ export async function inviteManagerMember(input: { email: string; role: string; 
     account = data.user;
   }
 
-  const { error: provisionError } = await admin.rpc('provision_manager_invited_member', {
+  const { error: provisionError } = await admin.rpc('provision_accountable_manager_invited_member', {
     p_actor_id: scope.userId,
     p_user_id: account.id,
     p_email: email,

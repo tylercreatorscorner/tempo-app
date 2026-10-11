@@ -10,7 +10,8 @@ import { ManagerInvitations } from '@/components/team/manager-invitations';
 
 export const metadata = { title: 'Team — Tempo' };
 
-export default async function TeamPage() {
+export default async function TeamPage({searchParams}:{searchParams:Promise<{brand?:string}>}) {
+  const requestedBrand=(await searchParams).brand;
   // Real managers see only a scoped invitation form. The full member directory
   // and editing tools remain owner/admin only, including during impersonation.
   const scope = await getWorkspaceScope();
@@ -18,14 +19,19 @@ export default async function TeamPage() {
   if (scope.role === 'manager' && !scope.impersonating
     && scope.brandScope.kind === 'scoped' && scope.brandScope.brandIds.length > 0) {
     const admin = await createAdminClient();
+    const {data:ownership,error:ownershipError}=await admin.from('brand_manager_assignments').select('brand_id').eq('manager_user_id',scope.userId).in('brand_id',scope.brandScope.brandIds);
+    if(ownershipError)throw new Error('Manager assignments could not be loaded.');
+    const ownedIds=(ownership??[]).map(a=>a.brand_id);
     const { data: assignedBrands, error } = await admin.from('brands_v2')
       .select('id,name,slug,display_name')
       .eq('tenant_id', scope.tenantId).eq('is_archived', false)
-      .in('id', scope.brandScope.brandIds).order('name');
+      .in('id', ownedIds.length?ownedIds:['00000000-0000-0000-0000-000000000000']).order('name');
     if (error) throw new Error('Assigned brands could not be loaded.');
+    const visibleBrands=requestedBrand?(assignedBrands??[]).filter(b=>b.slug===requestedBrand):(assignedBrands??[]);
+    if(requestedBrand&&!visibleBrands.length)redirect('/team');
     return <div className="space-y-4">
       <PageHeader eyebrow="Access" title="Invite people" subtitle="Add a manager, coach, or brand contact to the brands you manage." />
-      <ManagerInvitations brands={assignedBrands ?? []}/>
+      <ManagerInvitations brands={visibleBrands}/>
     </div>;
   }
   if (scope.role !== 'owner' && scope.role !== 'admin') redirect('/dashboard');
@@ -96,21 +102,25 @@ export default async function TeamPage() {
     pending: !signedIn.has(m.user_id),
   }));
 
+  const focusedBrand=requestedBrand?brands?.find(b=>b.slug===requestedBrand):null;
+  if(requestedBrand&&!focusedBrand)redirect('/team');
+  const displayedUsers=focusedBrand?users.filter(u=>u.brand_access.includes(focusedBrand.id)):users;
   return (
     <div className="space-y-4">
       <PageHeader
         eyebrow="Access"
-        title="People & access"
+        title={focusedBrand?`${focusedBrand.display_name||focusedBrand.name} team`:'People & access'}
         subtitle="Invite your team, assign brands, and manage financial visibility."
       />
       {/* Roles and the access matrix, below the members list: you look up who
           someone is before you look up what their role can do. */}
 
       <TeamManagement
-        users={users}
+        users={displayedUsers}
         brands={brands ?? []}
         tenantId={scope.tenantId}
         currentUserId={user?.id ?? ''}
+        initialBrandId={focusedBrand?.id}
       />
       <details className="group rounded-xl border border-border bg-card">
         <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Roles & permissions <span className="ml-2 text-xs font-normal text-muted-foreground">Review what each role can do</span></summary>
