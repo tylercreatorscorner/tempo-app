@@ -46,7 +46,7 @@ export async function GET(request:NextRequest){
   if(selected){
    const result=await db.from('creator_role_sync_runs').select('id,checked_at,applied_at,scanned,retained,missing_identities,actor_id,config_revision').eq('tenant_id',scope.tenantId).eq('brand_id',selected.id).order('checked_at',{ascending:false}).limit(1).maybeSingle();
    if(result.error)throw Error('Could not load the last Discord check.');run=result.data;
-   if(run){const rows=await db.from('creator_role_sync_members').select('discord_id,display_name,roster_id,creator_name,state,already_tagged',{count:'exact'}).eq('run_id',run.id).order('discord_id').limit(1001);if(rows.error||rows.count!==rows.data?.length||(rows.count??0)>1000)throw Error('Could not load the complete review queue.');members=rows.data??[];}
+   if(run){const rows=await db.from('creator_role_sync_members').select('discord_id,display_name,roster_id,creator_id,creator_name,state,already_tagged',{count:'exact'}).eq('run_id',run.id).order('discord_id').limit(1001);if(rows.error||rows.count!==rows.data?.length||(rows.count??0)>1000)throw Error('Could not load the complete review queue.');members=rows.data??[];}
   }
   const canApply=!!run&&run.actor_id===scope.userId&&!!selected?.canWrite&&!run.applied_at&&new Date(run.checked_at).getTime()>Date.now()-15*60000&&run.config_revision===configs.data?.find(c=>c.brand_id===selected?.id)?.revision;
   const linkOptions=canApply&&selected? (await readRoster(db,scope.tenantId,selected.slug)).filter(r=>r.creator_id&&!identityClaims(r).length).map(r=>({id:r.id,name:r.real_name||`Creator ${r.id}`})):[];
@@ -54,6 +54,7 @@ export async function GET(request:NextRequest){
  }catch(e){return reply({error:e instanceof Error?e.message:'Could not load Discord cohorts.'},503);}
 }
 export async function POST(request:NextRequest){
+ if(request.headers.get('origin')!==request.nextUrl.origin)return reply({error:'Invalid request origin.'},403);
  try{
   const ctx=await context();if(!ctx)return reply({error:'Not permitted'},403);
   const body=await request.json().catch(()=>null);
