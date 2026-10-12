@@ -15,16 +15,24 @@ export async function GET(req: NextRequest) {
   const selection = req.nextUrl.searchParams.get('brand') ?? 'all';
   try {
     const db = await createAdminClient();
-    let brandQuery = db.from('brands_v2').select('id,slug,display_name,name').eq('tenant_id',scope.tenantId).eq('is_archived',false).order('name');
+    const brandQuery = db.from('brands_v2').select('id,slug,display_name,name,is_umbrella,parent_brand_id',{count:'exact'}).eq('tenant_id',scope.tenantId).eq('is_archived',false).order('name');
     if (scope.brandScope.kind === 'scoped') {
       if (!scope.brandScope.brandIds.length) return selection === 'all'
         ? NextResponse.json({selection,brands:[],week,end:shiftDay(week,6),previousStart:shiftDay(week,-7),rows:[],unmatched:0},{headers:{'Cache-Control':'private, no-store'}})
         : NextResponse.json({error:'Brand is not in your access.'},{status:403});
-      brandQuery = brandQuery.in('id',scope.brandScope.brandIds);
     }
     const registry = await brandQuery;
-    if (registry.error) throw new Error('registry');
-    const brands = (registry.data ?? []).filter(b=>!!b.slug).map(b=>({slug:b.slug!,name:b.display_name || b.name}));
+    if (registry.error || registry.count!==registry.data?.length) throw new Error('registry');
+    const accessibleIds=scope.brandScope.kind==='all'?null:new Set(scope.brandScope.brandIds);
+    const accessible=(registry.data??[]).filter(b=>!accessibleIds||accessibleIds.has(b.id));
+    const brands = accessible.filter(b=>!!b.slug && (!b.parent_brand_id||!accessible.some(parent=>parent.id===b.parent_brand_id&&parent.is_umbrella))).map(b=>({slug:b.slug!,name:b.display_name || b.name}));
+    const dataSlugs=(slug:string)=>{
+      const root=accessible.find(b=>b.slug===slug);
+      if(!root)return [];
+      // The same umbrella reach rule used by creator profile reporting: access
+      // to the parent authorizes its tenant-owned stores, not unrelated brands.
+      return root.is_umbrella?(registry.data??[]).filter(b=>b.parent_brand_id===root.id).map(b=>b.slug).filter(Boolean):[slug];
+    };
     if (selection !== 'all' && !brands.some(b=>b.slug===selection)) return NextResponse.json({error:'Brand is not in your access.'},{status:403});
     const selected = selection === 'all' ? brands : brands.filter(b=>b.slug===selection);
     if (!selected.length) return NextResponse.json({selection,brands,week,end:shiftDay(week,6),previousStart:shiftDay(week,-7),rows:[],unmatched:0},{headers:{'Cache-Control':'private, no-store'}});
@@ -46,7 +54,9 @@ export async function GET(req: NextRequest) {
         let history: HistoryDay[] = [];
         if(handles.length && handles.length<=100) {
           try {
-            const response = await db.rpc('get_creator_performance_history',{p_tenant_id:scope.tenantId,p_handles:handles,p_brands:[creator.brand],p_start:start,p_end:end}).abortSignal(AbortSignal.any([req.signal, AbortSignal.timeout(15000)]));
+            const slugs=dataSlugs(creator.brand);
+            if(!slugs.length)throw new Error('No permitted performance stores');
+            const response = await db.rpc('get_creator_performance_history',{p_tenant_id:scope.tenantId,p_handles:handles,p_brands:slugs,p_start:start,p_end:end}).abortSignal(AbortSignal.any([req.signal, AbortSignal.timeout(15000)]));
             if(!response.error && Array.isArray(response.data) && response.data.length===14 && response.data.every((r: HistoryDay,i:number)=>r.stat_date===shiftDay(start,i))) history=response.data;
           } catch { /* Keep unavailable data distinct from zero. */ }
         }

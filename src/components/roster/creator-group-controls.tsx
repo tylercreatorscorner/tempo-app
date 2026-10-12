@@ -6,6 +6,7 @@ import {ChevronDown, Tags, X} from 'lucide-react';
 import {SearchInput} from '@/components/ui/search-input';
 import {Input} from '@/components/ui/input';
 import {normalizeCreatorTag} from '@/lib/roster/creator-tags';
+import Link from 'next/link';
 
 type Row={id:string;real_name:string|null;is_managed:boolean;brand:string|null};
 export function CreatorGroupControls({brand,rows,selected,mode,onFilter,onSaved,loading}:{brand:string;rows:Row[];selected:string[];mode:'any'|'all';onFilter:(tags:string[],mode:'any'|'all')=>void;onSaved:()=>void;loading:boolean}) {
@@ -42,6 +43,7 @@ export function CreatorGroupControls({brand,rows,selected,mode,onFilter,onSaved,
     finally{if(mounted.current)setBusy(false);}
   }
   return <section className="flex items-center gap-1" aria-label="Creator groups">
+    <Link href={`/roster/discord-sync?brand=${encodeURIComponent(brand)}`}><Button variant="ghost" size="sm">Discord groups</Button></Link>
     <Popover.Root><Popover.Trigger asChild><Button variant="outline" size="sm" aria-label="Filter by creator tags"><Tags className="h-3.5 w-3.5"/>Tags{selected.length>0 ? ` (${selected.length})` : ''}<ChevronDown className="h-3 w-3"/></Button></Popover.Trigger>
       <Popover.Portal><Popover.Content align="start" sideOffset={8} className="z-50 w-64 rounded-xl border border-border bg-card p-3 shadow-xl" data-lenis-prevent>
         <p className="mb-2 text-xs font-semibold">Creator tags</p>
