@@ -240,11 +240,14 @@ export async function GET(request: NextRequest) {
   for (const r of runRows) {
     if (!r.report_date) continue;
     const k = cellKey(r.brand_slug, r.target_table, String(r.report_date));
-    if (!runs.has(k)) runs.set(k, toRunFacts(r));
-    if (oldestRunSeen === null || r.started_at < oldestRunSeen) oldestRunSeen = r.started_at;
-    if (r.status === 'running' && now.getTime() - new Date(r.started_at).getTime() > DEAD_RUN_MS) {
-      deadRuns += 1;
+    if (!runs.has(k)) {
+      runs.set(k, toRunFacts(r));
+      // A successful retry supersedes an abandoned attempt for this cell.
+      if (r.status === 'running' && now.getTime() - new Date(r.started_at).getTime() > DEAD_RUN_MS) {
+        deadRuns += 1;
+      }
     }
+    if (oldestRunSeen === null || r.started_at < oldestRunSeen) oldestRunSeen = r.started_at;
   }
 
   const bounds = new Map<string, CoverageBoundsRow>();

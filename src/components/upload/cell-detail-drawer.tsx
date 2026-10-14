@@ -27,7 +27,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   COVERAGE_TYPES,
-  STATUS_LABEL,
+  coverageLabel,
+  coverageCountEvidence,
   expectedFilename,
   shortDate,
   type CoverageCellDetail,
@@ -120,10 +121,8 @@ export function CellDetailDrawer({
   // fetched state wins once it lands.
   const shown = detail?.state ?? state;
   const rows = shown.rows;
-  const expected = shown.expectedRows ?? detail?.medianRows ?? null;
-  const pct = rows != null && expected != null && expected > 0
-    ? Math.min(100, Math.round((rows / expected) * 100))
-    : null;
+  const evidence = coverageCountEvidence(shown, detail?.medianRows ?? null);
+  const { expected, pct } = evidence;
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -149,7 +148,7 @@ export function CellDetailDrawer({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Badge variant={STATUS_VARIANT[shown.status]} dot>
-                {STATUS_LABEL[shown.status]}
+                {coverageLabel(shown)}
               </Badge>
               <button
                 onClick={onClose}
@@ -177,8 +176,8 @@ export function CellDetailDrawer({
             <section className="border-b border-border px-5 py-4">
               <Row label="Rows landed" value={rows != null ? rows.toLocaleString() : '—'} />
               <Row
-                label="Rows expected"
-                value={expected != null ? `~${expected.toLocaleString()}` : '—'}
+                label={evidence.label}
+                value={expected != null ? expected.toLocaleString() : '—'}
               />
               {pct != null && (
                 <div className="mt-2.5">
@@ -190,13 +189,19 @@ export function CellDetailDrawer({
                           ? 'bg-[var(--pulse-pos)]'
                           : 'bg-[var(--pulse-warn)]',
                       )}
-                      style={{ width: `${pct}%` }}
+                      style={{ width: `${Math.min(100, pct)}%` }}
                     />
                   </div>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {pct}% of what this brand normally lands for this report
+                    {evidence.progress}
                   </p>
                 </div>
+              )}
+              {evidence.uploadComplete && (
+                <p className="mt-2 text-[12px] text-foreground">
+                  Upload completed. All parsed rows were saved. Coverage checks assess whether
+                  the export represents the full day separately.
+                </p>
               )}
               {/* Labelled with its window on purpose. This is the 28-day median,
                   which spans the 2026-07-12 TikTok export change and so reads far
@@ -336,6 +341,7 @@ export function CellDetailDrawer({
               date={date}
               status={shown.status}
               runStatus={shown.runStatus}
+              reviewOnly={shown.status === 'partial' && shown.confirmed === false && evidence.uploadComplete}
               layout={selection.exportLayout ?? 'unknown'}
             />
           </div>
@@ -431,7 +437,7 @@ function Row({ label, value }: { label: string; value: string }) {
  * lives and links to it instead of POSTing at a route that does not exist.
  */
 function Repair({
-  brand, brandLabel, type, date, status, runStatus, layout,
+  brand, brandLabel, type, date, status, runStatus, layout, reviewOnly,
 }: {
   brand: string;
   brandLabel: string;
@@ -442,6 +448,7 @@ function Repair({
    *  verified count and a count that merely looks right. */
   runStatus?: RunStatus;
   layout: ExportLayout;
+  reviewOnly?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const filename = expectedFilename(brandLabel, type, date, layout);
@@ -476,14 +483,15 @@ function Repair({
   return (
     <section className="border-t border-border px-5 py-4">
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-        Repair
+        {reviewOnly ? 'Review export coverage' : 'Repair'}
       </p>
 
       {status !== 'not_expected' && (
         <>
           <p className="mt-2.5 text-[12.5px] leading-relaxed text-foreground">
-            Export this report from TikTok Seller Center for {shortDate(date)} and drop it in the
-            upload lane. The queue reads the brand, type and date straight off the name:
+            {reviewOnly
+              ? `The upload finished, but this file contains fewer rows than recent reports. Check the ${shortDate(date)} export's date range and creator/video filters in TikTok Seller Center. If it contains all intended rows, a smaller file alone does not prove an upload failure. If the export was filtered or limited, download the full report and upload that replacement using this filename:`
+              : `Export this report from TikTok Seller Center for ${shortDate(date)} and drop it in the upload lane. The queue reads the brand, type and date straight off the name:`}
           </p>
           <div className="mt-2 flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-secondary px-2.5 py-1.5 font-mono text-[11.5px] text-foreground">
