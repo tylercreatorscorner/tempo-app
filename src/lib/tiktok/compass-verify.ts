@@ -18,7 +18,7 @@
  * writes only compass_verifications. If that ever changes, the guarantee this
  * module exists to provide is gone.
  */
-import * as XLSX from 'xlsx';
+import { readUploadWorkbook } from '@/lib/upload/read-workbook';
 import { createAdminClient } from '@/lib/supabase/server';
 import { fetchDailyExport, type CompassRequestOptions, type PollOptions } from './compass';
 
@@ -170,9 +170,7 @@ export async function verifyBrandDay(
       fetched.bytes.byteOffset,
       fetched.bytes.byteOffset + fetched.bytes.byteLength,
     ) as ArrayBuffer;
-    const workbook = XLSX.read(ab, { type: 'array' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    rows = sheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' }) : [];
+    rows = readUploadWorkbook(ab).rows;
   } catch (err) {
     return {
       ...base,
