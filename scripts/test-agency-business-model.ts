@@ -73,3 +73,8 @@ const refunds = summarizeTenureGrowth(growthClients, "2026-08", { ...perf, estab
 assert.equal(refunds.cohorts[2].reviewCount, 1);
 assert.equal(refunds.cohorts[2].growthRate, null);
 console.log("PASS agency business model: strict validation, effective terms, exact cents, zero vs unconfigured, incomplete months, lifecycle retention");
+
+assert.equal(growth.cohorts[0].members.find(row => row.clientId === "new")?.status, "service_period");
+assert.deepEqual(incomplete.cohorts[0].members.find(row => row.clientId === "early")?.missingMonths, ["2026-07"]);
+assert.equal(refunds.cohorts[2].members[0].status, "review");
+assert.equal(zeroBase.cohorts[3].members[0].status, "comparable");

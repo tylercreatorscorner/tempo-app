@@ -38,6 +38,8 @@ export interface WorkspaceScope {
   name: string | null;
   tenantId: string;
   role: string;
+  /** Explicit agency designation; general Admin access does not grant agency books. */
+  agencyLeadership?: 'owner' | 'vp' | null;
   /** False for a brand-scoped member the owner has walled off from Finance.
    *  Owner/admin/viewer are always true. THE finance access gate — checked by the
    *  finance pages + every /api/earnings|invoices|payments route. */
@@ -156,6 +158,19 @@ async function scopeFromProfile(
   // here — scopeFromProfile returns null for them above.
   const canViewCreatorCost = true;
   const permissions = await loadPermissions(admin, profile.tenant_id, profile.role_id, role);
+  let agencyLeadership: 'owner' | 'vp' | null = role === 'owner' ? 'owner' : null;
+  if (role === 'admin') {
+    // Server-managed, tenant-scoped designation. Missing storage or failed reads
+    // deny Agency only, without breaking the member's operational workspace.
+    try {
+      const { data, error } = await admin.from('agency_leadership_access')
+        .select('designation').eq('tenant_id', profile.tenant_id)
+        .eq('user_id', profile.user_id).maybeSingle();
+      if (!error && (data?.designation === 'owner' || data?.designation === 'vp')) {
+        agencyLeadership = data.designation;
+      }
+    } catch { /* Fail closed. */ }
+  }
 
   const base = {
     userId: profile.user_id,
@@ -163,6 +178,7 @@ async function scopeFromProfile(
     name: profile.name ?? null,
     tenantId: profile.tenant_id,
     role,
+    agencyLeadership,
     canViewFinance,
     canViewCreatorCost,
     permissions,
