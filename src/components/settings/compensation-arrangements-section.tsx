@@ -1,5 +1,7 @@
 'use client';
 
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+
 /**
  * CompensationArrangementsSection — per-(brand × team member) editor.
  *
@@ -304,13 +306,7 @@ function EditModal({
           </div>
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Compensation Model</label>
-            <select
-              value={form.compensation_model ?? 'standard'}
-              onChange={e => set('compensation_model', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              {COMP_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+            <ChoiceMenu label="Compensation model" value={form.compensation_model ?? 'standard'} onChange={value => set('compensation_model', value)} options={COMP_MODELS} triggerClassName="w-full" />
           </div>
           <div className="flex items-center gap-2 pt-2">
             <button

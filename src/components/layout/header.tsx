@@ -64,6 +64,13 @@ const BREADCRUMB_MAP: Record<string, string> = {
   // Other
   '/brands': 'Brands',
   '/messages': 'Communications',
+  '/drops': 'Discord posts',
+  '/roster/discord-sync': 'Discord groups',
+  '/discord-links': 'Discord identity review',
+  '/discord-scan': 'Discord scan',
+  '/reporting/weekly': 'Weekly manager report',
+  '/reporting/agency/weekly': 'Weekly agency brief',
+  '/dashboard/reviews': 'Manager reviews',
   '/discover': 'Discover',
   '/invites': 'Invites',
 };

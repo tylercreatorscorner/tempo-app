@@ -1,5 +1,7 @@
 'use client';
 
+import { PageHeader } from '@/components/ui/page-header';
+
 /**
  * Integrations page — unified view of every external connection that powers
  * Tempo workflows. Per-brand by default; tenant-scoped connections appear
@@ -144,17 +146,9 @@ export function IntegrationsClient({
   }, []);
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Connections</h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Services configured for data imports, communications and automations.
-            Configuration is not proof of a successful sync or delivery. Review the latest recorded activity for each connection. Legacy TikTok sessions are separate from shop API authorization.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <PageHeader eyebrow="Settings" title="Connections" subtitle="Manage data imports, communications and connected services." />
+      <p className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">A configured connection does not confirm a successful sync or delivery. Check its latest recorded activity. Legacy TikTok sessions are separate from Shop API authorization.</p>
 
       <NavigationLink href="#tiktok-shop" direction="down">Manage TikTok Shop API authorization</NavigationLink>
 
@@ -180,7 +174,7 @@ export function IntegrationsClient({
                 <p className="text-xs font-semibold text-muted-foreground mb-2">
                   {group.brandName}
                 </p>
-                <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-gray-50">
+                <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
                   {group.rows.map(row => (
                     <IntegrationRow
                       key={row.id}
@@ -665,7 +659,7 @@ function CatalogCard({
   return (
     <div className={cn(
       'relative rounded-2xl border bg-card p-4 transition-shadow',
-      item.comingSoon ? 'border-border' : 'border-border hover:shadow-md',
+      item.comingSoon ? 'border-border' : 'border-border hover:border-primary/30',
     )}>
       <div className="flex items-start gap-3">
         <div className="h-9 w-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">

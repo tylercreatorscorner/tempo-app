@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 export function TableCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('overflow-hidden rounded-xl border border-border bg-card shadow-[var(--pulse-elev-2)]', className)}
+      className={cn('min-w-0 overflow-hidden rounded-xl border border-border bg-card shadow-[var(--pulse-elev-1)]', className)}
       {...props}
     />
   );

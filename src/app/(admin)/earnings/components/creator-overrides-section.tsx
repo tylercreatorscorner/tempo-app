@@ -16,7 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, Save, Loader2, AlertCircle, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { EmptyState } from '@/components/ui/empty-state';
 
 interface Override {
@@ -226,19 +226,7 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
       <div className="rounded-xl bg-secondary/50 border border-border p-3 space-y-2">
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0">
-            <Select
-              value={draftCreator}
-              onChange={(e) => setDraftCreator(e.target.value)}
-              disabled={adding || available.length === 0}
-              className="py-1.5 text-xs"
-            >
-              <option value="">{available.length === 0 ? 'No creators left to override' : 'Pick a creator…'}</option>
-              {available.map((m) => (
-                <option key={m.handle} value={m.handle}>
-                  @{m.handle}{m.real_name ? ` (${m.real_name})` : ''}
-                </option>
-              ))}
-            </Select>
+            <ChoiceMenu compact label="Creator compensation override" value={draftCreator} onChange={setDraftCreator} disabled={adding || available.length === 0} options={[{ value: '', label: available.length === 0 ? 'No creators left to override' : 'Pick a creator…' }, ...available.map(m => ({ value: m.handle, label: `@${m.handle}${m.real_name ? ` (${m.real_name})` : ''}` }))]} />
           </div>
           <div className="relative">
             <Input

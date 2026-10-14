@@ -1,5 +1,4 @@
-/* Route-scoped palette also reaches the shell and portaled controls while this
-   page is mounted. Other routes retain their existing semantic theme. */
+/* Workspace colors are inherited from the shared signed-in app shell. */
 .page { composes: surface from "../creators/creator-theme.module.css"; max-width: 1520px; margin-inline: auto; min-width: 0; container-type: inline-size; }
 .page :global(.bg-pulse-grad) { background-image: none; background-color: var(--primary); color: var(--primary-foreground); box-shadow: none; }
 .page h1 { font-size: 30px; font-weight: 600; letter-spacing: -.9px; }

@@ -26,7 +26,7 @@ import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { SegmentedControl } from '@/components/ui/segmented';
@@ -156,9 +156,7 @@ export default function DropsPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[180px] flex-1">
             <Label htmlFor="dr-brand">Brand</Label>
-            <Select id="dr-brand" value={brand} onChange={e => setBrand(e.target.value)}>
-              {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-            </Select>
+            <ChoiceMenu compact id="dr-brand" label="Discord post brand" value={brand} onChange={setBrand} options={brandOptions} triggerClassName="w-full" />
             <BrandListWarning show={brandsError} />
           </div>
 

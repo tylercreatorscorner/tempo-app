@@ -1,5 +1,7 @@
 'use client';
 
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+
 /**
  * Upload lane — drag/drop XLSX files, auto-detect type/brand/date, queue for
  * review, then process each file (parse → validate → confirm overwrite if
@@ -1169,30 +1171,8 @@ function QueueRow({
             <Badge variant={statusConfig.badge} size="sm">{statusConfig.label}</Badge>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={item.type}
-              onChange={e => onChange({ type: e.target.value as FileType })}
-              disabled={!editable}
-              className="text-xs bg-card border border-border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground"
-            >
-              {FILE_TYPE_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <select
-              value={item.brand}
-              onChange={e => onChange({ brand: e.target.value })}
-              disabled={!editable}
-              className={cn(
-                'text-xs bg-card border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground',
-                item.brand === 'unknown' ? 'border-amber-300 text-amber-500' : 'border-border'
-              )}
-            >
-              {item.brand === 'unknown' && <option value="unknown">Pick a brand…</option>}
-              {brands.map(b => (
-                <option key={b.slug} value={b.slug}>{b.name}</option>
-              ))}
-            </select>
+            <ChoiceMenu compact label={`Data type for ${item.filename}`} value={item.type} onChange={value => onChange({ type: value as FileType })} disabled={!editable} options={FILE_TYPE_OPTIONS} />
+            <ChoiceMenu compact label={`Brand for ${item.filename}`} value={item.brand} onChange={value => onChange({ brand: value })} disabled={!editable} triggerClassName={item.brand === 'unknown' ? 'border-amber-500' : ''} options={[...(item.brand === 'unknown' ? [{ value: 'unknown', label: 'Pick a brand…' }] : []), ...brands.map(b => ({ value: b.slug, label: b.name }))]} />
             <DateField
               value={item.reportDate}
               onValueChange={e => onChange({ reportDate: e })}

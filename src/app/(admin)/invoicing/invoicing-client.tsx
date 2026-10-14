@@ -123,7 +123,7 @@ export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props)
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         eyebrow="Finance"
         title="Invoicing"

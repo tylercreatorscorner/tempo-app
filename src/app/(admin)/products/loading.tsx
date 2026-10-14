@@ -2,7 +2,7 @@ import { PageHeaderSkeleton, TableSkeleton } from '@/components/ui/page-skeleton
 
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeaderSkeleton />
       <TableSkeleton rows={10} cols={5} />
     </div>

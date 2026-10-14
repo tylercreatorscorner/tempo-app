@@ -28,7 +28,7 @@ import { daysOverdue, isOverdue } from '@/lib/finance/overdue';
 import { formatCurrency, formatDate, formatPeriod, currentMonth, buildMonthOptions } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { Card } from '@/components/ui/card';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
@@ -139,16 +139,7 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
         <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
           Paid month
           <span className="w-40">
-            <Select
-              value={paidMonth}
-              onChange={(e) => setPaidMonth(e.target.value)}
-              className="py-1.5 pl-2.5 text-xs"
-              aria-label="Month shown in the Paid column"
-            >
-              {monthOptions.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </Select>
+            <ChoiceMenu compact triggerClassName="w-full" label="Month shown in the Paid column" value={paidMonth} onChange={setPaidMonth} options={monthOptions} />
           </span>
         </label>
       </div>

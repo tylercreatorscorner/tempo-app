@@ -1,5 +1,8 @@
 'use client';
 
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { PageHeader } from '@/components/ui/page-header';
+
 import { useEffect, useState, useCallback } from 'react';
 import {
   Check, X, Search, Users, Zap, HelpCircle, RefreshCw, ChevronDown,
@@ -161,32 +164,13 @@ export default function DiscordLinksPage() {
     .sort((a, b) => (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name));
 
   return (
-    <div className="min-h-screen bg-muted p-6 lg:p-8">
-      <div className="mb-8">
+    <div className="space-y-4">
+      <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Search className="h-6 w-6 text-primary" />
-              Discord Link Review
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Approve creators auto-matched from <code className="bg-muted px-1 rounded text-xs">/scan</code> or self-linked via <code className="bg-muted px-1 rounded text-xs">/link</code>
-            </p>
-          </div>
+          <PageHeader eyebrow="Discord" title="Discord identity review" subtitle="Review Discord identities before linking them to creator records." />
 
           <div className="flex items-center gap-2">
-            <select
-              value={brandFilter}
-              onChange={(e) => setBrandFilter(e.target.value)}
-              className="px-3 py-2 text-sm border border-border rounded-lg bg-card"
-            >
-              <option value="all">All brands</option>
-              {brandOptions.map((b) => (
-                <option key={b.slug} value={b.slug}>
-                  {b.display_name ?? b.name}
-                </option>
-              ))}
-            </select>
+            <ChoiceMenu compact label="Identity review brand" value={brandFilter} onChange={setBrandFilter} options={[{ value: 'all', label: 'All brands' }, ...brandOptions.map(b => ({ value: b.slug, label: b.display_name ?? b.name }))]} />
             <button
               onClick={fetchData}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted"

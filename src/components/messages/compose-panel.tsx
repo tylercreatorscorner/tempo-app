@@ -22,7 +22,7 @@ import { ArrowLeft, Check, Loader2, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PREBUILT_SEGMENTS } from '@/lib/data/prebuilt-segments';
@@ -274,24 +274,7 @@ export function ComposePanel({
           {/* 1 · Audience */}
           <div>
             <Label htmlFor="bc-audience">1 · Audience</Label>
-            <Select id="bc-audience" value={audienceValue} onChange={(e) => setAudienceValue(e.target.value)}>
-              <option value="">Choose an audience…</option>
-              <optgroup label="Prebuilt segments">
-                {PREBUILT_SEGMENTS.map((p) => (
-                  <option key={p.key} value={`prebuilt:${p.key}`}>{p.name}</option>
-                ))}
-              </optgroup>
-              {customs.length > 0 && (
-                <optgroup label="Your segments">
-                  {customs.map((s) => (
-                    <option key={s.id} value={`segment:${s.id}`}>{s.name}</option>
-                  ))}
-                </optgroup>
-              )}
-              <optgroup label="Coming soon">
-                <option value="roster-filter" disabled>Current roster filter (Phase B)</option>
-              </optgroup>
-            </Select>
+            <ChoiceMenu id="bc-audience" label="Broadcast audience" value={audienceValue} onChange={setAudienceValue} triggerClassName="w-full" options={[{ value: '', label: 'Choose an audience…' }, ...PREBUILT_SEGMENTS.map(p => ({ value: `prebuilt:${p.key}`, label: p.name, group: 'Prebuilt segments' })), ...customs.map(s => ({ value: `segment:${s.id}`, label: s.name, group: 'Your segments' }))]} />
             {segmentsError && (
               <p className="mt-1.5 text-[11px] text-[var(--pulse-warn)]">
                 Couldn&apos;t load your saved segments. Prebuilt segments still work.
@@ -344,16 +327,7 @@ export function ComposePanel({
           {/* 3 · Message */}
           <div className="space-y-2.5">
             <Label htmlFor="bc-template" className="mb-0">3 · Message</Label>
-            <Select
-              id="bc-template"
-              value={templateKey}
-              onChange={(e) => (e.target.value ? pickTemplate(e.target.value) : setTemplateKey(''))}
-            >
-              <option value="">Custom message</option>
-              {BROADCAST_TEMPLATES.map((t) => (
-                <option key={t.key} value={t.key}>Template: {t.name}</option>
-              ))}
-            </Select>
+            <ChoiceMenu id="bc-template" label="Message template" value={templateKey} onChange={value => value ? pickTemplate(value) : setTemplateKey('')} triggerClassName="w-full" options={[{ value: '', label: 'Custom message' }, ...BROADCAST_TEMPLATES.map(t => ({ value: t.key, label: `Template: ${t.name}` }))]} />
             <Textarea
               ref={textareaRef}
               rows={5}

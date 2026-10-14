@@ -13,7 +13,7 @@ import { formatCurrency } from '@/lib/utils/format';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 
 const METHODS = [
   { value: 'wire',   label: 'Wire Transfer' },
@@ -117,13 +117,7 @@ export function MarkPaidModal({
         <div className="px-6 py-5 space-y-4">
           {/* Method */}
           <Field label="Payment Method">
-            <Select
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-              disabled={saving}
-            >
-              {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </Select>
+            <ChoiceMenu label="Payment method" value={method} onChange={setMethod} disabled={saving} options={METHODS} triggerClassName="w-full" />
           </Field>
 
           {/* Reference */}

@@ -3,7 +3,7 @@ import { KpiStripSkeleton, TableSkeleton } from '@/components/ui/page-skeletons'
 
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Profile header — avatar + name/handle + badges */}
       <div className="flex items-center gap-4">
         <Skeleton className="h-16 w-16 rounded-2xl" />

@@ -25,7 +25,6 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { BrandIdentity } from '@/components/creators/brand-identity';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SegmentedControl } from '@/components/ui/segmented';
@@ -293,9 +292,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
       {!lockedBrand && (
         <div>
           <Label htmlFor="cr-brand">Brand</Label>
-          <Select id="cr-brand" value={brand} onChange={e => setBrand(e.target.value)}>
-            {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-          </Select>
+          <ChoiceMenu id="cr-brand" label="Report brand" value={brand} onChange={setBrand} options={brandOptions} triggerClassName="w-full" />
           <BrandListWarning show={brandsError} />
         </div>
       )}

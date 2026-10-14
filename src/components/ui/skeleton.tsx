@@ -6,7 +6,7 @@ export function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       aria-hidden="true"
-      className={cn(styles.skeleton, 'rounded', className)}
+      className={cn(styles.skeleton, 'min-w-0 max-w-full rounded', className)}
       {...props}
     />
   );

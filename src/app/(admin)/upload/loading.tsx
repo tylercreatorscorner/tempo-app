@@ -2,7 +2,7 @@ import { PageHeaderSkeleton, KpiStripSkeleton, TableSkeleton } from '@/component
 
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeaderSkeleton />
       <KpiStripSkeleton count={3} className="grid gap-3 md:grid-cols-3" />
       <TableSkeleton rows={9} cols={6} />

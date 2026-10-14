@@ -2,7 +2,7 @@ import { PageHeaderSkeleton, KpiStripSkeleton, CardGridSkeleton } from '@/compon
 
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeaderSkeleton />
       <KpiStripSkeleton count={4} />
       <CardGridSkeleton count={6} />
