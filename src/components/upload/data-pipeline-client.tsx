@@ -13,7 +13,7 @@
  *   3. the queue   — one lane, demoted; it is a way to fill gaps, not the page
  *   4. history     — the audit trail
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PipelineHealth } from './pipeline-health';
 import { CoverageLedger, type LedgerSelection } from './coverage-ledger';
 import { CellDetailDrawer } from './cell-detail-drawer';
@@ -36,11 +36,14 @@ export function DataPipelineClient({ activeBrands }: { activeBrands: ActiveBrand
   // Bumped whenever an upload lands so coverage and history re-read and the
   // operator sees the gap they just filled close.
   const [refreshKey, setRefreshKey] = useState(0);
+  const readSeq = useRef(0);
+  const invalidateRead = useCallback(() => { readSeq.current++; }, []);
 
   const load = useCallback(async () => {
+    const seq = ++readSeq.current;
     setLoading(true);
     try {
-      const res = await fetch(`/api/upload/coverage?days=${days}`, { cache: 'no-store' });
+      const res = await fetch(`/api/upload/coverage?days=${days}`, { cache: 'no-store', signal: AbortSignal.timeout(60_000) });
       // Read as TEXT first, then parse. res.json() on a non-JSON body (an auth
       // redirect to the login HTML, a platform 413/502 page) throws a raw
       // SyntaxError quoting "<!DOCTYPE", which is noise to an operator. And
@@ -60,6 +63,7 @@ export function DataPipelineClient({ activeBrands }: { activeBrands: ActiveBrand
         throw new Error((parsed as { error?: string })?.error || `HTTP ${res.status}`);
       }
       const body = parsed as CoverageResponse;
+      if (seq !== readSeq.current) return;
       if (!Array.isArray(body?.brands) || !Array.isArray(body?.days)) {
         throw new Error('unexpected response shape');
       }
@@ -67,13 +71,19 @@ export function DataPipelineClient({ activeBrands }: { activeBrands: ActiveBrand
       setHasLoadedOnce(true);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load coverage.');
+      if (seq !== readSeq.current) return;
+      setError(err instanceof Error && err.name === 'TimeoutError'
+        ? 'Coverage is taking longer than expected. Please try again.'
+        : err instanceof Error ? err.message : 'Could not load coverage.');
     } finally {
-      setLoading(false);
+      if (seq === readSeq.current) setLoading(false);
     }
   }, [days]);
 
-  useEffect(() => { void load(); }, [load, refreshKey]);
+  useEffect(() => {
+    void load();
+    return invalidateRead;
+  }, [load, refreshKey, invalidateRead]);
 
   const onUploaded = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -87,6 +97,7 @@ export function DataPipelineClient({ activeBrands }: { activeBrands: ActiveBrand
         data={hasLoadedOnce ? data : null}
         coverageError={hasLoadedOnce ? null : error}
         stale={hasLoadedOnce ? error : null}
+        loading={loading}
       />
 
       <CoverageLedger
