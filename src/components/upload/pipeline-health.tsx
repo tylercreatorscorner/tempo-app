@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, CircleSlash, PlugZap } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { shortDate, worstStatus, type CoverageResponse } from './coverage-types';
+import { shortDate, worstStatus, cellStates, coverageLabel, type CoverageResponse } from './coverage-types';
 
 interface ConnectionsPayload {
   connections?: { brandSlug: string; isActive: boolean }[];
@@ -34,6 +34,7 @@ interface Derived {
   awaitingDays: number;
   attentionDays: number;
   partialDays: number;
+  reviewDays: number;
   missingDays: number;
   oldestProblem: string | null;
   notExpected: number;
@@ -61,6 +62,7 @@ function derive(data: CoverageResponse): Derived {
 
   let current = 0;
   let partialDays = 0;
+  let reviewDays = 0;
   let missingDays = 0;
   let oldestProblem: string | null = null;
 
@@ -73,7 +75,12 @@ function derive(data: CoverageResponse): Derived {
       const cell = byDate.get(date);
       const w = cell ? worstStatus(cell) : 'missing';
       if (w === 'partial' || w === 'missing') {
-        if (w === 'partial') partialDays++;
+        if (w === 'partial') {
+          const confirmed = cell && cellStates(cell).some(({ state }) =>
+            state?.status === 'partial' && coverageLabel(state) === 'Partial');
+          if (confirmed) partialDays++;
+          else reviewDays++;
+        }
         else missingDays++;
         if (!oldestProblem || date < oldestProblem) oldestProblem = date;
       }
@@ -90,8 +97,9 @@ function derive(data: CoverageResponse): Derived {
     expectedBrands: expected.length,
     throughDate: newestJudged,
     awaitingDays,
-    attentionDays: partialDays + missingDays,
+    attentionDays: partialDays + reviewDays + missingDays,
     partialDays,
+    reviewDays,
     missingDays,
     oldestProblem,
     notExpected: data.brands.length - expected.length,
@@ -144,12 +152,12 @@ export function PipelineHealth({
           icon={<AlertTriangle />}
           title="Needs attention"
           value={d ? String(d.attentionDays) : '—'}
-          unit={d ? 'brand-days incomplete' : undefined}
+          unit={d ? 'brand-days to check' : undefined}
           note={
             d
               ? d.attentionDays === 0
                 ? 'Every expected report landed and was verified.'
-                : `${d.partialDays} partial · ${d.missingDays} missing${
+                : `${d.partialDays} partial · ${d.reviewDays} need review · ${d.missingDays} missing${
                     d.oldestProblem ? ` · oldest ${shortDate(d.oldestProblem)}` : ''
                   }`
               : 'Unknown — a failed read is not the same as no problems.'

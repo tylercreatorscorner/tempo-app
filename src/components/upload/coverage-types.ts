@@ -40,12 +40,15 @@ export interface CellState {
   status: CoverageStatus;
   rows: number | null;
   expectedRows: number | null;
+  fileRows?: number | null;
   /** The sentence that saves an afternoon, e.g. "5,000 rows is an exact chunk
    *  multiple; brand median is 40,606." Present on `partial`, sometimes on
    *  `missing`. Rendered verbatim — never paraphrased in the UI. */
   reason?: string;
   runStatus?: RunStatus;
   source?: CoverageSource;
+  /** False means a low-volume warning has not been confirmed by later days. */
+  confirmed?: boolean;
 }
 
 export interface CoverageCell {
@@ -144,6 +147,33 @@ export const STATUS_LABEL: Record<CoverageStatus, string> = {
   awaiting: 'Awaiting',
   unverified: 'Unverified',
 };
+
+export function coverageLabel(state: CellState): string {
+  return state.status === 'partial' && state.confirmed === false &&
+    (state.runStatus === undefined || state.runStatus === 'complete') &&
+    !(state.fileRows != null && state.rows != null && state.rows < state.fileRows)
+    ? 'Review coverage'
+    : STATUS_LABEL[state.status];
+}
+
+/** A parsed-file count is upload evidence, not a historical volume forecast. */
+export function coverageCountEvidence(state: CellState, medianRows: number | null) {
+  const hasFileCount = state.fileRows != null;
+  const expected = hasFileCount ? state.fileRows! : state.expectedRows ?? medianRows;
+  const pct = state.rows != null && expected != null && expected > 0
+    ? Math.round((state.rows / expected) * 100)
+    : null;
+  return {
+    expected,
+    label: hasFileCount ? 'Rows in parsed file' : 'Baseline row count',
+    progress: pct == null ? null : hasFileCount
+      ? `${pct}% of parsed file rows saved`
+      : `${pct}% of baseline row count`,
+    pct,
+    uploadComplete: hasFileCount && state.runStatus === 'complete' && state.rows != null &&
+      expected != null && expected > 0 && state.rows >= expected,
+  };
+}
 
 /**
  * The filename token TikTok ships each report under. Kept in step with

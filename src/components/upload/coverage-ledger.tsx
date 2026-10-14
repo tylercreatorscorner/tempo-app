@@ -39,7 +39,7 @@ import {
   shortDate,
   worstStatus,
   COVERAGE_TYPES,
-  STATUS_LABEL,
+  coverageLabel,
   type CellState,
   type CoverageBrand,
   type CoverageCell,
@@ -137,12 +137,12 @@ function summarize(brand: CoverageBrand, cells: CoverageCell[]): BrandSummary {
       partialDays,
       unverifiedDays,
       silentStreak,
-      label: `${missingDays} missing${partialDays > 0 ? ` · ${partialDays} partial` : ''}`,
+      label: `${missingDays} missing${partialDays > 0 ? ` · ${partialDays} to review` : ''}`,
       tone: 'bad',
     };
   }
   if (partialDays > 0) {
-    return { missingDays, partialDays, unverifiedDays, silentStreak, label: `${partialDays} partial`, tone: 'warn' };
+    return { missingDays, partialDays, unverifiedDays, silentStreak, label: `${partialDays} to review`, tone: 'warn' };
   }
   if (unverifiedDays > 0) {
     return {
@@ -227,7 +227,7 @@ function describeCell(brandLabel: string, cell: CoverageCell): { title: string; 
     if (!state) return `${label}: not reported`;
     const rows = state.rows != null ? ` (${state.rows.toLocaleString()} rows)` : '';
     const reason = state.reason ? ` — ${state.reason}` : '';
-    return `${label}: ${STATUS_LABEL[state.status]}${rows}${reason}`;
+    return `${label}: ${coverageLabel(state)}${rows}${reason}`;
   });
   const head = `${brandLabel} · ${shortDate(cell.date)}`;
   return {
@@ -593,7 +593,7 @@ function Legend() {
       <span>Creator · Video · Product</span>
       <span className="hidden flex-1 sm:block" />
       <LegendKey state={{ status: 'complete', rows: null, expectedRows: null }} label="Complete" />
-      <LegendKey state={{ status: 'partial', rows: null, expectedRows: null }} label="Partial" />
+      <LegendKey state={{ status: 'partial', rows: null, expectedRows: null }} label="Partial / review" />
       <LegendKey state={{ status: 'missing', rows: null, expectedRows: null }} label="Missing" />
       <LegendKey state={null} label="Not expected" />
     </div>

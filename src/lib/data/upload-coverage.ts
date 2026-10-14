@@ -50,6 +50,8 @@ export interface CellState {
   status: CoverageStatus;
   rows: number | null;
   expectedRows: number | null;
+  /** Exact parsed-file count, separate from a historical volume estimate. */
+  fileRows?: number | null;
   reason?: string;
   runStatus?: RunStatus;
   source?: CoverageSource;
@@ -463,6 +465,7 @@ export function classifyCell(f: CellFacts): CellState {
       status: 'missing',
       rows: f.rows === null ? null : 0,
       expectedRows,
+      fileRows: run?.rowsExpected ?? null,
       ...(runReason ? { reason: runReason } : {}),
       ...(run ? { runStatus: run.status, source: run.source } : {}),
     };
@@ -476,6 +479,7 @@ export function classifyCell(f: CellFacts): CellState {
 
   const trail = f.trailingMedian;
   const lead = f.leadingMedian;
+  let chunkSignature = false;
 
   // (b) The chunk-multiple rule. BASELINE-FREE by design, and that is the whole
   //     point of it.
@@ -506,6 +510,7 @@ export function classifyCell(f: CellFacts): CellState {
     const contradicted =
       veto !== null && Math.abs(rows - veto) <= CONTRADICT_TOLERANCE * rows;
     if (!contradicted) {
+      chunkSignature = true;
       reasons.push(
         veto !== null
           ? `${fmt(rows)} rows is an exact multiple of the ${fmt(CHUNK_SIZE)}-row upload chunk; ` +
@@ -581,9 +586,10 @@ export function classifyCell(f: CellFacts): CellState {
       status: 'partial',
       rows,
       expectedRows,
+      fileRows: run?.rowsExpected ?? null,
       reason: reasons.join(' '),
       // A GMV shortfall needs no confirmation from later days; a collapse does.
-      confirmed: gmvShortfall ? true : collapseConfirmed,
+      confirmed: gmvShortfall || Boolean(runReason) || chunkSignature || collapseConfirmed,
       ...(run ? { runStatus: run.status, source: run.source } : {}),
     };
   }
@@ -611,6 +617,7 @@ export function classifyCell(f: CellFacts): CellState {
     status: 'complete',
     rows,
     expectedRows,
+    fileRows: run?.rowsExpected ?? null,
     ...(run ? { runStatus: run.status, source: run.source } : {}),
   };
 }
