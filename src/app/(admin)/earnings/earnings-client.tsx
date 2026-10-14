@@ -371,7 +371,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
               Excel
             </Button>
             {readyCount > 0 && (
-              <Button variant="primary" size="sm" className="sm:ml-auto" onClick={() => setRunOpen(true)}>
+              <Button variant="primary" size="sm" className="sm:ml-auto" disabled={loading || !!error} onClick={() => setRunOpen(true)}>
                 <Receipt />
                 Run {monthName} invoices · {readyCount} ready
               </Button>
@@ -393,9 +393,10 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
 
           {/* Stale-on-refetch data region: KPIs + table. The view/month/payee
               controls above stay outside so they don't dim during a refetch. */}
-          <div className="relative">
+          <div className="relative" aria-busy={loading}>
+            {loading && data && <p role="status" className="mb-2 text-xs text-muted-foreground">Updating earnings for {monthName}…</p>}
             <TableLoadBar active={showBar} />
-            <div className={cn('space-y-4', showBar && data && 'opacity-60 transition-opacity duration-200')}>
+            <div inert={loading || !!error} className={cn('space-y-4', (loading || error) && data && 'opacity-60 transition-opacity duration-200')}>
               <EarningsKpis data={data} series={series} todayIso={todayIso} />
 
               <Card className="overflow-hidden">
