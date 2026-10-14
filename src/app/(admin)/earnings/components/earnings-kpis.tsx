@@ -4,8 +4,7 @@
  * The cockpit's 5-KPI band: Total earnings (MoM delta), Retainers, Commission,
  * Invoiced X of Y ($ sent), Collected ($ paid, overdue count).
  *
- * Cards match the kit StatCard's visual spec exactly (rounded-[20px], elev-1,
- * uppercase label, tabular value) but keep a free-form detail slot — the
+ * Cards follow the compact shared StatCard styling but keep a free-form detail slot: the
  * Collected card needs a pulse-neg overdue line StatCard can't render.
  * Money renders an em-dash while data is missing — never a fake $0.
  */
@@ -18,10 +17,10 @@ import type { BrandRow, EarningsResponse } from './types';
 
 function KpiCard({ label, value, detail }: { label: string; value: string; detail?: ReactNode }) {
   return (
-    <div className="rounded-[20px] border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
-      <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-extrabold leading-none tracking-tight tabular-nums text-foreground">{value}</p>
-      {detail && <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold">{detail}</div>}
+    <div className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-[0_1px_2px_rgba(0,0,0,0.025)]">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-2 break-words text-xl font-semibold leading-tight tracking-tight tabular-nums text-foreground sm:text-2xl">{value}</p>
+      {detail && <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium">{detail}</div>}
     </div>
   );
 }
@@ -32,7 +31,7 @@ function MomDelta({ pct, label }: { pct: number | null; label: string }) {
   const positive = pct >= 0;
   return (
     <>
-      <span className="tabular-nums" style={{ color: positive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
+      <span className="inline-flex items-center gap-1 tabular-nums" style={{ color: positive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
         {<><InterfaceIcon name={positive ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{positive ? 'Up ' : 'Down '}</span></>}{Math.abs(pct) < 1 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%
       </span>
       <span className="text-muted-foreground">{label}</span>
