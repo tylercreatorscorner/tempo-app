@@ -41,16 +41,17 @@ export function StatCard({
 }: StatCardProps) {
   const resolvedAccent = accentColor ?? brandColor ?? 'var(--primary)';
   const isPositive = trend !== undefined && trend >= 0;
+  const valueSize = value.length > 11 ? 'text-[clamp(.875rem,1.7vw,1.5rem)]' : 'text-[clamp(1.1rem,2.1vw,1.5rem)]';
   const hasSpark = !!sparklineData && sparklineData.length > 1;
 
   if (hero) {
     return (
-      <div className={cn('bg-pulse-hero relative overflow-hidden rounded-[20px] p-4 text-white', hasSpark && 'pb-0', className)}>
+      <div className={cn('bg-pulse-hero relative overflow-hidden min-w-0 rounded-xl p-4 text-white', hasSpark && 'pb-0', className)}>
         <div className="flex items-center gap-1">
-          <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-white/70">{label}</p>
+          <p className="text-[11px] font-medium text-white/70">{label}</p>
           {info && <InfoTooltip label={info} className="text-white/50 hover:text-white" />}
         </div>
-        <p className="mt-2 text-2xl leading-none font-extrabold tracking-tight tabular-nums">{value}</p>
+        <p className={cn('mt-2 break-words leading-tight font-semibold tracking-tight tabular-nums', valueSize)}>{value}</p>
         {(trend !== undefined || subValue || trendLabel) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-white/80">
             {trend !== undefined && (
@@ -83,14 +84,14 @@ export function StatCard({
 
   return (
     <div
-      className={cn('rounded-[20px] border border-border bg-card shadow-[var(--pulse-elev-1)] p-4', hasSpark && 'pb-0', className)}
+      className={cn('min-w-0 rounded-xl border border-border bg-card shadow-[var(--pulse-elev-1)] p-4', hasSpark && 'pb-0', className)}
       style={accentColor ? { borderLeft: `3px solid ${accentColor}` } : undefined}
     >
       <div className="flex items-center gap-1">
-        <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+        <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
         {info && <InfoTooltip label={info} />}
       </div>
-      <p className="mt-2 text-2xl leading-none font-extrabold tracking-tight tabular-nums text-foreground">{value}</p>
+      <p className={cn('mt-2 break-words leading-tight font-semibold tracking-tight tabular-nums text-foreground', valueSize)}>{value}</p>
       {(trend !== undefined || subValue || trendLabel) && (
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold">
           {trend !== undefined && (

@@ -12,10 +12,12 @@
  */
 
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, Search, Users, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { SearchInput } from '@/components/ui/search-input';
 import { Table, TBody, THead, TD, TH, TR } from '@/components/ui/table';
 
 export interface RetainerBookRow {
@@ -95,39 +97,9 @@ export function RetainerBook({
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3 border-y border-border bg-muted/40 px-5 py-3">
-        <div className="relative">
-          <select
-            value={brandFilter}
-            onChange={(e) => handleBrandChange(e.target.value)}
-            className="cursor-pointer appearance-none rounded-xl border border-border bg-card py-2 pl-9 pr-8 text-xs font-semibold text-foreground focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
-          >
-            <option value="all">All brands</option>
-            {availableBrands.map((b) => (
-              <option key={b} value={b}>{brandMeta.label(b)}</option>
-            ))}
-          </select>
-          <Filter className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        </div>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search creator, handle, brand"
-            className="w-56 rounded-xl border border-border bg-card py-2 pl-9 pr-8 text-xs text-foreground transition-colors focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
-          />
-          {search && (
-            <button
-              onClick={() => handleSearchChange('')}
-              className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted"
-              aria-label="Clear search"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-2 border-y border-border bg-muted/40 px-5 py-3">
+        <ChoiceMenu compact label="Retainer brand" value={brandFilter} onChange={handleBrandChange} options={[{ value: 'all', label: 'All brands' }, ...availableBrands.map(b => ({ value: b, label: brandMeta.label(b) }))]} />
+        <SearchInput aria-label="Search retainers" value={search} onChange={e => handleSearchChange(e.target.value)} onClear={() => handleSearchChange('')} placeholder="Creator, handle or brand" />
       </div>
 
       <div className={cn('transition-opacity duration-200', refetching && 'opacity-60')}>

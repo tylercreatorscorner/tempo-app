@@ -3,11 +3,11 @@ import { PageHeaderSkeleton, KpiStripSkeleton } from '@/components/ui/page-skele
 
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeaderSkeleton />
       <KpiStripSkeleton count={4} />
       {/* Cohort heatmap */}
-      <Skeleton className="h-[420px] rounded-[20px]" />
+      <Skeleton className="h-[420px] rounded-xl" />
     </div>
   );
 }

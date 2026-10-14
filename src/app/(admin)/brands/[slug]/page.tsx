@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 
+import { PageHeader } from '@/components/ui/page-header';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { getBrandSummary, getCreatorRankings, getProductSummary, getDailyTrend } from '@/lib/data/rpc';
@@ -51,7 +53,6 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
   const { startDate, endDate, lagDays, anchorDate } = resolveDateRange(sp.range, sp.start, sp.end, dataThrough);
   // Non-null only when the window actually moved; see DateRangePicker.
   const staleThrough = lagDays > 0 ? anchorDate : null;
-  const color = brand.color ?? 'var(--muted-foreground)';
   const displayName = brand.display_name || brand.name || slug;
 
   // Previous period
@@ -115,27 +116,8 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
   const trendLabel = 'vs prior period';
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link href="/brands" className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div
-            className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold"
-            style={{ backgroundColor: color }}
-          >
-            {displayName.charAt(0)}
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">{displayName}</h1>
-            <p className="text-sm text-muted-foreground">Brand performance details</p>
-          </div>
-        </div>
-        <Suspense fallback={null}>
-          <DateRangePicker staleThrough={staleThrough} />
-        </Suspense>
-      </div>
+    <div className="space-y-4">
+      <PageHeader eyebrow="Brands" title={<BrandIdentity brand={slug} label={displayName} />} subtitle="Brand performance details" actions={<div className="flex flex-wrap items-center gap-2"><Link href="/brands" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs"><ArrowLeft size={14} />All brands</Link><Suspense fallback={null}><DateRangePicker staleThrough={staleThrough} /></Suspense></div>} />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard label="GMV" value={formatCurrency(summary?.total_gmv ?? 0)} trend={gmvTrend} trendLabel={trendLabel} />
@@ -150,7 +132,7 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
           inside each brand's drill-down where it has the most context. */}
       <BrandTabs
         overview={
-          <div className="space-y-6">
+          <div className="space-y-4">
             <AmNoteEditor
               brandSlug={slug}
               initialNote={noteRow?.brand_overview_note ?? ''}

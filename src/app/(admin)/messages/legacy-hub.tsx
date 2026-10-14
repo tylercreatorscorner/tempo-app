@@ -102,7 +102,7 @@ function CommsHub() {
   }, [setTab]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         eyebrow="Communications"
         title={TAB_META[tab].title}

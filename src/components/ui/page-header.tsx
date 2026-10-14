@@ -10,7 +10,7 @@ export function Eyebrow({
   return (
     <p
       className={cn(
-        'text-[11px] font-bold uppercase tracking-[0.18em]',
+        'text-[10px] font-semibold uppercase tracking-[0.1em]',
         gradient ? 'text-pulse-grad' : 'text-muted-foreground',
         className,
       )}
@@ -31,7 +31,7 @@ export interface PageHeaderProps {
   wide?: boolean;
 }
 
-/** Standard page header: gradient eyebrow, display title, optional subtitle,
+/** Standard page header: quiet eyebrow, display title, optional subtitle,
  *  and right-aligned actions. */
 export function PageHeader({ eyebrow, title, subtitle, actions, className, wide }: PageHeaderProps) {
   return (
@@ -44,13 +44,13 @@ export function PageHeader({ eyebrow, title, subtitle, actions, className, wide 
       className,
     )}>
       <div className="min-w-0">
-        {eyebrow && <Eyebrow gradient className="mb-1.5">{eyebrow}</Eyebrow>}
-        <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-[26px]">{title}</h1>
-        {subtitle && <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>}
+        {eyebrow && <Eyebrow className="mb-1">{eyebrow}</Eyebrow>}
+        <h1 className="text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-[26px]">{title}</h1>
+        {subtitle && <div className="mt-1 max-w-3xl text-[13px] leading-relaxed text-muted-foreground">{subtitle}</div>}
       </div>
       {actions && (
         <div className={cn(
-          'flex flex-col items-start gap-1',
+          'flex min-w-0 max-w-full flex-col items-start gap-1',
           wide ? 'xl:items-end xl:shrink-0' : 'lg:items-end lg:shrink-0',
         )}>
           {actions}

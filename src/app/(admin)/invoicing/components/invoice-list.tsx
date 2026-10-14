@@ -1,5 +1,7 @@
 'use client';
 
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+
 /**
  * Invoicing List view — the heavy-lifting table: status tabs, brand + payee
  * filters, search, aging panel, bulk actions, CSV/XLSX export.
@@ -13,8 +15,8 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus,
-  AlertCircle, Ban, Search, X, Send, Loader2, FileDown, Users, FileSpreadsheet,
+  Receipt, FileText, Clock, CheckCircle2, RefreshCw, Download, Plus,
+  AlertCircle, Ban, Search, X, Send, Loader2, FileDown, FileSpreadsheet,
 } from 'lucide-react';
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
@@ -588,15 +590,7 @@ function BrandFilter({ value, onChange, options, labelFor }: {
 }) {
   return (
     <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="cursor-pointer appearance-none rounded-xl border border-border bg-card py-2 pl-9 pr-8 text-xs font-semibold text-foreground focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
-      >
-        <option value="all">All brands</option>
-        {options.map((b) => <option key={b} value={b}>{labelFor(b)}</option>)}
-      </select>
-      <Filter className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      <ChoiceMenu compact label="Invoice brand" value={value} onChange={onChange} options={[{ value: 'all', label: 'All brands' }, ...options.map(b => ({ value: b, label: labelFor(b) }))]} />
     </div>
   );
 }
@@ -608,16 +602,7 @@ function TeamMemberFilter({ value, onChange, members }: {
 }) {
   return (
     <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="cursor-pointer appearance-none rounded-xl border border-border bg-card py-2 pl-9 pr-8 text-xs font-semibold text-foreground focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
-        title="Filter invoices by who issued them"
-      >
-        <option value="all">All payees</option>
-        {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-      </select>
-      <Users className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      <ChoiceMenu compact label="Invoice payee" value={value} onChange={onChange} options={[{ value: 'all', label: 'All payees' }, ...members.map(m => ({ value: m.id, label: m.name }))]} />
     </div>
   );
 }

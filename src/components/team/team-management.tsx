@@ -15,7 +15,7 @@ import {
   resendMagicLink,
 } from '@/app/actions/users';
 import { TableCard, Table, THead, TBody, TR, TH, TD, DataAvatar } from '@/components/ui/table';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
@@ -257,15 +257,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
                 <Shield className="h-3.5 w-3.5 text-muted-foreground" /> Owner
               </span>
             ) : (
-              <Select
-                value={u.role}
-                disabled={isPending || isSelf}
-                onChange={(e) => onRoleSelect(u, e.target.value)}
-                aria-label={`Role for ${u.email}`}
-                className="py-[7px] text-[13px]"
-              >
-                {roleOptionsFor(u.role).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </Select>
+              <ChoiceMenu compact label={`Role for ${u.email}`} value={u.role} disabled={isPending || isSelf} onChange={value => onRoleSelect(u, value)} options={roleOptionsFor(u.role)} />
             )}
           </TD>
 

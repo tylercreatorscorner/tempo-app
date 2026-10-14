@@ -4,6 +4,8 @@ The existing creator profile metric rail uses a shared, server-compatible compon
 
 ## Design contract
 
+- Signed-in workspace colors are owned by `src/components/layout/workspace-theme.module.css`, including portalled controls. Creator pages inherit this theme; do not add body-level palette overrides to individual routes. Use `PageHeader`, `ChoiceMenu`, `SearchInput`, `Button`, `Card`, and shared loading primitives across new pages. The October rollout checklist lives in `workspace-ui-audit-2026-10.md`.
+
 - Navigation links use `NavigationLink` from `src/components/ui/navigation-link.tsx`: Lucide SVG chevrons with consistent sizing, muted color, and keyboard focus. Never append Unicode/text arrows to labels. Settings destination rows keep the chevron right-aligned and the full row clickable; inline links keep it adjacent to the label. Prefer subtle color/surface hover feedback over decorative movement.
 
 - Reuse `CreatorMetricReadout` and `CreatorPerformanceTimeline` from `src/components/creators/performance`. Their CSS module is isolated; do not copy its styles into global CSS.

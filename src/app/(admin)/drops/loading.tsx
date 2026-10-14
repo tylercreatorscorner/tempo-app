@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeaderSkeleton />
       {/* Control bar */}
       <Skeleton className="h-[92px] rounded-xl" />

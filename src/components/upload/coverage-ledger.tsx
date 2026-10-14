@@ -433,7 +433,10 @@ export function CoverageLedger({
           </button>
         </div>
       ) : !data ? (
-        <LedgerSkeleton />
+        <div role="status" aria-label="Loading coverage">
+          <p className="px-5 pt-3 text-xs text-muted-foreground">Checking daily report coverage…</p>
+          <LedgerSkeleton />
+        </div>
       ) : rows.length === 0 ? (
         <p className="px-6 py-14 text-center text-sm text-muted-foreground">
           No brands in this window.

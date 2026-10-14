@@ -13,6 +13,7 @@ import { NavigationPendingProvider, NavigationPendingOverlay } from '@/component
 import { SetupBanner } from '@/components/onboarding/setup-banner';
 import { DashboardGate } from '@/components/onboarding/dashboard-gate';
 import { BreadcrumbProvider } from '@/components/layout/breadcrumb-context';
+import styles from './workspace-theme.module.css';
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -62,7 +63,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
           so the scroll wheel works from anywhere on the page (including
           while hovering the sidebar). Sidebar is now `sticky top-0 h-screen`
           internally so it stays pinned while the document scrolls. */}
-      <div className="flex min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
+      <div className={`${styles.workspace} flex min-h-screen`} style={{ backgroundColor: 'var(--background)' }}>
         <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
         <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} />
 
@@ -78,11 +79,11 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
           />
           <SectionTabs isAdmin={isAdmin} navPerms={navPerms} />
           <main className="flex-1 animate-fade-in">
-            <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 space-y-3">
+            <div className={`${styles.banners} space-y-3`}>
               {viewAsBanner}
               <SetupBanner />
             </div>
-            <div className="p-3 sm:p-4 md:p-6 pt-2">
+            <div className={styles.content}>
               <DashboardGate>
                 {/* Server-rendered pages pass through as a slot — they can't
                     consume client context themselves, so the affordance wraps

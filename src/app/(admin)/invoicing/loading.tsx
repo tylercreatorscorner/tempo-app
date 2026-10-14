@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 /** Mirrors the default Board view: header, then four lifecycle columns. */
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeaderSkeleton />
       <Card className="p-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

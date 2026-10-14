@@ -344,21 +344,7 @@ function ReportForm({
           </p>
         </div>
         {versions.length > 0 && (
-          <select
-            disabled={busy}
-            aria-label="Submission version"
-            value={revision}
-            onChange={(e) => setRevision(e.target.value)}
-          >
-            <option value="">
-              {editing ? "Current draft" : "Latest submission"}
-            </option>
-            {versions.map((s) => (
-              <option key={s.id} value={s.id}>
-                Submission v{s.revision}
-              </option>
-            ))}
-          </select>
+          <ChoiceMenu compact label="Submission version" disabled={busy} value={revision} onChange={setRevision} options={[{ value: '', label: editing ? 'Current draft' : 'Latest submission' }, ...versions.map(s => ({ value: s.id, label: `Submission v${s.revision}` }))]} />
         )}
       </div>
       {!own && !submission && (

@@ -1,5 +1,7 @@
 'use client';
 
+import { PageHeader } from '@/components/ui/page-header';
+
 import { useEffect, useState, useCallback } from 'react';
 import { Check, X, Search, Users, Zap, HelpCircle, RefreshCw, ChevronDown } from 'lucide-react';
 
@@ -143,17 +145,11 @@ export default function DiscordScanPage() {
     .filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
 
   return (
-    <div className="min-h-screen bg-muted p-6 lg:p-8">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="mb-8">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Search className="h-6 w-6 text-primary" />
-              Discord Scanner
-            </h1>
-            <p className="text-muted-foreground mt-1">Match Discord server members to managed creators</p>
-          </div>
+          <PageHeader eyebrow="Discord" title="Discord scanner" subtitle="Match Discord server members to managed creators." />
           <button
             onClick={fetchQueue}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"

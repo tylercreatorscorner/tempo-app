@@ -14,13 +14,13 @@ import { Card, CardHeader, CardContent } from '@/components/ui/card';
 export function PageHeaderSkeleton({ withControls = true, subtitle = true }: { withControls?: boolean; subtitle?: boolean }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="space-y-3">
+      <div className="min-w-0 max-w-full space-y-3">
         <LoadingStatus label="Loading page" />
         <Skeleton className="h-8 w-56 max-w-full" />
         {subtitle && <Skeleton className="h-4 w-72 max-w-full" />}
       </div>
       {withControls && (
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Skeleton className="h-7 w-32 rounded-full" />
         </div>
       )}
@@ -33,7 +33,7 @@ export function KpiStripSkeleton({ count = 4, className = 'grid grid-cols-2 lg:g
   return (
     <div className={className}>
       {Array.from({ length: count }).map((_, i) => (
-        <Skeleton key={i} className="h-[104px] rounded-[20px]" />
+        <Skeleton key={i} className="h-[104px] rounded-xl" />
       ))}
     </div>
   );
@@ -69,7 +69,7 @@ export function CardGridSkeleton({ count = 6, height = 'h-40', className = 'grid
   return (
     <div className={className}>
       {Array.from({ length: count }).map((_, i) => (
-        <Skeleton key={i} className={`${height} rounded-[20px]`} />
+        <Skeleton key={i} className={`${height} rounded-xl`} />
       ))}
     </div>
   );
@@ -77,5 +77,5 @@ export function CardGridSkeleton({ count = 6, height = 'h-40', className = 'grid
 
 /** Chart card placeholder. */
 export function ChartSkeleton({ className = '' }: { className?: string }) {
-  return <Skeleton className={`h-[232px] rounded-[20px] ${className}`} />;
+  return <Skeleton className={`h-[232px] rounded-xl ${className}`} />;
 }

@@ -37,10 +37,7 @@ import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Chip } from '@/components/ui/chip';
 import { Badge } from '@/components/ui/badge';
 import { ScrollFade } from '@/components/ui/scroll-fade';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
@@ -922,16 +919,7 @@ function CreatorPanel({
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Brand</label>
-                  <select
-                    value={form.brand}
-                    onChange={e => set('brand', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
-                  >
-                    <option value="">— none —</option>
-                    {brandOptions.map(b => (
-                      <option key={b.slug} value={b.slug}>{b.name}</option>
-                    ))}
-                  </select>
+                  <ChoiceMenu label="Creator brand" value={form.brand} onChange={value => set('brand', value)} triggerClassName="w-full" options={[{ value: '', label: 'No brand' }, ...brandOptions.map(b => ({ value: b.slug, label: b.name }))]} />
                 </div>
               </div>
 
@@ -1008,16 +996,7 @@ function CreatorPanel({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Status</label>
-                  <select
-                    value={form.status}
-                    onChange={e => set('status', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Churned">Churned</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                  <ChoiceMenu label="Creator status" value={form.status} onChange={value => set('status', value)} triggerClassName="w-full" options={['Active', 'On Hold', 'Churned', 'Inactive'].map(status => ({ value: status, label: status }))} />
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Discord</label>
@@ -1304,17 +1283,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 
           <div>
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Brand</label>
-            <select
-              aria-label="Brand"
-              value={form.brand}
-              onChange={(e) => set('brand', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
-            >
-              <option value="">Select brand...</option>
-              {brandOptions.map(b => (
-                <option key={b.slug} value={b.slug}>{b.name}</option>
-              ))}
-            </select>
+            <ChoiceMenu label="Brand" value={form.brand} onChange={value => set('brand', value)} triggerClassName="w-full" options={[{ value: '', label: 'Select brand…' }, ...brandOptions.map(b => ({ value: b.slug, label: b.name }))]} />
           </div>
 
           {form.brand && (

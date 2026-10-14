@@ -20,7 +20,7 @@ import { downloadXlsx } from '@/lib/utils/xlsx';
 import { buildMonthOptions } from '@/lib/utils/format';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { SegmentedControl } from '@/components/ui/segmented';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
@@ -339,9 +339,9 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
   const todayIso = todayIsoUtc();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Controls toolbar (page title lives in the server page wrapper) */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <SegmentedControl<View>
           options={[{ value: 'month', label: 'Month' }, { value: 'year', label: 'Year' }]}
           value={view}
@@ -351,20 +351,11 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
         {view === 'month' && (
           <>
             <div className="w-44">
-              <Select value={month} onChange={(e) => setMonth(e.target.value)} className="font-semibold">
-                {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </Select>
+              <ChoiceMenu compact triggerClassName="w-full" label="Earnings month" value={month} onChange={setMonth} options={monthOptions} />
             </div>
             {teamMembers.length > 1 && (
               <div className="w-52">
-                <Select
-                  value={teamMemberId ?? ''}
-                  onChange={(e) => setTeamMemberId(e.target.value || null)}
-                  className="font-semibold"
-                  title="View earnings for this team member's compensation arrangements"
-                >
-                  {teamMembers.map((tm) => <option key={tm.id} value={tm.id}>Payee: {tm.name}</option>)}
-                </Select>
+                <ChoiceMenu compact triggerClassName="w-full" label="Payee" value={teamMemberId ?? ''} onChange={value => setTeamMemberId(value || null)} options={teamMembers.map(tm => ({ value: tm.id, label: `Payee: ${tm.name}` }))} />
               </div>
             )}
             <Button variant="outline" size="sm" onClick={() => fetchAll(month, teamMemberId)} disabled={loading} title="Refresh">
@@ -380,7 +371,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
               Excel
             </Button>
             {readyCount > 0 && (
-              <Button variant="primary" size="md" className="ml-auto" onClick={() => setRunOpen(true)}>
+              <Button variant="primary" size="sm" className="sm:ml-auto" disabled={loading || !!error} onClick={() => setRunOpen(true)}>
                 <Receipt />
                 Run {monthName} invoices · {readyCount} ready
               </Button>
@@ -402,9 +393,10 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
 
           {/* Stale-on-refetch data region: KPIs + table. The view/month/payee
               controls above stay outside so they don't dim during a refetch. */}
-          <div className="relative">
+          <div className="relative" aria-busy={loading}>
+            {loading && data && <p role="status" className="mb-2 text-xs text-muted-foreground">Updating earnings for {monthName}…</p>}
             <TableLoadBar active={showBar} />
-            <div className={cn('space-y-6', showBar && data && 'opacity-60 transition-opacity duration-200')}>
+            <div inert={loading || !!error} className={cn('space-y-4', (loading || error) && data && 'opacity-60 transition-opacity duration-200')}>
               <EarningsKpis data={data} series={series} todayIso={todayIso} />
 
               <Card className="overflow-hidden">

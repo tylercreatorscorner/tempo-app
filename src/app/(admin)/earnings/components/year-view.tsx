@@ -16,7 +16,7 @@ import { downloadCsv } from '@/lib/utils/csv';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { HorizontalBars } from '@/components/charts/bar-chart';
@@ -152,9 +152,7 @@ export function YearView({ initialYear }: { initialYear: number }) {
       {/* Year toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="w-28">
-          <Select value={year} onChange={(e) => setYear(Number(e.target.value))} className="font-semibold" title="Year">
-            {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-          </Select>
+          <ChoiceMenu compact triggerClassName="w-full" label="Earnings year" value={String(year)} onChange={value => setYear(Number(value))} options={yearOptions.map(y => ({ value: String(y), label: String(y) }))} />
         </div>
         <Button variant="outline" size="sm" onClick={() => fetchData(year)} disabled={loading} title="Refresh">
           <RefreshCw className={cn(loading && 'animate-spin')} />

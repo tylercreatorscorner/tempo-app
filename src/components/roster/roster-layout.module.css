@@ -1,5 +1,4 @@
-/* Route-scoped palette also reaches the shell and portaled controls while this
-   page is mounted. Other routes retain their existing semantic theme. */
+/* Workspace colors are inherited from the shared signed-in app shell. */
 .page { composes: surface from "../creators/creator-theme.module.css"; max-width: 1520px; margin-inline: auto; min-width: 0; container-type: inline-size; }
 .page :global(.bg-pulse-grad) { background-image: none; background-color: var(--primary); color: var(--primary-foreground); box-shadow: none; }
 .page h1 { font-size: 30px; font-weight: 600; letter-spacing: -.9px; }
@@ -37,6 +36,7 @@
 @container (max-width: 650px) {
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric, .metric:nth-child(-n+2) { padding: 14px 10px; grid-column: span 1; }
+  .metric > p { font-size: clamp(17px, 5cqw, 22px); }
   .metric:last-child { grid-column: 1 / -1; border-left: 0; }
   .table, .table tbody { display: block; width: 100%; }
   .table thead, .table thead tr { display: flex; flex-wrap: wrap; width: 100%; }
@@ -55,7 +55,7 @@
   .person { max-width: none; min-width: 0; }
   .person .avatar { width: 54px; height: 54px; }
 }
-@container (max-width: 370px) { .metrics { grid-template-columns: 1fr; } .metric, .metric:last-child { border: 0; padding: 14px; grid-column: span 1; } .metric:first-child { padding-left: 14px; } }
+@container (max-width: 300px) { .metrics { grid-template-columns: 1fr; } .metric, .metric:last-child { border: 0; padding: 14px; grid-column: span 1; } .metric:first-child { padding-left: 14px; } }
 @media (max-width: 600px) {
   .page h1 { font-size: 26px; }
   .toolbar { padding: 12px; gap: 8px; }

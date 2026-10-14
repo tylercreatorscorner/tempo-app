@@ -28,7 +28,7 @@ export default async function EarningsPage({ searchParams }: Props) {
   const year = Number.isFinite(yearParam) ? yearParam : new Date().getUTCFullYear();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         eyebrow="Finance"
         title="Earnings"

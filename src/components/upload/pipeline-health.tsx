@@ -110,6 +110,7 @@ export function PipelineHealth({
   data,
   coverageError,
   stale,
+  loading = false,
 }: {
   data: CoverageResponse | null;
   /** Non-null when coverage has never loaded successfully — lanes go to "—". */
@@ -122,6 +123,7 @@ export function PipelineHealth({
    * just failed — and it is the element an operator reads first.
    */
   stale?: string | null;
+  loading?: boolean;
 }) {
   const d = data ? derive(data) : null;
   // A number from a read that just failed does not get the green tone.
@@ -144,7 +146,7 @@ export function PipelineHealth({
                     ? ` · ${d.awaitingDays} newer ${d.awaitingDays === 1 ? 'day' : 'days'} awaiting publication.`
                     : '.')
                 : 'No judged days in this window.'
-              : 'Coverage could not be read, so no brand is being reported as current.'
+              : loading ? 'Checking coverage…' : 'Coverage could not be read, so no brand is being reported as current.'
           }
         />
         <Lane
@@ -160,7 +162,7 @@ export function PipelineHealth({
                 : `${d.partialDays} partial · ${d.reviewDays} need review · ${d.missingDays} missing${
                     d.oldestProblem ? ` · oldest ${shortDate(d.oldestProblem)}` : ''
                   }`
-              : 'Unknown — a failed read is not the same as no problems.'
+              : loading ? 'Checking reports for missing or partial data…' : 'Unknown — a failed read is not the same as no problems.'
           }
         />
         <Lane
@@ -174,7 +176,7 @@ export function PipelineHealth({
               ? d.notExpected === 0
                 ? 'Every brand on the ledger is expected to report daily.'
                 : 'Archived or offboarded — no reports are owed, and their empty rows are not failures.'
-              : 'Unknown.'
+              : loading ? 'Checking which brands are expected to report…' : 'Unknown.'
           }
         />
       </div>

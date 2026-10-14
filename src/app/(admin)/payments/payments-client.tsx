@@ -144,7 +144,7 @@ export function PaymentsClient() {
   const monthLabel = formatPeriod(currentMonth());
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         eyebrow="Finance"
         title="Payments"

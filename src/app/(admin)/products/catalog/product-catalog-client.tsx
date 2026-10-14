@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -85,12 +85,7 @@ export function ProductCatalogClient() {
       <Card className="p-4 flex flex-wrap items-center gap-3">
         <Label className="mb-0">Brand</Label>
         <div className="min-w-[220px]">
-          <Select value={brand} onChange={(e) => setBrand(e.target.value)}>
-            <option value="">Select a brand…</option>
-            {brands.map((b) => (
-              <option key={b.slug} value={b.slug}>{b.name}</option>
-            ))}
-          </Select>
+          <ChoiceMenu compact label="Catalog brand" value={brand} onChange={setBrand} options={[{ value: '', label: 'Select a brand…' }, ...brands.map(b => ({ value: b.slug, label: b.name }))]} />
         </div>
         {brand && (
           <span className="text-xs text-muted-foreground">

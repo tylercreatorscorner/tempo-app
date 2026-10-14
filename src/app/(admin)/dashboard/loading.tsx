@@ -3,9 +3,9 @@ import { ChartLoading, LoadingStatus } from '@/components/ui/loading-status';
 
 /** Match the released dashboard so loading doesn't resurrect the old layout. */
 export default function Loading() {
-  return <div className="space-y-6" aria-busy="true">
+  return <div className="space-y-4" aria-busy="true">
     <div className="flex flex-wrap items-center justify-between gap-4">
-      <div><p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-primary">Agency overview</p>
+      <div><p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-primary">Brand portfolio</p>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1></div>
       <LoadingStatus label="Loading dashboard" detail="Preparing your workspace overview" />
     </div>

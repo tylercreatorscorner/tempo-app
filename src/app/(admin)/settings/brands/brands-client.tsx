@@ -1,5 +1,9 @@
 'use client';
 
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { LoadingStatus } from '@/components/ui/loading-status';
+
 /**
  * Brand-level settings management.
  *
@@ -159,33 +163,13 @@ export function BrandsSettingsClient() {
   }, [brands]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Brand Settings</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Manage compensation models, rates, retainers, fees, and invoice defaults across all brands.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={fetchBrands}
-            disabled={loading}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-            Refresh
-          </button>
-          <button
-            onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary)] transition-colors shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            New Client
-          </button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <PageHeader eyebrow="Settings" title="Brands" subtitle="Manage brand details, compensation and invoice defaults."
+        actions={<div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={fetchBrands} disabled={loading}><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />Refresh</Button>
+          <Button size="sm" onClick={() => setAdding(true)}><Plus className="h-4 w-4" />New client</Button>
+        </div>}
+      />
 
       {error && (
         <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500 flex items-center gap-2">
@@ -195,7 +179,7 @@ export function BrandsSettingsClient() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 max-w-2xl">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:max-w-2xl">
         <Stat label="Active" value={String(stats.active)} />
         <Stat label="Archived" value={String(stats.archived)} />
         <Stat label="Monthly Retainer Commit" value={formatCurrency(stats.monthlyCommit)} />
@@ -203,11 +187,11 @@ export function BrandsSettingsClient() {
 
       {/* Brand list */}
       {loading && brands.length === 0 ? (
-        <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center">
-          <div className="inline-block h-8 w-8 rounded-full border-2 border-border border-t-[var(--primary)] animate-spin" />
+        <div className="rounded-xl bg-card border border-border p-6 text-center">
+          <LoadingStatus label="Loading brands" />
         </div>
       ) : brands.length === 0 ? (
-        <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center">
+        <div className="rounded-xl bg-card border border-border p-6 text-center">
           <div className="mx-auto h-12 w-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
             <Settings2 className="h-5 w-5 text-muted-foreground" />
           </div>

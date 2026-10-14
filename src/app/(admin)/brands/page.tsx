@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 
+import { PageHeader } from '@/components/ui/page-header';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { Suspense } from 'react';
 import Link from 'next/link';
@@ -72,21 +74,8 @@ export default async function BrandsPage({ searchParams }: Props) {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Brands</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Portfolio overview — {brands.length} brand{brands.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <BrandsActions />
-          <Suspense fallback={null}>
-            <DateRangePicker staleThrough={staleThrough} />
-          </Suspense>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <PageHeader eyebrow="Portfolio" title="Brands" subtitle={`${brands.length} brands in your portfolio.`} actions={<div className="flex flex-wrap items-center gap-2"><BrandsActions /><Suspense fallback={null}><DateRangePicker staleThrough={staleThrough} /></Suspense></div>} />
 
       {/* Portfolio totals */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -125,8 +114,8 @@ export default async function BrandsPage({ searchParams }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {summaries.map(({ brand: slug, data }) => {
           const brandInfo = brands.find(b => b.slug === slug);
-          const color = brandInfo?.color ?? 'var(--muted-foreground)';
           const displayName = brandInfo?.name ?? slug;
+          const color = brandInfo?.color ?? 'var(--primary)';
           const gmv = data?.total_gmv ?? 0;
           const gmvShare = portfolioTotals.gmv > 0 ? (gmv / portfolioTotals.gmv) * 100 : 0;
 
@@ -134,19 +123,10 @@ export default async function BrandsPage({ searchParams }: Props) {
             <Link
               key={slug}
               href={`/brands/${slug}`}
-              className="group rounded-xl border border-border bg-card p-6 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:scale-[1.01] transition-all duration-200"
+              className="group rounded-xl border border-border bg-card p-4 hover:border-primary/30 hover:bg-secondary/30 transition-colors duration-150"
             >
               <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-                  style={{ backgroundColor: color }}
-                >
-                  {displayName.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{displayName}</h3>
-                  <p className="text-xs text-muted-foreground">{gmvShare.toFixed(1)}% of portfolio</p>
-                </div>
+                <div className="min-w-0"><h3 className="font-semibold text-sm"><BrandIdentity brand={slug} label={displayName} /></h3><p className="mt-2 text-xs text-muted-foreground">{gmvShare.toFixed(1)}% of portfolio</p></div>
               </div>
 
               {/* GMV bar */}

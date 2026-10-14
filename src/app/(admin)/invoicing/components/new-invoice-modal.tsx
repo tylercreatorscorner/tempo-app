@@ -21,7 +21,7 @@ import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { EmptyState } from '@/components/ui/empty-state';
 
 interface BrandOption {
@@ -172,13 +172,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
           {/* Month picker */}
           <div>
             <Label>Period</Label>
-            <Select
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              disabled={creating}
-            >
-              {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </Select>
+            <ChoiceMenu label="Invoice month" value={month} onChange={setMonth} disabled={creating} options={monthOptions} triggerClassName="w-full" />
           </div>
 
           {/* Payee picker — hidden for single-payee tenants (the default payee
@@ -186,14 +180,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
           {teamMembers.length > 1 && (
             <div>
               <Label>Payee</Label>
-              <Select
-                value={teamMemberId ?? ''}
-                onChange={(e) => { setTeamMemberId(e.target.value || null); setSelectedBrand(null); }}
-                disabled={creating}
-                title="Generate the invoice from this team member's compensation arrangements"
-              >
-                {teamMembers.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
-              </Select>
+              <ChoiceMenu label="Invoice payee" value={teamMemberId ?? ''} onChange={value => { setTeamMemberId(value || null); setSelectedBrand(null); }} disabled={creating} options={teamMembers.map(tm => ({ value: tm.id, label: tm.name }))} triggerClassName="w-full" />
             </div>
           )}
 
