@@ -37,7 +37,7 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { DateField } from '@/components/ui/date-field';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
+import { readUploadWorkbook } from '@/lib/upload/read-workbook';
 import {
   AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, Trash2, Upload,
   ChevronDown, ChevronUp, AlertTriangle, ArrowLeftRight,
@@ -536,9 +536,14 @@ export function UploadClient({ activeBrands, onUploaded }: UploadClientProps) {
     let rows: Record<string, unknown>[];
     try {
       const ab = await item.file.arrayBuffer();
-      const workbook = XLSX.read(ab, { type: 'array' });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
+      const read = readUploadWorkbook(ab);
+      rows = read.rows;
+      if (read.rangeRepaired) {
+        appendLog(item.id, 'warning', `Repaired the spreadsheet's declared range (${read.declaredRange ?? 'missing'} → ${read.readRange}). Read ${read.recoveredRows.toLocaleString()} additional worksheet rows that the old range would hide.`);
+      }
+      if (read.sheetCount > 1) {
+        appendLog(item.id, 'warning', `This workbook contains ${read.sheetCount} worksheets. Reading "${read.sheetName}" only; other sheets are not merged because they may cover different reports or dates.`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'XLSX parse failed';
       appendLog(item.id, 'error', `XLSX parse failed: ${message}`);
@@ -565,6 +570,11 @@ export function UploadClient({ activeBrands, onUploaded }: UploadClientProps) {
       // already logged
       updateItem(item.id, { status: 'error' });
       return;
+    }
+
+    const skippedRows = rows.length - parsed.records.length;
+    if (skippedRows > 0) {
+      appendLog(item.id, skippedRows > 1 ? 'warning' : 'info', `${skippedRows.toLocaleString()} worksheet row(s) did not become records. Description rows and rows without a required creator, video or product identifier are excluded.`);
     }
 
     appendLog(
