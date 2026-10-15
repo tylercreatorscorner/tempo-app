@@ -49,6 +49,7 @@ import { requireAdmin } from '@/lib/auth/require-admin';
 // These three lived here as private helpers until that path needed the same
 // derivation; both paths ingest the same export, so they must not fork.
 import { deriveVideoIdentities, dropScheduledRows } from '@/lib/upload/video-identities';
+import { guardsSourceReplacement, sourceFileRowCount, sourceReplacementMessage } from '@/lib/upload/source-replacement';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -509,6 +510,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  let sourceRows: number | null = null;
+  if (guardsSourceReplacement(table)) {
+    try {
+      sourceRows = sourceFileRowCount(totals?.rows, uploadRecords.length, chunkCnt);
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Invalid file row count' }, { status: 400 });
+    }
+  }
+
   // ── Single RPC call — does delete (if overwrite) + bulk insert atomically
   //    inside a transaction with SET LOCAL statement_timeout = '60s' and an
   //    advisory lock on (brand, report_date) to serialize concurrent uploads.
@@ -525,12 +535,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const rpcArgs =
+    const guarded = guardsSourceReplacement(table);
+    const rpcArgs = guarded
+      ? { p_table: table, p_brand: brand, p_report_date: reportDate, p_records: uploadRecords, p_overwrite: !!overwrite, p_file_rows: sourceRows }
+      :
       table === 'videos'
         ? { p_records: uploadRecords }
         : { p_brand: brand, p_report_date: reportDate, p_records: uploadRecords, p_overwrite: !!overwrite };
 
-    const { data, error } = await admin.rpc(RPC_NAME[table], rpcArgs);
+    const { data, error } = await admin.rpc(guarded ? 'upload_source_checked_atomic' : RPC_NAME[table], rpcArgs);
     if (error) {
       await closeRunRow(admin, {
         brand,
@@ -541,6 +554,13 @@ export async function POST(request: NextRequest) {
         error: error.message,
       });
       return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
+    }
+
+    const block = data as { blocked?: boolean; existingRows: number; fileRows: number | null } | null;
+    if (block?.blocked) {
+      const message = sourceReplacementMessage(block.existingRows, block.fileRows);
+      await closeRunRow(admin, { brand, table, reportDate: reportDate as string, status: 'failed', rowsWritten: 0, error: message });
+      return NextResponse.json({ error: message, sourceReplacementBlocked: { existingRows: block.existingRows, fileRows: block.fileRows } }, { status: 409 });
     }
 
     const upserted = (data as { upserted?: number } | null)?.upserted ?? 0;

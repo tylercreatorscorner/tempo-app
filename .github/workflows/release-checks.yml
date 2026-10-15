@@ -35,7 +35,7 @@ jobs:
       - name: Offline regression tests
         run: npm run test:ci
       - name: Upload coverage evidence regressions
-        run: node --import tsx scripts/test-coverage-classify.ts && node --import tsx scripts/test-upload-coverage-evidence.ts && node --import tsx scripts/test-workbook-range-recovery.ts
+        run: node --import tsx scripts/test-coverage-classify.ts && node --import tsx scripts/test-upload-coverage-evidence.ts && node --import tsx scripts/test-workbook-range-recovery.ts && node scripts/test-upload-source-replacement.mjs
       - name: Lint hardened entry points
         run: npm run lint:hardening
       - name: Verify production compilation with dummy configuration
