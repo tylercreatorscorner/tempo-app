@@ -73,6 +73,7 @@ import {
 import { COLUMN_MAPS, auditColumnMatches, type UploadTable as MapTable } from '@/lib/upload/column-maps';
 import { extractHeaderRow, resolveTypeFromHeaders } from '@/lib/upload/type-sniff';
 import { parseRowsForType } from '@/lib/upload/parse-dispatch';
+import { guardsSourceReplacement, sourceReplacementMessage } from '@/lib/upload/source-replacement';
 
 type QueueStatus = 'queued' | 'processing' | 'success' | 'error' | 'cancelled';
 
@@ -695,6 +696,11 @@ export function UploadClient({ activeBrands, onUploaded }: UploadClientProps) {
       }
       if ((count ?? 0) > 0) {
         if (item.overwriteOk !== false) {
+          if (guardsSourceReplacement(table) && parsed.records.length < count!) {
+            appendLog(item.id, 'error', sourceReplacementMessage(count!, parsed.records.length));
+            updateItem(item.id, { status: 'error', existingCount: count! });
+            return;
+          }
           overwrite = true;
           appendLog(item.id, 'info', `Overwriting ${count!.toLocaleString()} existing rows for ${brandLabelBySlug.get(item.brand) ?? item.brand} on ${item.reportDate}.`);
         } else {
@@ -1231,7 +1237,7 @@ function QueueRow({
                     : 'border-border bg-muted text-muted-foreground',
                   !editable && 'cursor-default opacity-60',
                 )}
-                title="On: delete that day's existing rows, then insert this file. Off: merge this file on top without deleting."
+                title="On: replace the saved day with this file. Shorter creator/video replacements are stopped. Off: merge matching records and keep unmatched existing rows; review the resulting totals."
               >
                 <input
                   type="checkbox"
@@ -1240,7 +1246,7 @@ function QueueRow({
                   disabled={!editable}
                   className="h-3 w-3 accent-[var(--pulse-warn)]"
                 />
-                Overwrite {item.existingCount.toLocaleString()} rows
+                Replace day ({item.existingCount.toLocaleString()} saved rows)
               </label>
             )}
             {item.result && (
