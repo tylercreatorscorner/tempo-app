@@ -16,14 +16,18 @@ assert.equal(helper.recoveryDateWindow('2024-02-29','2026-10-14').end,'2024-03-0
 let pages=[];
 let result=await helper.captureRecoveryPages({rowKey:'videos',fetchPage:async token=>({data:{videos:token?[{id:'b'}]:[{id:'a'}],total_count:2,next_page_token:token?'':'next'},requestId:null}),savePage:async (...args)=>pages.push(args)});
 assert.equal(result.exhausted,true);assert.equal(result.rows,2);assert.equal(pages.length,2);
-await assert.rejects(helper.captureRecoveryPages({rowKey:'videos',fetchPage:async()=>({data:{videos:[{}],total_count:3,next_page_token:''},requestId:null}),savePage:async()=>{}}),/reported total/);
+result=await helper.captureRecoveryPages({rowKey:'videos',fetchPage:async()=>({data:{videos:[{}],total_count:3,next_page_token:''},requestId:null}),savePage:async()=>{}});
+assert.equal(result.countsMatch,false);assert.equal(result.exhausted,true);assert.equal(result.hasMore,false);
 await assert.rejects(helper.captureRecoveryPages({rowKey:'videos',fetchPage:async()=>({data:{videos:[{}],next_page_token:'loop'},requestId:null}),savePage:async()=>{}}),/repeated/);
 await assert.rejects(helper.captureRecoveryPages({rowKey:'videos',fetchPage:async()=>({data:{surprise:[]},requestId:null}),savePage:async()=>{}}),/missing videos/);
 await assert.rejects(helper.captureRecoveryPages({rowKey:'orders',fetchPage:async()=>({data:{orders:[]},requestId:null}),savePage:async()=>{}}),/exhaustion/);
 result=await helper.captureRecoveryPages({rowKey:'videos',maxPages:1,fetchPage:async()=>({data:{videos:[{}],next_page_token:'more'},requestId:null}),savePage:async()=>{}});
 assert.equal(result.exhausted,false);
-let profile={tenant_id:'tenant-fixture'},authorized=true,connectCalls=0,impersonating=false,writes=[],filters=[];
-const admin={from(table){const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},maybeSingle:async()=>({data:authorized?{slug:'fixture'}:null,error:null}),insert(payload){writes.push({table,payload});return Promise.resolve({error:null});}};return q;}};
+pages=[];
+result=await helper.captureRecoveryPages({rowKey:'videos',pageOffset:2,initialRows:2,initialExpected:3,initialToken:'third',previousTokens:['second','third'],fetchPage:async token=>{assert.equal(token,'third');return {data:{videos:[{id:'c'}],total_count:3,next_page_token:''},requestId:null};},savePage:async (...args)=>pages.push(args)});
+assert.equal(result.rows,3);assert.equal(result.pages,3);assert.equal(pages[0][0],2);assert.equal(result.countsMatch,true);
+let profile={tenant_id:'tenant-fixture'},authorized=true,connectCalls=0,impersonating=false,writes=[],filters=[],savedTask=null,original=null,savedPages=[],createdTasks=0,downloaded=[];
+const admin={from(table){const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},gte(){return q;},order(){return q;},limit(){return q;},then(resolve){return Promise.resolve({data:savedPages,error:null}).then(resolve);},maybeSingle:async()=>({data:table==='brands_v2'?(authorized?{slug:'fixture'}:null):original??savedTask,error:null}),insert(payload){writes.push({table,payload});return Promise.resolve({error:null});},upsert(payload){return q.insert(payload);}};return q;}};
 const route=load('src/app/api/tiktok/recovery/route.ts',{
   'next/server':{NextResponse:{json:(body,opt={})=>({body,status:opt.status??200})}},
   'node:crypto':{randomUUID},'date-fns-tz':{fromZonedTime:v=>new Date(`${v}Z`)},
@@ -31,7 +35,7 @@ const route=load('src/app/api/tiktok/recovery/route.ts',{
   '@/lib/auth/platform-admin':{assertNotImpersonating:async()=>{if(impersonating)throw Error('read only');}},
   '@/lib/supabase/server':{createAdminClient:async()=>admin},
   '@/lib/tiktok/connections':{getActiveConnection:async()=>{connectCalls++;return {ok:true,client:{get:async()=>({data:{videos:[{id:'fixture',gmv:999}],total_count:1,next_page_token:''},requestId:'fixture'}),post:async()=>({data:{orders:[],total_count:0,next_page_token:''},requestId:null})}};}},
-  '@/lib/tiktok/compass':{marketYesterday:()=> '2026-10-14',COMPASS_MARKET_TIME_ZONE:'UTC',fetchDailyExport:async()=>({ok:false,stage:'poll',taskId:'fixture-task',message:'Still building'})},
+  '@/lib/tiktok/compass':{marketYesterday:()=> '2026-10-14',COMPASS_MARKET_TIME_ZONE:'UTC',fetchDailyExport:async()=>{createdTasks++;return {ok:false,stage:'poll',taskId:'fixture-task',message:'Still building'};},downloadTaskFile:async(client,taskId)=>{downloaded.push(taskId);return {ok:false,message:'Rate limited',format:null};}},
   '@/lib/upload/read-workbook':{readUploadWorkbook:()=>{throw Error('Should not parse a pending task');}},
   '@/lib/tiktok/recovery-pages':helper,
 });
@@ -41,6 +45,19 @@ assert.ok(filters.some(([k,v])=>k==='tenant_id'&&v==='tenant-fixture'));
 assert.ok(writes.every(w=>w.table==='tiktok_api_captures'),'Capture must never write performance facts');
 assert.ok(writes.some(w=>w.payload.response.videos?.[0].gmv===999),'Raw vendor money must be retained separately, not mapped to affiliate facts');
 result=await run({source:'creator_compass'});assert.equal(result.body.status,'incomplete');assert.equal(result.body.taskId,'fixture-task');
+savedTask={response:{taskId:'saved-task'},captured_at:new Date().toISOString()};
+result=await run({source:'creator_compass'});assert.equal(result.body.status,'failed');assert.equal(createdTasks,1);assert.equal(downloaded[0],'saved-task');
+savedTask={response:{taskId:'expired-task',taskCreatedAt:'2020-01-01T00:00:00Z'},captured_at:new Date().toISOString()};
+await run({source:'creator_compass'});assert.equal(createdTasks,2);assert.equal(downloaded.length,1);savedTask=null;
+original={request_params:{date:'2026-10-11',source:'video_analytics'}};
+result=await run({resumeRunId:randomUUID()});assert.equal(result.status,403);
+original={request_params:{date:'2026-10-12',source:'video_analytics',accountType:'AFFILIATE_ACCOUNTS'}};
+result=await run({resumeRunId:randomUUID(),videoAccountType:'ALL'});assert.equal(result.status,403);
+savedPages=[{page_index:1,row_count:1,continuation:'next',total:'2'}];
+result=await run({resumeRunId:randomUUID()});assert.equal(result.status,409);
+savedPages=[{page_index:0,row_count:1,continuation:'next',total:'1'}];
+result=await run({resumeRunId:randomUUID()});assert.equal(result.body.status,'partial');assert.equal(result.body.rows,2);assert.equal(result.body.countsMatch,false);
+original=null;savedPages=[];
 result=await run({date:'2026-02-30'});assert.equal(result.status,400);
 result=await run({orderTimeZone:'unrecognized'});assert.equal(result.status,400);
 authorized=false;let before=connectCalls;result=await run();assert.equal(result.status,403);assert.equal(connectCalls,before);
