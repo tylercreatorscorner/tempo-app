@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     if (source === 'creator_compass') {
       const fetched = await fetchDailyExport(brand.slug, window.start, 'CREATOR', { client: conn.client, windowType: 'PAST_24H',
         poll: { budgetMs: 120_000, maxPolls: 20 },
-        onTaskCreated: async (taskId) => { await store(0,null,{ taskId, status: 'pending' },null,null,'recovery/creator_compass/task'); },
+        onTaskCreated: async (taskId, echo) => { await store(0,null,{ taskId, echo, status: 'pending' },null,null,'recovery/creator_compass/task'); },
       });
       if (!fetched.ok) {
         outcome = { status: fetched.stage === 'poll' ? 'pending' : 'failed', stage: fetched.stage, taskId: fetched.taskId, message: fetched.message };
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
         const nameKey = Object.keys(workbook.rows[0] ?? {}).find(k => k.trim().toLowerCase() === 'creator name');
         if (!nameKey) throw new Error('Creator API returned an unrecognized workbook.');
         const rows = workbook.rows.filter(r => typeof r[nameKey] === 'string' && (r[nameKey] as string).trim());
-        await store(0,null,{ rows, columns: Object.keys(workbook.rows[0] ?? {}), taskId: fetched.taskId, warnings: fetched.warnings },rows.length,null);
+        await store(0,null,{ rows, columns: Object.keys(workbook.rows[0] ?? {}), taskId: fetched.taskId, echo: fetched.echo, warnings: fetched.warnings },rows.length,null);
         outcome = { status: 'captured', rows: rows.length, pages: 1, taskId: fetched.taskId, columns: Object.keys(workbook.rows[0] ?? {}),
           message: 'Creator source captured separately. Field coverage, day boundaries and totals must be reconciled before restoration.' };
       }
