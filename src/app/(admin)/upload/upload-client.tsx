@@ -1260,9 +1260,19 @@ function QueueRow({
               failures went unread for days during the Jen incident. */}
           {item.status === 'error' && (() => {
             const lastError = [...item.log].reverse().find(l => l.level === 'error')?.message;
-            return lastError ? (
-              <p className="mt-1.5 text-xs font-medium text-[var(--pulse-neg)]">{lastError}</p>
-            ) : null;
+            return (
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {lastError && <p className="text-xs font-medium text-[var(--pulse-neg)]">{lastError}</p>}
+                <button
+                  type="button"
+                  disabled={running}
+                  onClick={() => onChange({ status: 'queued' })}
+                  className="shrink-0 rounded-md border border-border px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50"
+                >
+                  Queue again
+                </button>
+              </div>
+            );
           })()}
           {item.log.length > 0 && (
             <button
