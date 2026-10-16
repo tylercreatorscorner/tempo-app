@@ -38,6 +38,8 @@ jobs:
         run: node --import tsx scripts/test-coverage-classify.ts && node --import tsx scripts/test-upload-coverage-evidence.ts && node --import tsx scripts/test-workbook-range-recovery.ts && node scripts/test-upload-source-replacement.mjs
       - name: Lint hardened entry points
         run: npm run lint:hardening
+      - name: Alternate source recovery checks
+        run: node scripts/test-source-recovery.mjs && npx eslint src/lib/tiktok/recovery-pages.ts src/app/api/tiktok/recovery/route.ts 'src/app/(admin)/upload/recovery/*.tsx'
       - name: Verify production compilation with dummy configuration
         run: npm run build
         env:

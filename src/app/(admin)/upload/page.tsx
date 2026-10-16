@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { buttonVariants } from '@/components/ui/button';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/ui/page-header';
@@ -33,6 +35,7 @@ export default async function UploadPage() {
       <PageHeader
         eyebrow="Data Ops"
         title="Data & Imports"
+        actions={<Link href="/upload/recovery" className={buttonVariants({ variant: 'outline', size: 'sm' })}>Source recovery</Link>}
         subtitle="Every brand, every day, every report — known-complete or explicitly not. Upload is how the gaps get filled, not how coverage is judged."
       />
       <DataPipelineClient activeBrands={activeBrands} />
