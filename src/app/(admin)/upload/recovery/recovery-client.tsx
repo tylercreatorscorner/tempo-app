@@ -14,6 +14,7 @@ const sources = [
 export function RecoveryClient({brands,latest,initialResults}:{brands:{slug:string;name:string;connected:boolean}[];latest:string;initialResults:Record<string,unknown>[]}) {
   const [brand,setBrand]=useState(brands.find(b=>b.connected)?.slug ?? brands[0]?.slug ?? '');
   const [date,setDate]=useState(latest);
+  const [orderTimeZone,setOrderTimeZone]=useState('Etc/GMT+8');
   const [busy,setBusy]=useState<string|null>(null);
   const [results,setResults]=useState<Record<string,unknown>[]>(initialResults);
   const [error,setError]=useState<string|null>(null);
@@ -21,7 +22,7 @@ export function RecoveryClient({brands,latest,initialResults}:{brands:{slug:stri
   async function capture(source:string) {
     setBusy(source);setError(null);
     try {
-      const response=await fetch('/api/tiktok/recovery',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand,date,source})});
+      const response=await fetch('/api/tiktok/recovery',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand,date,source,orderTimeZone})});
       const body=await response.json();
       setResults(prev=>[{brand,date,source,...body},...prev]);
       if(!response.ok) setError(body.error ?? 'Source capture did not complete.');
@@ -33,7 +34,11 @@ export function RecoveryClient({brands,latest,initialResults}:{brands:{slug:stri
       <div className="flex flex-wrap items-center gap-3">
         <ChoiceMenu compact label="Recovery brand" value={brand} onChange={setBrand} disabled={!!busy} options={brands.map(b=>({value:b.slug,label:b.name}))} />
         <div className="w-44"><DateField aria-label="Report date" value={date} max={latest} onValueChange={setDate} disabled={!!busy}/></div>
-        <span className="text-xs text-muted-foreground">One completed day, in the shop’s report timezone.</span>
+        <ChoiceMenu compact label="Order day boundary" value={orderTimeZone} onChange={setOrderTimeZone} disabled={!!busy} options={[
+          {value:'Etc/GMT+8',label:'Orders: GMT-08:00',description:'Matches the timezone shown on Affiliate Center exports.'},
+          {value:'America/Los_Angeles',label:'Orders: Pacific time',description:'Uses Pacific daylight saving time for a comparison capture.'},
+        ]}/>
+        <span className="text-xs text-muted-foreground">Creator and video APIs use TikTok’s registered report timezone.</span>
       </div>
       {!connected && <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm">This brand needs a TikTok Shop connection before API recovery can run. <Link href="/workflows/integrations#tiktok-shop" className={buttonVariants({variant:'outline',size:'sm'})}>Shop connections</Link></div>}
     </section>

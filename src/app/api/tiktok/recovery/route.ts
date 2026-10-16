@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/auth/require-admin';
 import { assertNotImpersonating } from '@/lib/auth/platform-admin';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getActiveConnection } from '@/lib/tiktok/connections';
-import { fetchDailyExport, marketYesterday, COMPASS_MARKET_TIME_ZONE } from '@/lib/tiktok/compass';
+import { fetchDailyExport, marketYesterday } from '@/lib/tiktok/compass';
 import { readUploadWorkbook } from '@/lib/upload/read-workbook';
 import { captureRecoveryPages, recoveryDateWindow } from '@/lib/tiktok/recovery-pages';
 
@@ -25,6 +25,10 @@ export async function POST(request: Request) {
   }
   const window = recoveryDateWindow(body.date, marketYesterday());
   if (!window) return NextResponse.json({ error: 'Choose a valid completed report date.' }, { status: 400 });
+  // The Affiliate Center explicitly labels exports GMT-08:00. Pacific daylight
+  // time is GMT-07:00 in summer, so preserve and test these windows separately.
+  const orderTimeZone = body.orderTimeZone ?? 'Etc/GMT+8';
+  if (!['Etc/GMT+8','America/Los_Angeles'].includes(orderTimeZone)) return NextResponse.json({ error: 'Unsupported order report timezone.' }, { status: 400 });
   const admin = await createAdminClient();
   const { data: brand, error: brandError } = await admin.from('brands_v2').select('slug')
     .eq('slug', body.brand).eq('tenant_id', profile.tenant_id).maybeSingle();
@@ -36,7 +40,10 @@ export async function POST(request: Request) {
   const source: typeof SOURCES[number] = body.source;
   const version = source === 'creator_compass' ? '202603' : source === 'video_analytics' ? '202605' : '202410';
   const endpoint = source === 'creator_compass' ? 'recovery/creator_compass' : source === 'video_analytics' ? '/analytics/202605/shop_videos/performance' : '/affiliate_seller/202410/orders/search';
-  const params = { date: window.start, endDate: window.end, source };
+  const orderBounds = { create_time_ge: Math.floor(fromZonedTime(`${window.start}T00:00:00`,orderTimeZone).getTime()/1000),
+    create_time_lt: Math.floor(fromZonedTime(`${window.end}T00:00:00`,orderTimeZone).getTime()/1000) };
+  const params = { date: window.start, endDate: window.end, source,
+    ...(source === 'affiliate_orders' ? { orderTimeZone, ...orderBounds } : { timeZone: 'provider_registered_timezone' }) };
   const store = async (page: number, token: string | null, data: Record<string, unknown>, rows: number | null, requestId: string | null, label = endpoint) => {
     const { error } = await admin.from('tiktok_api_captures').insert({ run_id: runId, brand_slug: brand.slug, endpoint: label,
       api_version: version, request_params: params, page_index: page, page_token: token, response: data, row_count: rows, request_id: requestId });
@@ -51,7 +58,7 @@ export async function POST(request: Request) {
         onTaskCreated: async (taskId, echo) => { await store(0,null,{ taskId, echo, status: 'pending' },null,null,'recovery/creator_compass/task'); },
       });
       if (!fetched.ok) {
-        outcome = { status: fetched.stage === 'poll' ? 'pending' : 'failed', stage: fetched.stage, taskId: fetched.taskId, message: fetched.message };
+        outcome = { status: fetched.stage === 'poll' ? 'incomplete' : 'failed', stage: fetched.stage, taskId: fetched.taskId, message: fetched.message };
       } else {
         const bytes = fetched.bytes.buffer.slice(fetched.bytes.byteOffset, fetched.bytes.byteOffset + fetched.bytes.byteLength) as ArrayBuffer;
         const workbook = readUploadWorkbook(bytes);
@@ -67,15 +74,15 @@ export async function POST(request: Request) {
         fetchPage: token => source === 'video_analytics'
           ? conn.client.get(endpoint, { start_date_ge: window.start, end_date_lt: window.end, page_size: 100, account_type: 'AFFILIATE_ACCOUNTS', currency: 'USD', ...(token ? { page_token: token } : {}) })
           : conn.client.post(endpoint, { query: { page_size: 100, ...(token ? { page_token: token } : {}) }, idempotent: true,
-            body: { create_time_ge: Math.floor(fromZonedTime(`${window.start}T00:00:00`,COMPASS_MARKET_TIME_ZONE).getTime()/1000),
-              create_time_lt: Math.floor(fromZonedTime(`${window.end}T00:00:00`,COMPASS_MARKET_TIME_ZONE).getTime()/1000) } }),
+            body: orderBounds }),
         savePage: (page,token,data,rows,requestId) => store(page,token,data,rows,requestId),
       });
       outcome = { status: paging.exhausted ? 'captured' : 'partial', ...paging,
         message: source === 'video_analytics' ? 'Video metadata and activity candidate source. Seller analytics GMV is broader than affiliate GMV and cannot replace invoice figures.'
           : 'Affiliate order candidate source. Order line totals, cancellations and attribution timing require reconciliation before restoration.' };
     }
-    const result = { runId, brand: brand.slug, date: window.start, source, factsChanged: false, ...outcome };
+    const result = { runId, brand: brand.slug, date: window.start, source,
+      timeZone: source === 'affiliate_orders' ? orderTimeZone : 'provider_registered_timezone', factsChanged: false, ...outcome };
     await store(0,null,result,null,null,`recovery/${source}/manifest`);
     return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {

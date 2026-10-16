@@ -40,8 +40,9 @@ result=await run();assert.equal(result.status,200);assert.equal(result.body.stat
 assert.ok(filters.some(([k,v])=>k==='tenant_id'&&v==='tenant-fixture'));
 assert.ok(writes.every(w=>w.table==='tiktok_api_captures'),'Capture must never write performance facts');
 assert.ok(writes.some(w=>w.payload.response.videos?.[0].gmv===999),'Raw vendor money must be retained separately, not mapped to affiliate facts');
-result=await run({source:'creator_compass'});assert.equal(result.body.status,'pending');assert.equal(result.body.taskId,'fixture-task');
+result=await run({source:'creator_compass'});assert.equal(result.body.status,'incomplete');assert.equal(result.body.taskId,'fixture-task');
 result=await run({date:'2026-02-30'});assert.equal(result.status,400);
+result=await run({orderTimeZone:'unrecognized'});assert.equal(result.status,400);
 authorized=false;let before=connectCalls;result=await run();assert.equal(result.status,403);assert.equal(connectCalls,before);
 authorized=true;impersonating=true;result=await run();assert.equal(result.status,403);assert.equal(connectCalls,before);
 profile=null;result=await run();assert.equal(result.status,403);
