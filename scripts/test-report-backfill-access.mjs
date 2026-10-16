@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+import {NextRequest,NextResponse} from 'next/server.js';
+let scope=null,allowed=true,builds=0,updates=[],row={id:'11111111-1111-4111-8111-111111111111',tenant_id:'tenant',brand_slug:'brand',status:'pending',updated_at:'2026-01-01',period_start:'2026-01-05',period_end:'2026-01-11',report_type:'weekly'};
+const admin={from(){let filters=[],mutation;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},update(v){mutation=v;updates.push(v);return q},async maybeSingle(){return {data:filters.every(([k,v])=>row[k]===v)?row:null,error:null}},then(resolve){return Promise.resolve({error:null}).then(resolve)}};return q}};
+const deps={'next/server':{NextRequest,NextResponse},'@/lib/auth/workspace-scope':{getWorkspaceScope:async()=>scope,isBrandInScope:(_s,b)=>b.slug==='brand'},'@/lib/auth/client-report-access':{reportGuard:()=>allowed?null:NextResponse.json({error:'Forbidden'},{status:403}),clientReportContext:async()=>({tenantId:'tenant'})},'@/lib/supabase/server':{createAdminClient:async()=>admin},'@/lib/data/client-reports':{buildClientReportSnapshot:async(...args)=>{assert.equal(args[5],true,'Historical builds must not renew agreements');builds++;return {snapshot:{report:{}}}}}};
+const exports={};runInNewContext(ts.transpileModule(readFileSync('src/app/api/client-reports/backfill/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:n=>deps[n]});
+const call=()=>exports.POST(new NextRequest('https://tempo.invalid/api/client-reports/backfill',{method:'POST',body:JSON.stringify({action:'build',id:row.id})}));
+assert.equal((await call()).status,401);scope={tenantId:'tenant'};allowed=false;assert.equal((await call()).status,403);allowed=true;
+row.tenant_id='foreign';assert.equal((await call()).status,404);row.tenant_id='tenant';row.brand_slug='foreign';assert.equal((await call()).status,404);assert.equal(builds,0);assert.equal(updates.length,0);
+row.brand_slug='brand';assert.equal((await call()).status,200);assert.equal(builds,1);assert.equal(updates.at(-1).status,'review');
+row.status='review';assert.equal((await call()).status,200);assert.equal(builds,1);
+row.status='building';row.updated_at=new Date().toISOString();assert.equal((await call()).status,409);
+console.log('PASS backfill route: authentication, reporting write permission, tenant/brand isolation, read-only build and duplicate prevention');

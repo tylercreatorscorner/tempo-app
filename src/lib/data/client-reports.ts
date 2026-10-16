@@ -159,12 +159,13 @@ export async function buildClientReportSnapshot(
    * the view treats as absence rather than zero.
    */
   reportType: 'performance' | 'weekly' | 'monthly' = 'performance',
+  readOnly = false,
 ): Promise<SnapshotBuild> {
   const supabase = clientOverride ?? (await createAdminClient());
   const reg = context.registry;
   const brandName = brandSlug === 'all' ? 'All Brands' : brandLabel(reg, brandSlug);
 
-  const report = await getBrandClientReportData(brandSlug, brandName, period, context, clientOverride);
+  const report = await getBrandClientReportData(brandSlug, brandName, period, context, clientOverride, readOnly);
 
   // Mirror the fetcher's prior-window math (it doesn't return prior dates).
   const pEnd = new Date(report.startDate);

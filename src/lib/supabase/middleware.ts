@@ -50,6 +50,8 @@ const PUBLIC_PATHS = [
   // /api/client-reports/* admin routes stay behind the auth guard.
   '/r/',
   '/api/report-pdf/',
+  // History validates an active token and scopes to its tenant/brand/cadence.
+  '/api/report-history/',
   // Agency portfolio report. Same opaque-token gate as /r/. The trailing slash
   // matters even more here: '/a' alone would match /admin, /api and /auth.
   //

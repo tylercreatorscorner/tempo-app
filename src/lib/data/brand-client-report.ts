@@ -495,12 +495,13 @@ export async function getBrandClientReportData(
    * aggregate RPC is SECURITY DEFINER either way.
    */
   clientOverride?: SupabaseClient,
+  readOnly = false,
 ): Promise<BrandClientReportData> {
   const supabase = clientOverride ?? (await createAdminClient());
   const reg = context.registry;
   const brandSlugs = getBrandDataSlugs(reg, brandSlug);
   const agreementBrands = brandSlug === 'all' ? reg.rows : [reg.bySlug.get(brandSlug), reg.byId.get(reg.bySlug.get(brandSlug)?.parent_brand_id ?? '')].filter((b): b is NonNullable<typeof b> => !!b);
-  await ensureAgreementPeriods({tenantId:context.tenantId,brandIds:agreementBrands.map(b=>b.id)});
+  if (!readOnly) await ensureAgreementPeriods({tenantId:context.tenantId,brandIds:agreementBrands.map(b=>b.id)});
 
   // Managed-roster grain: managed_creators rows live at the umbrella/roster
   // slug. For a store slug include its parent umbrella so store-grain runs

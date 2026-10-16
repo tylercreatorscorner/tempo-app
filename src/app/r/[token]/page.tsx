@@ -11,6 +11,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
 import { ReportView, type ReportType } from './report-view';
 import { ViewBeacon } from './view-beacon';
+import { ReportHistory } from './report-history';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,6 +117,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
   return (
     <>
       <ViewBeacon token={token} preview={isPreview} />
+      {row.tenant_id && row.brand_slug !== 'all' && (row.report_type === 'weekly' || row.report_type === 'monthly') && <ReportHistory key={token} token={token} cadence={row.report_type} periodLabel={row.period_label} preview={isPreview} />}
       <ReportView
         token={token}
         report={report}
