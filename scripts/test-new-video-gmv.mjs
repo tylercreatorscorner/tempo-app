@@ -9,7 +9,7 @@ assert.equal(model.validVideoRange('2026-01-01','2027-12-31'),false);
 assert.equal(model.validVideoRange('2026-09-20','2026-09-14'),false);
 assert.equal(model.validVideoRange('2026-09-14','2026-09-20'),true);
 let scope={tenantId:'ours',brandScope:{kind:'scoped',brandSlugs:['alpha']}};
-let args=null,readFilters=[],fail=false;
+let args=null,readFilters=[],fail=false,rpcName;
 const route={};
 runInNewContext(compile('src/app/api/new-video-gmv/route.ts'),{
   exports:route,AbortSignal,console:{error(){}},
@@ -21,7 +21,7 @@ runInNewContext(compile('src/app/api/new-video-gmv/route.ts'),{
     if(path.endsWith('/date-utils'))return {resolveDateRange:(range,start,end)=>({startDate:range==='custom'?start:'2026-09-14',endDate:range==='custom'?end:'2026-09-20'})};
     if(path.endsWith('/supabase/server'))return {createAdminClient:async()=>({
       from:()=>({select(){return this;},eq(k,v){readFilters.push([k,v]);return this;},is(){return this;},then(resolve){return Promise.resolve({data:[{id:'a',slug:'alpha',tenant_id:'ours'},{id:'b',slug:'beta',tenant_id:'ours'}]}).then(resolve);}}),
-      rpc:(_name,input)=>{args=input;return {abortSignal:async()=>fail?{error:{message:'timeout'}}:{data:{gmv30d:42}}};}
+      rpc:(_name,input)=>{rpcName=_name;args=input;return {abortSignal:async()=>fail?{error:{message:'timeout'}}:{data:{gmv30d:42}}};}
     })};
     throw Error(path);
   }
@@ -35,6 +35,15 @@ assert.equal(args.p_post_end,null);
 assert.equal((await get('postStart=2026-07-01&postEnd=2026-07-31')).status,200);
 assert.equal(args.p_post_start,'2026-07-01');
 assert.equal(args.p_post_end,'2026-07-31');
+assert.equal((await get('view=videos&brand=alpha&range=custom&start=2026-09-14&end=2026-09-20&postStart=2026-07-01&postEnd=2026-07-31&offset=50')).status,200);
+assert.equal(rpcName,'get_manager_video_gmv_breakdown');
+assert.equal(args.p_offset,50);assert.equal(args.p_start,'2026-09-14');assert.equal(args.p_end,'2026-09-20');
+assert.equal(args.p_post_start,'2026-07-01');assert.equal(args.p_post_end,'2026-07-31');
+assert.equal(args.p_brand_slugs.join(','),'alpha');assert.equal(args.p_tenant_id,'ours');
+for(const query of ['view=videos&offset=-1','view=videos&offset=abc','view=videos&offset=1.2','view=videos&offset=1000001']) {
+  args=null;assert.equal((await get(query)).status,400);assert.equal(args,null);
+}
+args=null;assert.equal((await get('view=videos&brand=beta')).status,403);assert.equal(args,null);
 for (const query of ['postStart=2026-07-01','postEnd=2026-07-31','postStart=2026-07-31&postEnd=2026-07-01','postStart=2026-02-30&postEnd=2026-03-01']) {
   args=null;assert.equal((await get(query)).status,400);assert.equal(args,null);
 }

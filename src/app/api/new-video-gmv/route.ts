@@ -17,6 +17,12 @@ export async function GET(request: NextRequest) {
   const end = params.get('end') ?? '';
   const postStart = params.get('postStart') ?? '';
   const postEnd = params.get('postEnd') ?? '';
+  const breakdown = params.get('view') === 'videos';
+  const offsetText = params.get('offset') ?? '0';
+  const offset = Number(offsetText);
+  if (breakdown && (!/^\d+$/.test(offsetText) || !Number.isSafeInteger(offset) || offset > 1000000)) {
+    return NextResponse.json({error:'Invalid video page'},{status:400});
+  }
   if ((postStart || postEnd) && !validVideoRange(postStart,postEnd)) {
     return NextResponse.json({ error: 'Choose a complete, valid video posting range up to 400 days apart.' }, { status: 400 });
   }
@@ -37,9 +43,10 @@ export async function GET(request: NextRequest) {
     const anchor = range === 'custom' || slugs.length === 0 ? null : await getDataAnchorDate(slugs);
     const { startDate, endDate } = resolveDateRange(range,start,end,anchor);
     if (!validVideoRange(startDate,endDate)) return NextResponse.json({ error:'Invalid date range' },{status:400});
-    const { data, error } = await db.rpc('get_manager_video_gmv_selection', {
+    const { data, error } = await db.rpc(breakdown ? 'get_manager_video_gmv_breakdown' : 'get_manager_video_gmv_selection', {
       p_tenant_id:scope.tenantId,p_brand_slugs:slugs,p_start:startDate,p_end:endDate,
       p_post_start:postStart || null,p_post_end:postEnd || null,
+      ...(breakdown ? {p_offset:offset} : {}),
     }).abortSignal(AbortSignal.timeout(30000));
     if (error || !data) throw error ?? new Error('Missing video metrics');
     return NextResponse.json({...data,start:startDate,end:endDate,postStart:postStart || null,postEnd:postEnd || null}, {headers:{'Cache-Control':'private, no-store'}});

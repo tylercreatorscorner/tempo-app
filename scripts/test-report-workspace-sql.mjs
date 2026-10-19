@@ -276,4 +276,29 @@ assert.deepEqual(await selectedVideo('2026-08-02','2026-08-02'),recentPosting);
 assert.deepEqual(await newVideo("ARRAY['shared']",'2026-08-01','2026-08-31'),actualVideo,'Reporting retains its existing 30-day definition');
 for(const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_manager_video_gmv_selection(uuid,text[],date,date,date,date)','execute') ok`)).rows[0].ok,false);
 console.log('PASS all-video default: old and unknown dates included, creator totals, explicit posting filters preserved, reporting unchanged');
+await db.exec(readFileSync('supabase/migrations/20261019212528_manager_video_gmv_breakdown.sql','utf8'));
+const videoBreakdown = async (start=null,end=null,offset=0,slugs="ARRAY['shared']") => (await db.query(
+  `select get_manager_video_gmv_breakdown('${a}',${slugs},'2026-08-01','2026-08-31',$1::date,$2::date,$3::int) data`,[start,end,offset]
+)).rows[0].data;
+const breakdown=await videoBreakdown();
+assert.equal(breakdown.totalGmv,allVideo.gmv30d);
+assert.equal(breakdown.videos.reduce((sum,v)=>sum+v.gmv,0),allVideo.gmv30d);
+assert.equal(breakdown.videos.find(v=>v.videoId==='recent').gmv,70,'Products and days combine per video');
+assert.equal(breakdown.videos.find(v=>v.videoId==='unknown').postDate,null);
+assert.ok(breakdown.videos.every((v,i,rows)=>i===0 || rows[i-1].gmv>=v.gmv));
+assert.equal((await videoBreakdown('2026-08-01','2026-08-01')).totalGmv,boundaryPosting.gmv30d);
+assert.equal((await videoBreakdown('2026-08-02','2026-08-02')).videos.length,1);
+assert.equal((await videoBreakdown(null,null,0,'ARRAY[]::text[]')).totalRows,0);
+assert.equal((await videoBreakdown(null,null,0,"ARRAY['parent']")).totalGmv,46,'Umbrella and management-start scope matches summary');
+await db.exec(`insert into daily_video_product_stats(tenant_id,brand_id,report_date,tiktok_username,video_id,post_date,gmv)
+select '${a}','${a}','2026-08-31','ourcreator','page-'||n,'2026-08-03',1 from generate_series(1,55) n;
+insert into daily_video_product_stats(tenant_id,brand_id,report_date,tiktok_username,video_id,gmv) values('${a}','${a}','2026-08-31','ourcreator',null,13);`);
+const firstPage=await videoBreakdown(),secondPage=await videoBreakdown(null,null,50);
+assert.equal(firstPage.videos.length,50);
+assert.equal(firstPage.videos.length+secondPage.videos.length,firstPage.totalRows);
+assert.equal(new Set([...firstPage.videos,...secondPage.videos].map(v=>v.videoId)).size,firstPage.totalRows,'Pages neither repeat nor omit tied rows');
+assert.equal([...firstPage.videos,...secondPage.videos].reduce((sum,v)=>sum+v.gmv,0),firstPage.totalGmv);
+assert.equal(firstPage.totalGmv,(await selectedVideo(null,null)).gmv30d,'Missing video IDs still reconcile');
+for(const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_manager_video_gmv_breakdown(uuid,text[],date,date,date,date,integer)','execute') ok`)).rows[0].ok,false);
+console.log('PASS video breakdown: summary reconciliation, posting boundaries, unknown dates/IDs, pagination ties, products, tenant and umbrella scope');
 await db.close();

@@ -1,3 +1,10 @@
+export interface VideoGmvBreakdown {
+  totalGmv: number;
+  totalRows: number;
+  offset: number;
+  videos: {videoId:string|null;title:string|null;handle:string;creator:string;brand:string;brandName:string;postDate:string|null;gmv:number}[];
+}
+
 export interface NewVideoGmv {
   gmv30d: number;
   videos30d: number;

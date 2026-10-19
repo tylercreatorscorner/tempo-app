@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrencyExact as money } from '@/lib/utils/format';
 import type { NewVideoGmv } from '@/lib/data/new-video-gmv';
 import { validVideoRange } from '@/lib/data/new-video-gmv';
+import { VideoGmvBreakdown } from './video-gmv-breakdown';
 
 interface Props { brand?: string | null; range?: string; start?: string | null; end?: string | null; showCreators?: boolean }
 export function NewVideoGmvCard({brand,range='custom',start,end,showCreators=false}:Props) {
@@ -38,6 +39,7 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
   const [attempt,setAttempt] = useState(0);
   const [search,setSearch] = useState('');
   const [limit,setLimit] = useState(20);
+  const [showVideos,setShowVideos] = useState(false);
   useEffect(()=>{
     const controller = new AbortController();
     fetch(url,{signal:controller.signal}).then(async res=>{
@@ -50,6 +52,10 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
   const share = data && data.totalGmv>0 ? data.gmv30d/data.totalGmv*100 : null;
   const creators = data?.creators.filter(c=>(c.name+' '+c.brandName).toLowerCase().includes(search.toLowerCase())) ?? [];
   const title = posting ? 'Video GMV by posting date' : 'Video GMV';
+  const videoParams = new URLSearchParams(url.split('?')[1]);
+  videoParams.set('view','videos');
+  // Freeze relative earning periods to the dates used by the visible summary.
+  if(data) { videoParams.set('range','custom'); videoParams.set('start',data.start); videoParams.set('end',data.end); }
   return <Card aria-label={title}>
     <CardHeader><CardTitle><span className="inline-flex items-center gap-2"><Video size={16} aria-hidden="true"/>{title}</span></CardTitle><span className="text-xs text-muted-foreground">Managed creators · {posting ? 'Custom posting dates' : 'All posting dates'}</span></CardHeader>
     <CardContent>
@@ -58,7 +64,7 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
       {failed && <div role="alert" className="flex flex-wrap items-center gap-3 text-sm"><span>Video GMV couldn’t be loaded.</span><Button variant="outline" size="sm" onClick={()=>{setFailed(false);setAttempt(n=>n+1);}}>Retry</Button></div>}
       {data && <>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div><p className="text-xs text-muted-foreground">{title}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{data.factCount ? money(data.gmv30d) : '—'}</p></div>
+          <div><p className="text-xs text-muted-foreground">{title}</p><button type="button" aria-expanded={showVideos} aria-label="View videos driving video GMV" onClick={()=>setShowVideos(v=>!v)} className="mt-1 text-left text-2xl font-semibold tabular-nums underline decoration-dotted underline-offset-4 hover:text-primary">{data.factCount ? money(data.gmv30d) : '—'}</button><div><button type="button" className="mt-1 text-xs text-muted-foreground underline hover:text-foreground" aria-expanded={showVideos} onClick={()=>setShowVideos(v=>!v)}>{showVideos ? 'Hide videos' : 'View videos'}</button></div></div>
           <div><p className="text-xs text-muted-foreground">Share of managed video GMV</p><p className="mt-1 text-2xl font-semibold tabular-nums">{share===null ? '—' : share.toFixed(1)+'%'}</p></div>
           <div><p className="text-xs text-muted-foreground">{posting ? 'Matching videos' : 'Videos'} with recorded sales data</p><p className="mt-1 text-2xl font-semibold tabular-nums">{data.factCount ? data.videos30d.toLocaleString('en-US') : '—'}</p></div>
         </div>
@@ -66,6 +72,7 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
         {!data.factCount && <p className="mt-2 text-sm text-muted-foreground">No managed video data recorded for this selection.</p>}
         {data.recordedBrandDays<data.expectedBrandDays && <p className="mt-2 text-xs text-muted-foreground">Managed video data is recorded for {data.recordedBrandDays} of {data.expectedBrandDays} brand-days. Totals reflect available records; days without records may have no activity or missing uploads.</p>}
         {data.unknownPostDateGmv!==0 && <p className="mt-2 text-xs text-muted-foreground">{money(data.unknownPostDateGmv)} has no video post date and is {posting ? 'excluded from this posting-date selection' : 'included because no posting-date filter is applied'}.</p>}
+        {showVideos && <VideoGmvBreakdown url={'/api/new-video-gmv?'+videoParams}/>}
         {showCreators && data.creators.length>0 && <details className="mt-4 border-t border-border pt-3">
           <summary className="cursor-pointer text-sm font-medium">View by creator <span className="text-muted-foreground">({data.creators.length} creator-brand entries)</span></summary>
           <p className="mt-2 text-xs text-muted-foreground">All managed creators with video data for these brands and dates. Independent of the roster’s search, tags, and health filters.</p>
