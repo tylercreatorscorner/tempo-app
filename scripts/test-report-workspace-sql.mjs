@@ -202,4 +202,45 @@ await db.exec("update managed_creators set archived_at='2026-09-15' where id=30;
 assert.equal((await split()).managed.gmv,200,'Empty interval does not count sales or crash');
 assert.deepEqual((await db.query("select snapshot from client_reports where token='preserved-token'")).rows[0].snapshot,{frozen:true});
 console.log('PASS reporting dates: legacy parity, prior-month exclusion, inclusive boundary, October move, store totals, people counts, leaderboards, granular rows, weekly and agency trends, archive boundary, saved snapshot preservation');
+await db.exec(readFileSync('supabase/migrations/20261019190024_manager_new_video_gmv.sql','utf8'));
+const newVideo = async (slugs="ARRAY['dates']",start='2026-09-01',end='2026-09-30') =>
+  (await db.query(`select get_manager_new_video_gmv('${a}',${slugs},'${start}','${end}') data`)).rows[0].data;
+const reportVideo = async (slug,start,end) => (await db.query(`select get_brand_client_report_granular_workspace('${a}',ARRAY['${slug}'],ARRAY['${slug}'],'${start}','${end}')->'newVideo' data`)).rows[0].data;
+for (const [slug,start,end] of [['shared','2026-08-01','2026-08-31'],['dates','2026-09-01','2026-09-30']]) {
+  const actual = await newVideo(`ARRAY['${slug}']`,start,end);
+  const expected = await reportVideo(slug,start,end);
+  for (const key of ['gmv30d','videos30d','totalGmv','unknownPostDateGmv']) assert.equal(actual[key],expected[key],key+' matches reporting');
+  assert.equal(actual.creators.reduce((sum,c)=>sum+c.gmv30d,0),actual.gmv30d);
+}
+// The strict 30-day boundary, unknown dates, repeated product facts, duplicates,
+// and other-tenant facts must keep precisely the report's semantics.
+await db.exec(`insert into daily_video_product_stats(tenant_id,brand_id,report_date,tiktok_username,video_id,post_date,gmv,orders) values
+('${a}','${a}','2026-08-31','ourcreator','boundary','2026-08-01',20,1),
+('${a}','${a}','2026-08-31','ourcreator','recent','2026-08-02',30,1),
+('${a}','${a}','2026-08-31','ourcreator','recent','2026-08-02',40,1),
+('${a}','${a}','2026-08-31','ourcreator','unknown',null,50,1),
+('${b}','${a}','2026-08-31','ourcreator','foreign','2026-08-02',9999,1);
+insert into managed_creators(id,tenant_id,brand,account_1,employment_status,reporting_start_date)
+values(999,'${a}','shared','ourcreator','active',null);`);
+const actualVideo = await newVideo("ARRAY['shared']", '2026-08-01','2026-08-31');
+const expectedVideo = await reportVideo('shared','2026-08-01','2026-08-31');
+for (const key of ['gmv30d','videos30d','totalGmv','unknownPostDateGmv']) assert.equal(actualVideo[key],expectedVideo[key],key+' boundary parity');
+assert.equal(actualVideo.unknownPostDateGmv,50);
+await db.exec(`insert into brands_v2(id,tenant_id,slug,name,is_archived,is_umbrella,parent_brand_id) values
+('33333333-3333-4333-8333-333333333330','${a}','parent','Parent',false,true,null),
+('33333333-3333-4333-8333-333333333331','${a}','child-one','One',false,false,'33333333-3333-4333-8333-333333333330'),
+('33333333-3333-4333-8333-333333333332','${a}','child-two','Two',false,false,'33333333-3333-4333-8333-333333333330');
+insert into managed_creators(id,tenant_id,brand,account_1,employment_status,reporting_start_date)
+values(1000,'${a}','parent','ourcreator','active','2026-08-15');
+insert into daily_video_product_stats(tenant_id,brand_id,report_date,tiktok_username,video_id,post_date,gmv) values
+('${a}','33333333-3333-4333-8333-333333333331','2026-08-15','ourcreator','umbrella-one','2026-08-10',12),
+('${a}','33333333-3333-4333-8333-333333333332','2026-08-15','ourcreator','umbrella-two','2026-08-10',34),
+('${a}','33333333-3333-4333-8333-333333333332','2026-08-14','ourcreator','too-early','2026-08-10',999);`);
+assert.equal((await newVideo("ARRAY['parent']",'2026-08-01','2026-08-31')).gmv30d,46,'Umbrella expands to both stores and respects the inclusive management start');
+assert.equal((await newVideo("ARRAY['parent','shared']",'2026-08-01','2026-08-31')).gmv30d,46+actualVideo.gmv30d,'A shared handle cannot multiply or leak across brands');
+assert.equal((await newVideo('ARRAY[]::text[]')).factCount,0);
+assert.equal((await newVideo('NULL')).factCount,0);
+for(const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_manager_new_video_gmv(uuid,text[],date,date)','execute') ok`)).rows[0].ok,false);
+assert.equal((await db.query("select prosecdef from pg_proc where proname='get_manager_new_video_gmv'")).rows[0].prosecdef,false);
+console.log('PASS manager new video GMV: report parity, age boundary, unknown dates, tenant isolation, duplicate membership, empty scopes, creator reconciliation, service-only invoker');
 await db.close();
