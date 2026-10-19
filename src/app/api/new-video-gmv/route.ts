@@ -18,6 +18,11 @@ export async function GET(request: NextRequest) {
   const postStart = params.get('postStart') ?? '';
   const postEnd = params.get('postEnd') ?? '';
   const breakdown = params.get('view') === 'videos';
+  const managedCreatorText = params.get('managedCreatorId');
+  const managedCreatorId = managedCreatorText === null ? null : Number(managedCreatorText);
+  if (managedCreatorText !== null && (!breakdown || !/^[1-9]\d*$/.test(managedCreatorText) || !Number.isSafeInteger(managedCreatorId) || managedCreatorId! > 2147483647)) {
+    return NextResponse.json({error:'Invalid creator selection'},{status:400});
+  }
   const offsetText = params.get('offset') ?? '0';
   const offset = Number(offsetText);
   if (breakdown && (!/^\d+$/.test(offsetText) || !Number.isSafeInteger(offset) || offset > 1000000)) {
@@ -43,10 +48,12 @@ export async function GET(request: NextRequest) {
     const anchor = range === 'custom' || slugs.length === 0 ? null : await getDataAnchorDate(slugs);
     const { startDate, endDate } = resolveDateRange(range,start,end,anchor);
     if (!validVideoRange(startDate,endDate)) return NextResponse.json({ error:'Invalid date range' },{status:400});
-    const { data, error } = await db.rpc(breakdown ? 'get_manager_video_gmv_breakdown' : 'get_manager_video_gmv_selection', {
+    const rpc = breakdown ? (managedCreatorId === null ? 'get_manager_video_gmv_breakdown' : 'get_creator_video_gmv_breakdown') : 'get_manager_video_gmv_selection';
+    const { data, error } = await db.rpc(rpc, {
       p_tenant_id:scope.tenantId,p_brand_slugs:slugs,p_start:startDate,p_end:endDate,
       p_post_start:postStart || null,p_post_end:postEnd || null,
       ...(breakdown ? {p_offset:offset} : {}),
+      ...(managedCreatorId === null ? {} : {p_managed_creator_id:managedCreatorId}),
     }).abortSignal(AbortSignal.timeout(30000));
     if (error || !data) throw error ?? new Error('Missing video metrics');
     return NextResponse.json({...data,start:startDate,end:endDate,postStart:postStart || null,postEnd:postEnd || null}, {headers:{'Cache-Control':'private, no-store'}});
