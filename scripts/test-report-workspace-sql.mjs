@@ -261,4 +261,19 @@ assert.equal((await postingVideo('2026-10-01','2026-10-02')).gmv30d,0);
 assert.equal((await postingVideo('2026-08-01','2026-08-02','ARRAY[]::text[]')).factCount,0);
 for (const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_manager_video_gmv_filtered(uuid,text[],date,date,date,date)','execute') ok`)).rows[0].ok,false);
 console.log('PASS optional posting dates: default parity, inclusive boundaries, independent dates, creator reconciliation, tenant scope, permissions');
+await db.exec(readFileSync('supabase/migrations/20261019201836_all_video_gmv_default.sql','utf8'));
+const selectedVideo = async (start,end) => (await db.query(
+  `select get_manager_video_gmv_selection('${a}',ARRAY['shared'],'2026-08-01','2026-08-31',$1::date,$2::date) data`,[start,end]
+)).rows[0].data;
+const allVideo = await selectedVideo(null,null);
+assert.equal(allVideo.gmv30d,actualVideo.totalGmv,'Blank posting dates include all GMV, including old and unknown posting dates');
+assert.equal(allVideo.unknownPostDateGmv,50);
+assert.equal(allVideo.videos30d,actualVideo.videos30d+2,'Old boundary and unknown-date videos are counted');
+assert.equal(allVideo.creators.reduce((sum,c)=>sum+c.gmv30d,0),allVideo.totalGmv);
+assert.ok(allVideo.creators.every(c=>c.gmv30d===c.totalGmv));
+assert.deepEqual(await selectedVideo('2026-08-01','2026-08-01'),boundaryPosting,'Explicit posting filters are unchanged');
+assert.deepEqual(await selectedVideo('2026-08-02','2026-08-02'),recentPosting);
+assert.deepEqual(await newVideo("ARRAY['shared']",'2026-08-01','2026-08-31'),actualVideo,'Reporting retains its existing 30-day definition');
+for(const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_manager_video_gmv_selection(uuid,text[],date,date,date,date)','execute') ok`)).rows[0].ok,false);
+console.log('PASS all-video default: old and unknown dates included, creator totals, explicit posting filters preserved, reporting unchanged');
 await db.close();

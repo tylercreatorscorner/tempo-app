@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const anchor = range === 'custom' || slugs.length === 0 ? null : await getDataAnchorDate(slugs);
     const { startDate, endDate } = resolveDateRange(range,start,end,anchor);
     if (!validVideoRange(startDate,endDate)) return NextResponse.json({ error:'Invalid date range' },{status:400});
-    const { data, error } = await db.rpc('get_manager_video_gmv_filtered', {
+    const { data, error } = await db.rpc('get_manager_video_gmv_selection', {
       p_tenant_id:scope.tenantId,p_brand_slugs:slugs,p_start:startDate,p_end:endDate,
       p_post_start:postStart || null,p_post_end:postEnd || null,
     }).abortSignal(AbortSignal.timeout(30000));
