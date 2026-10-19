@@ -30,6 +30,14 @@ const get=query=>route.GET({nextUrl:new URL('https://test.invalid/api?'+query)})
 assert.equal((await get('brand=alpha&range=custom&start=2026-09-14&end=2026-09-20')).status,200);
 assert.equal(args.p_tenant_id,'ours');
 assert.equal(args.p_brand_slugs.join(','),'alpha');
+assert.equal(args.p_post_start,null);
+assert.equal(args.p_post_end,null);
+assert.equal((await get('postStart=2026-07-01&postEnd=2026-07-31')).status,200);
+assert.equal(args.p_post_start,'2026-07-01');
+assert.equal(args.p_post_end,'2026-07-31');
+for (const query of ['postStart=2026-07-01','postEnd=2026-07-31','postStart=2026-07-31&postEnd=2026-07-01','postStart=2026-02-30&postEnd=2026-03-01']) {
+  args=null;assert.equal((await get(query)).status,400);assert.equal(args,null);
+}
 assert.ok(readFilters.some(([k,v])=>k==='tenant_id'&&v==='ours'));
 args=null;assert.equal((await get('brand=beta')).status,403);assert.equal(args,null);
 args=null;assert.equal((await get('range=custom&start=2026-02-30&end=2026-03-01')).status,400);assert.equal(args,null);
