@@ -243,4 +243,22 @@ assert.equal((await newVideo('NULL')).factCount,0);
 for(const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_manager_new_video_gmv(uuid,text[],date,date)','execute') ok`)).rows[0].ok,false);
 assert.equal((await db.query("select prosecdef from pg_proc where proname='get_manager_new_video_gmv'")).rows[0].prosecdef,false);
 console.log('PASS manager new video GMV: report parity, age boundary, unknown dates, tenant isolation, duplicate membership, empty scopes, creator reconciliation, service-only invoker');
+await db.exec(readFileSync('supabase/migrations/20261019194458_manager_video_posting_filter.sql','utf8'));
+const postingVideo = async (start,end,slugs="ARRAY['shared']") => (await db.query(
+  `select get_manager_video_gmv_filtered('${a}',${slugs},'2026-08-01','2026-08-31',$1::date,$2::date) data`,[start,end]
+)).rows[0].data;
+assert.deepEqual(await postingVideo(null,null),actualVideo,'Unselected posting dates retain reporting defaults');
+const boundaryPosting = await postingVideo('2026-08-01','2026-08-01');
+assert.equal(boundaryPosting.gmv30d,20,'Posting selection replaces the age window and includes its boundaries');
+assert.equal(boundaryPosting.videos30d,1);
+assert.equal(boundaryPosting.totalGmv,actualVideo.totalGmv,'Share denominator stays all managed video GMV');
+const recentPosting = await postingVideo('2026-08-02','2026-08-02');
+assert.equal(recentPosting.gmv30d,70,'Multiple product facts add, foreign tenant excluded');
+assert.equal(recentPosting.videos30d,1,'Video counted once');
+assert.equal(recentPosting.creators.reduce((sum,c)=>sum+c.gmv30d,0),70);
+assert.equal((await postingVideo('2026-08-01','2026-08-02')).gmv30d,90);
+assert.equal((await postingVideo('2026-10-01','2026-10-02')).gmv30d,0);
+assert.equal((await postingVideo('2026-08-01','2026-08-02','ARRAY[]::text[]')).factCount,0);
+for (const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_manager_video_gmv_filtered(uuid,text[],date,date,date,date)','execute') ok`)).rows[0].ok,false);
+console.log('PASS optional posting dates: default parity, inclusive boundaries, independent dates, creator reconciliation, tenant scope, permissions');
 await db.close();

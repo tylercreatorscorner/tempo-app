@@ -9,6 +9,8 @@ export interface NewVideoGmv {
   expectedBrandDays: number;
   start: string;
   end: string;
+  postStart?: string | null;
+  postEnd?: string | null;
   creators: { id: number; creatorId: string | null; name: string; brand: string; brandName: string; gmv30d: number; totalGmv: number; videos30d: number }[];
 }
 
