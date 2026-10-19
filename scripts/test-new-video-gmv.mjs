@@ -40,6 +40,14 @@ assert.equal(rpcName,'get_manager_video_gmv_breakdown');
 assert.equal(args.p_offset,50);assert.equal(args.p_start,'2026-09-14');assert.equal(args.p_end,'2026-09-20');
 assert.equal(args.p_post_start,'2026-07-01');assert.equal(args.p_post_end,'2026-07-31');
 assert.equal(args.p_brand_slugs.join(','),'alpha');assert.equal(args.p_tenant_id,'ours');
+assert.equal((await get('view=videos&brand=alpha&managedCreatorId=123&range=custom&start=2026-09-14&end=2026-09-20&postStart=2026-07-01&postEnd=2026-07-31&offset=50')).status,200);
+assert.equal(rpcName,'get_creator_video_gmv_breakdown');assert.equal(args.p_managed_creator_id,123);
+assert.equal(args.p_offset,50);assert.equal(args.p_start,'2026-09-14');assert.equal(args.p_post_start,'2026-07-01');
+assert.equal(args.p_brand_slugs.join(','),'alpha');assert.equal(args.p_tenant_id,'ours');
+for(const query of ['view=videos&managedCreatorId=','view=videos&managedCreatorId=abc','view=videos&managedCreatorId=-1','view=videos&managedCreatorId=1.5','view=videos&managedCreatorId=2147483648','managedCreatorId=123']) {
+  args=null;assert.equal((await get(query)).status,400);assert.equal(args,null);
+}
+args=null;assert.equal((await get('view=videos&managedCreatorId=123&brand=beta')).status,403);assert.equal(args,null);
 for(const query of ['view=videos&offset=-1','view=videos&offset=abc','view=videos&offset=1.2','view=videos&offset=1000001']) {
   args=null;assert.equal((await get(query)).status,400);assert.equal(args,null);
 }
@@ -52,6 +60,7 @@ args=null;assert.equal((await get('brand=beta')).status,403);assert.equal(args,n
 args=null;assert.equal((await get('range=custom&start=2026-02-30&end=2026-03-01')).status,400);assert.equal(args,null);
 scope.brandScope.brandSlugs=[];await get('');assert.equal(args.p_brand_slugs.length,0);
 scope=null;args=null;assert.equal((await get('')).status,401);assert.equal(args,null);
+assert.equal((await get('view=videos&managedCreatorId=123')).status,401);assert.equal(args,null);
 scope={tenantId:'ours',brandScope:{kind:'all'}};fail=true;
 assert.equal((await get('')).status,503);
 console.log('PASS new video endpoint: valid dates, tenant and manager scope, empty scope, unauthorized access, errors remain unavailable');

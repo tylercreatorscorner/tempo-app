@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, Video } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -40,6 +40,7 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
   const [search,setSearch] = useState('');
   const [limit,setLimit] = useState(20);
   const [showVideos,setShowVideos] = useState(false);
+  const [videoCreator,setVideoCreator] = useState<number|null>(null);
   useEffect(()=>{
     const controller = new AbortController();
     fetch(url,{signal:controller.signal}).then(async res=>{
@@ -56,6 +57,12 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
   videoParams.set('view','videos');
   // Freeze relative earning periods to the dates used by the visible summary.
   if(data) { videoParams.set('range','custom'); videoParams.set('start',data.start); videoParams.set('end',data.end); }
+  const creatorVideoUrl = (id:number,brand:string) => {
+    const params = new URLSearchParams(videoParams);
+    params.set('managedCreatorId',String(id));
+    params.set('brand',brand);
+    return '/api/new-video-gmv?'+params;
+  };
   return <Card aria-label={title}>
     <CardHeader><CardTitle><span className="inline-flex items-center gap-2"><Video size={16} aria-hidden="true"/>{title}</span></CardTitle><span className="text-xs text-muted-foreground">Managed creators · {posting ? 'Custom posting dates' : 'All posting dates'}</span></CardHeader>
     <CardContent>
@@ -78,7 +85,9 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
           <p className="mt-2 text-xs text-muted-foreground">All managed creators with video data for these brands and dates. Independent of the roster’s search, tags, and health filters.</p>
           <input aria-label="Search video GMV creators" value={search} onChange={e=>{setSearch(e.target.value);setLimit(20);}} placeholder="Search creator or brand…" className="my-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm sm:max-w-sm"/>
           <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="py-2 font-medium">Creator</th><th className="px-3 py-2 font-medium">Brand</th><th className="px-3 py-2 text-right font-medium">{posting ? "Selected video GMV" : "Video GMV"}</th><th className="py-2 text-right font-medium">Video GMV share</th></tr></thead><tbody>
-            {creators.slice(0,limit).map(c=><tr key={c.id} className="border-t border-border"><td className="py-3">{c.creatorId ? <Link className="font-medium hover:underline" href={'/creators/'+encodeURIComponent(c.creatorId)+'?brand='+encodeURIComponent(c.brand)}>{c.name}</Link> : c.name}</td><td className="px-3 py-3 text-muted-foreground">{c.brandName}</td><td className="px-3 py-3 text-right tabular-nums">{money(c.gmv30d)}</td><td className="py-3 text-right tabular-nums">{c.totalGmv>0 ? (c.gmv30d/c.totalGmv*100).toFixed(1)+'%' : '—'}</td></tr>)}
+            {creators.slice(0,limit).map(c=><Fragment key={c.id}><tr className="border-t border-border"><td className="py-3">{c.creatorId ? <Link className="font-medium hover:underline" href={'/creators/'+encodeURIComponent(c.creatorId)+'?brand='+encodeURIComponent(c.brand)}>{c.name}</Link> : c.name}</td><td className="px-3 py-3 text-muted-foreground">{c.brandName}</td><td className="px-3 py-3 text-right tabular-nums"><button type="button" aria-label={'View videos for '+c.name+' at '+c.brandName} aria-expanded={videoCreator===c.id} onClick={()=>setVideoCreator(current=>current===c.id ? null : c.id)} className="underline decoration-dotted underline-offset-4 hover:text-primary">{money(c.gmv30d)}</button></td><td className="py-3 text-right tabular-nums">{c.totalGmv>0 ? (c.gmv30d/c.totalGmv*100).toFixed(1)+'%' : '—'}</td></tr>
+              {videoCreator===c.id && <tr><td colSpan={4} className="bg-muted/20 px-3 pb-4"><div className="flex items-center justify-between gap-3 pt-3"><p className="text-sm font-medium">{c.name} · {c.brandName}</p><Button type="button" size="sm" variant="ghost" onClick={()=>setVideoCreator(null)}>Hide creator videos</Button></div><VideoGmvBreakdown key={c.id} url={creatorVideoUrl(c.id,c.brand)}/></td></tr>}
+            </Fragment>)}
           </tbody></table></div>
           {creators.length===0 && <p className="py-3 text-sm text-muted-foreground">No matching creators.</p>}
           {creators.length>limit && <Button className="mt-3" size="sm" variant="outline" onClick={()=>setLimit(n=>n+20)}>Show more creators</Button>}

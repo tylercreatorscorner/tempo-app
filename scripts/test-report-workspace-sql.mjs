@@ -301,4 +301,26 @@ assert.equal([...firstPage.videos,...secondPage.videos].reduce((sum,v)=>sum+v.gm
 assert.equal(firstPage.totalGmv,(await selectedVideo(null,null)).gmv30d,'Missing video IDs still reconcile');
 for(const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_manager_video_gmv_breakdown(uuid,text[],date,date,date,date,integer)','execute') ok`)).rows[0].ok,false);
 console.log('PASS video breakdown: summary reconciliation, posting boundaries, unknown dates/IDs, pagination ties, products, tenant and umbrella scope');
+await db.exec(readFileSync('supabase/migrations/20261019224112_creator_video_gmv_breakdown.sql','utf8'));
+const creatorVideos = async (id,start=null,end=null,offset=0,slugs="ARRAY['shared']") => (await db.query(
+  `select get_creator_video_gmv_breakdown('${a}',${slugs},'2026-08-01','2026-08-31',$1::date,$2::date,$3::int,$4::int) data`,[start,end,offset,id]
+)).rows[0].data;
+const currentSummary=await selectedVideo(null,null);
+for(const creator of currentSummary.creators) {
+  const result=await creatorVideos(creator.id);
+  assert.equal(result.totalGmv,creator.gmv30d,'Creator detail reconciles with the clicked summary row');
+  const filtered=(await selectedVideo('2026-08-02','2026-08-02')).creators.find(c=>c.id===creator.id);
+  assert.equal((await creatorVideos(creator.id,'2026-08-02','2026-08-02')).totalGmv,filtered.gmv30d);
+}
+const owner=currentSummary.creators.find(c=>c.gmv30d>0);
+assert.equal((await creatorVideos(owner.id,null,null,50)).offset,50);
+assert.equal((await creatorVideos(999)).totalGmv,0,'Duplicate roster handle cannot claim facts attributed to another row');
+assert.equal((await creatorVideos(owner.id,null,null,0,"ARRAY['parent']")).totalRows,0,'Creator selection cannot widen brand scope');
+assert.equal((await creatorVideos(1000,null,null,0,"ARRAY['parent']")).totalGmv,46,'Creator umbrella and management dates retained');
+await db.exec(`insert into managed_creators(id,tenant_id,brand,account_1,employment_status) values(99999,'${b}','shared','ourcreator','active');`);
+assert.equal((await creatorVideos(99999)).totalRows,0,'Foreign-tenant creator IDs cannot expose videos');
+assert.equal((await creatorVideos(owner.id,null,null,0,'ARRAY[]::text[]')).totalRows,0);
+assert.equal((await creatorVideos(2147483647)).totalRows,0,'Unknown creator does not broaden selection');
+for(const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_creator_video_gmv_breakdown(uuid,text[],date,date,date,date,integer,integer)','execute') ok`)).rows[0].ok,false);
+console.log('PASS creator video breakdown: clicked-row reconciliation, same dates, duplicate ownership, umbrella, pagination, tenant and brand isolation');
 await db.close();
