@@ -18,6 +18,7 @@ import { getActiveTenantId } from '@/lib/auth/platform-admin';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 import { StatCard } from '@/components/dashboard/stat-card';
+import { NewVideoGmvCard } from '@/components/dashboard/new-video-gmv';
 import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
 import { DashboardCharts } from '@/components/dashboard/dashboard-charts';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
@@ -576,6 +577,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           trend={canCompare && comparison.current.orders > 0 && comparison.previous.orders > 0 ? pctChange(comparison.current.gmv / comparison.current.orders, comparison.previous.gmv / comparison.previous.orders) : undefined}
           trendLabel={comparisonLabel} info="Affiliate GMV divided by affiliate orders. The comparison uses the same fully recorded brands in both periods; this is a weighted average, not an average of brand averages." />
       </div>
+      <NewVideoGmvCard brand={brandFilter} start={startDate} end={endDate} />
       {canViewCost && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Card><CardContent className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-medium text-muted-foreground">Current creator commitments <InfoTooltip label="Current recorded creator fees for the selected brands. Agreement periods may differ; this is not historical payment or spend in the selected date range."/></p><p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalRetainerSpend)}</p></div><span className="text-xs text-muted-foreground">{retainerBrandCount} {retainerBrandCount===1?'brand':'brands'}</span></CardContent></Card>
         <Card><CardContent className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-medium text-muted-foreground">GMV / retainer return <InfoTooltip label={`Managed GMV from ${roiStart} through ${roiEnd}, divided by current monthly commitments. Revenue multiple, not profit ROI; excludes commissions and other costs.`}/></p><p className="mt-1 text-xl font-semibold tabular-nums">{roi > 0 ? `${roi.toFixed(1)}×` : '—'}</p></div><span className="text-xs text-muted-foreground">Trailing 30 days</span></CardContent></Card>

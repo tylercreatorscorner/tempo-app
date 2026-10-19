@@ -13,6 +13,7 @@ import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
 import { RosterSegmentControls } from '@/components/segments/roster-segment-controls';
 import rosterLayout from '@/components/roster/roster-layout.module.css';
 import { StatCard } from '@/components/dashboard/stat-card';
+import { NewVideoGmvCard } from '@/components/dashboard/new-video-gmv';
 import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
   UserPlus, Search, Users, UserCheck, X,
@@ -1880,6 +1881,7 @@ function RosterContent() {
         {creatorView==='top'&&<span className="text-xs text-muted-foreground">Managed creators ranked by GMV for the selected period.</span>}
         {creatorView==='elite'&&<span className="text-xs text-muted-foreground">{brand==='all'?'Select a brand to see its Elite creators.':'Creators tagged Elite for this brand.'}</span>}
       </div>
+      <NewVideoGmvCard brand={brand} range={preset} start={customStart} end={customEnd} showCreators />
       {/* Table toolbar — all DROPDOWNS (Tyler prefers them to pills). Search leads
           (the primary tool, grows to fill), then the filter dropdowns (View +
           Health replace the old segmented control + triage chip row; the Health
