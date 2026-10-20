@@ -1,3 +1,4 @@
+import portal from '@/components/layout/portal-workspace.module.css';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink, TrendingUp, TrendingDown } from 'lucide-react';
@@ -47,7 +48,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
 
   if (!detail) notFound();
 
-  const accent = ctx.activeBrand.color || '#FF4D8D';
+  const accent = ctx.activeBrand.color || '#6e4bcc';
   const brandName = ctx.activeBrand.display_name || ctx.activeBrand.name;
   // Posts that actually took money in the window, out of everything that was
   // live. Both halves are stated so neither number can be mistaken for the
@@ -55,22 +56,22 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
   const earning = detail.videos.filter((v) => v.gmv > 0).length;
 
   return (
-    <div className="space-y-6 max-w-[1200px] mx-auto">
+    <div className={portal.page}>
       {/* Back link */}
       <Link
-        href="/brand-dashboard"
+        href={`/brand-dashboard/creators?period=${period}`}
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        Back to overview
+        Back to creators
       </Link>
 
       {/* Header card */}
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 px-5 pt-5 pb-4">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-foreground">
+            <div className="flex min-w-0 items-center gap-2">
+              <h1 className="min-w-0 break-all text-xl font-bold text-foreground">
                 @{detail.primaryHandle}
               </h1>
               <a
@@ -134,6 +135,8 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
         </div>
       </div>
 
+      <div className={portal.split}>
+        <div className={portal.stack}>
       {/* Daily GMV chart */}
       {detail.dailyPerformance.length > 1 && (
         <Card>
@@ -211,6 +214,8 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
         )}
       </Card>
 
+        </div>
+        <aside className={portal.stack} aria-label="Creator agreement">
       {/* Contract details */}
       {(detail.hasVerifiedAgreement || detail.retainer > 0 ||
         detail.monthlyPostRequirement != null ||
@@ -245,7 +250,8 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
             )}
           </dl>
         </Card>
-      )}
+      )}        </aside>
+      </div>
     </div>
   );
 }

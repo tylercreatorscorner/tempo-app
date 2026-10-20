@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { AlertTriangle, Flame, Play, Video } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import type { CreatorVideoRow } from '@/lib/data/creator-portal';
@@ -54,11 +56,11 @@ export function InspirationClient({
   }, [videos, excludeMine, search]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-12">
+    <div className={portal.page}>
       {/* Ledger page header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className={portal.pageHeader}>
         <div>
-          <p className="font-ledger text-[13px] italic text-primary">Discover</p>
+          <p className={portal.eyebrow}>Discover</p>
           <h1 className="font-ledger mt-1 text-[26px] font-bold tracking-tight text-foreground">
             Learn from what&apos;s winning
           </h1>
@@ -79,13 +81,13 @@ export function InspirationClient({
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={portal.toolbar}>
         <Input
           type="text"
           placeholder="Search by title, @handle, or product…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="min-w-[240px] flex-1"
+          className="min-w-0 flex-1"
         />
         <div className="inline-flex select-none items-center gap-2 text-sm text-muted-foreground">
           <Switch checked={excludeMine} onCheckedChange={setExcludeMine} aria-label="Hide my videos" />
@@ -97,6 +99,8 @@ export function InspirationClient({
           </span>
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground" aria-live="polite">{filtered.length} of {videos.length} videos{excludeMine ? ' · your videos hidden' : ''}</p>
 
       {!currentBrand && (
         <Card className="flex items-start gap-3 border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] p-4 shadow-none">
@@ -125,7 +129,7 @@ export function InspirationClient({
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={portal.videoGrid}>
           {filtered.map((v, i) => (
             <VideoCard
               key={v.videoId}
@@ -151,7 +155,8 @@ function VideoCard({ video, index, sells }: { video: InspirationVideo; index: nu
   const card = (
     <Card
       className={cn(
-        'group h-full overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:shadow-[var(--pulse-elev-2)]',
+        portal.videoCard,
+        'group h-full overflow-hidden p-0 transition-colors hover:border-primary/40',
         video.isMine && 'border-primary/40 ring-1 ring-primary/20',
       )}
     >
@@ -175,7 +180,7 @@ function VideoCard({ video, index, sells }: { video: InspirationVideo; index: nu
             <Play className="h-7 w-7 fill-current" />
           </div>
         )}
-        <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
+        <div className="absolute inset-x-2 top-2 flex flex-wrap items-center gap-1">
           {isHot && (
             <Badge variant="accent" size="sm">
               <Flame className="h-3 w-3" />
@@ -205,7 +210,7 @@ function VideoCard({ video, index, sells }: { video: InspirationVideo; index: nu
         {video.topProduct && (
           <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{video.topProduct}</p>
         )}
-        <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+        <div className="mt-2 flex min-w-0 flex-col gap-2 border-t border-border pt-2">
           <div>
             <p className="font-ledger-num text-lg font-bold text-[var(--pulse-pos)]">
               {video.gmv == null ? '—' : formatCurrency(video.gmv)}
@@ -215,8 +220,8 @@ function VideoCard({ video, index, sells }: { video: InspirationVideo; index: nu
               {video.views != null && video.views > 0 && <> · {formatNumber(video.views)} views</>}
             </p>
           </div>
-          <div className="text-right">
-            <p className="font-mono text-xs text-muted-foreground">@{video.tiktokUsername}</p>
+          <div className="min-w-0">
+            <p className="truncate font-mono text-xs text-muted-foreground">@{video.tiktokUsername}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/60">{brandMeta.label(video.brandSlug)}</p>
           </div>
         </div>

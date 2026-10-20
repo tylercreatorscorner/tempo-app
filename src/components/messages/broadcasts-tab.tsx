@@ -12,6 +12,7 @@
  * the feed every 5s, visibility-gated.
  */
 
+import styles from './workspace.module.css';
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Loader2, Radio, RotateCw, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -150,7 +151,7 @@ export function BroadcastsTab({
   const neverLoaded = rows === null;
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,1fr)] xl:items-start">
+    <div className={styles.broadcasts}>
       {/* ── Sent feed ── */}
       <section className="space-y-3">
         {actionError && (
@@ -189,7 +190,7 @@ export function BroadcastsTab({
         ) : (
           <Card className="relative overflow-hidden">
             <TableLoadBar active={showBar} />
-            <div className="border-b border-border px-5 py-4">
+            <div className="border-b border-border px-4 py-3">
               <h2 className="text-[13px] font-extrabold text-foreground">Sent</h2>
               <p className="mt-0.5 text-[11.5px] text-muted-foreground">
                 Every broadcast, newest first, with per-creator delivery.
@@ -240,7 +241,7 @@ function FeedRow({
   const active = isActive(b);
 
   return (
-    <div className="grid items-center gap-x-4 gap-y-2 border-b border-border px-5 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_auto]">
+    <div className="grid items-center gap-x-4 gap-y-2 border-b border-border px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_auto]">
       {/* Audience + channel + time */}
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -370,7 +371,7 @@ function BroadcastLogDrawer({ broadcastId, onClose }: { broadcastId: string; onC
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-base font-bold text-foreground">

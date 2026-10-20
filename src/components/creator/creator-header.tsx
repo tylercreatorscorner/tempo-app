@@ -63,7 +63,7 @@ export function CreatorHeader({
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card px-3 sm:px-5">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
           onClick={onMenuClick}
           className="rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
@@ -74,14 +74,14 @@ export function CreatorHeader({
         <div className="lg:hidden">
           <TempoLogo size="sm" animated />
         </div>
-        <nav className="flex min-w-0 items-center gap-1.5 text-sm">
+        <nav className="hidden min-w-0 items-center gap-1.5 text-sm sm:flex">
           <span className="hidden text-xs text-muted-foreground sm:inline">Creator Portal</span>
           <ChevronRight className="hidden h-3 w-3 text-muted-foreground sm:block" />
           <span className="truncate text-sm font-semibold text-foreground">{pageLabel}</span>
         </nav>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <ThemeToggle />
 
         <div className="mx-1 h-6 w-px bg-secondary" />
@@ -91,7 +91,7 @@ export function CreatorHeader({
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-muted"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] text-xs font-bold text-white shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#6e4bcc] text-xs font-bold text-white shadow-sm">
               {getInitials(profile.real_name)}
             </div>
             <span className="hidden max-w-[120px] truncate text-sm font-medium text-foreground sm:block">

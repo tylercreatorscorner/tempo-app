@@ -1,3 +1,5 @@
+import portal from '@/components/layout/portal-workspace.module.css';
+import { TempoLogo } from '@/components/ui/tempo-logo';
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import { peekClaimToken } from '@/lib/auth/creator-claim';
@@ -21,11 +23,9 @@ export default async function CreatorClaimPage({
   const info = token ? await peekClaimToken(token) : null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className={`${portal.theme} ${portal.entry}`}>
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center shadow-[var(--pulse-elev-2)]">
-        <p className="mb-4 text-lg font-extrabold tracking-tight text-foreground">
-          Temp<span className="text-primary">o</span>
-        </p>
+        <div className="mb-5 flex justify-center"><TempoLogo size="md" /></div>
         {info ? (
           <>
             <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Your portal is ready</p>

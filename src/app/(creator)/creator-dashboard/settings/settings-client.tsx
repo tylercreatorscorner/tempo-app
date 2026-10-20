@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AtSign, Loader2, Plus, ShieldCheck, Trash2 } from 'lucide-react';
@@ -61,16 +63,19 @@ export function SettingsClient({
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-12">
+    <div className={portal.page}>
       {/* Ledger page header */}
-      <div>
-        <p className="font-ledger text-[13px] italic text-primary">Account</p>
+      <div className={portal.pageHeader}>
+        <div>
+        <p className={portal.eyebrow}>Account</p>
         <h1 className="font-ledger mt-1 text-[26px] font-bold tracking-tight text-foreground">Settings</h1>
         <p className="mt-1 text-[13.5px] text-muted-foreground">
           Your profile and the TikTok handles we track for you.
         </p>
+        </div>
       </div>
 
+      <div className={portal.settingsGrid}>
       {/* Profile */}
       <Card>
         <CardHeader>
@@ -101,7 +106,7 @@ export function SettingsClient({
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             These are the TikTok handles we track for your GMV, videos, and rankings. Add any you post
-            from, and remove any that aren't yours.
+            from, and remove any that aren&apos;t yours.
           </p>
 
           <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
@@ -178,19 +183,20 @@ export function SettingsClient({
           <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
             New handles are marked unverified until your manager confirms them. A handle already linked to
-            someone else can't be added.
+            someone else can&apos;t be added.
           </p>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
 
 function Field({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={`text-sm font-medium ${muted ? 'text-muted-foreground' : 'text-foreground'}`}>
+      <span className={`min-w-0 break-all text-sm font-medium ${muted ? 'text-muted-foreground' : 'text-foreground'}`}>
         {value}
       </span>
     </div>

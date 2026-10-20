@@ -29,6 +29,7 @@ export function PeriodTabs({ current, accentColor }: Props) {
         return (
           <button
             key={p}
+            aria-pressed={active}
             onClick={() => setPeriod(p)}
             className={cn(
               'px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',

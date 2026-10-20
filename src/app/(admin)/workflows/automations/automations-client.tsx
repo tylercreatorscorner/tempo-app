@@ -1,5 +1,7 @@
 'use client';
 
+import styles from '../workspace.module.css';
+import Link from 'next/link';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { LoadingStatus } from '@/components/ui/loading-status';
@@ -86,6 +88,8 @@ interface ChannelOption {
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export function AutomationsClient() {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('all');
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,13 +171,21 @@ export function AutomationsClient() {
     }
   }
 
+  const visible = automations.filter(a => `${a.name} ${a.description ?? ''}`.toLowerCase().includes(query.toLowerCase()) && (status === 'all' || (status === 'enabled' ? a.enabled : !a.enabled)));
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className={styles.workspace}>
       <PageHeader eyebrow="Settings" title="Automations"
         subtitle="Manage scheduled workflows and review their latest activity."
         actions={<Button size="sm" onClick={() => setEditing('new')}><Plus className="h-4 w-4" />New automation</Button>}
       />
 
+      <div className={styles.summary} aria-label="Automation overview">
+        <div><span>Saved workflows</span><strong>{loading ? '…' : error ? '—' : automations.length}</strong><small>All configured automations</small></div>
+        <div><span>Enabled</span><strong>{loading ? '…' : error ? '—' : automations.filter(a => a.enabled).length}</strong><small>Ready for their trigger</small></div>
+        <div><span>Latest run needs review</span><strong>{loading ? '…' : error ? '—' : automations.filter(a => ['failed', 'partial'].includes(a.last_run_status ?? '')).length}</strong><small>Failed or partial last results</small></div>
+      </div>
+      <div className={styles.columns}><div className={styles.main}>
+      <div className={styles.toolbar}><div><h2>Workflow directory</h2><p>Open a workflow to edit its trigger, action and run history.</p></div><div className={styles.filters}><input aria-label="Find an automation" placeholder="Find a workflow" value={query} onChange={e => setQuery(e.target.value)} /><select aria-label="Automation status" value={status} onChange={e => setStatus(e.target.value)}><option value="all">All statuses</option><option value="enabled">Enabled</option><option value="paused">Paused</option></select></div></div>
       {error && (
         <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
           {error}
@@ -186,7 +198,7 @@ export function AutomationsClient() {
         <EmptyState onNew={() => setEditing('new')} />
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
-          {automations.map(a => (
+          {visible.map(a => (
             <AutomationRow
               key={a.id}
               automation={a}
@@ -197,8 +209,10 @@ export function AutomationsClient() {
               running={runningId === a.id}
             />
           ))}
+          {!visible.length && <p className="p-5 text-sm text-muted-foreground">No workflows match these filters.</p>}
         </div>
       )}
+      </div><aside className={styles.aside}><h2>Run with context</h2><p>Enabled workflows follow their saved trigger. Manual workflows run only when you select Run.</p><ul><li><strong className="text-foreground">Review activity.</strong> Open a workflow for step results, timestamps and errors.</li><li><strong className="text-foreground">Pause when needed.</strong> Turn a workflow off while retaining its setup and history.</li></ul><Link className="text-sm font-medium text-primary" href="/workflows/integrations">Manage connections</Link></aside></div>
 
       {editing && (
         <BuilderDrawer
@@ -253,7 +267,7 @@ function AutomationRow({
     'Event';
 
   return (
-    <div className="flex items-center gap-4 p-4 hover:bg-muted/40 transition-colors">
+    <div className={`${styles.row} hover:bg-muted/40 transition-colors`}>
       <button onClick={onClick} className="flex-1 min-w-0 text-left">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-semibold text-[var(--foreground)]">{automation.name}</p>
@@ -281,7 +295,7 @@ function AutomationRow({
         </p>
       </button>
 
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div className="flex flex-wrap items-center gap-1 flex-shrink-0">
         <button
           onClick={onRunNow}
           disabled={running}
@@ -299,6 +313,7 @@ function AutomationRow({
               ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15'
               : 'border border-border bg-muted text-muted-foreground hover:bg-muted',
           )}
+          aria-pressed={automation.enabled}
           title={automation.enabled ? 'Pause this automation' : 'Enable this automation'}
         >
           {automation.enabled ? 'On' : 'Off'}
@@ -306,6 +321,7 @@ function AutomationRow({
         <button
           onClick={onDelete}
           className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-600 transition-colors"
+          aria-label={`Delete ${automation.name}`}
           title="Delete"
         >
           <Trash2 className="h-3.5 w-3.5" />

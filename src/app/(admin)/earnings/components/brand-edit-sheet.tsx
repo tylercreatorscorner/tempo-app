@@ -251,9 +251,9 @@ export function BrandEditSheet({
         />
 
         {/* Drawer */}
-        <div className="flex w-full max-w-md animate-in slide-in-from-right flex-col bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] duration-300">
+        <div className="flex w-full max-w-2xl animate-in slide-in-from-right flex-col bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] duration-300">
           {/* Header — names the payee: this arrangement is per (brand, payee). */}
-          <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
+          <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                 Edit arrangement
@@ -276,7 +276,7 @@ export function BrandEditSheet({
           </div>
 
           {/* Form */}
-          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5">
             {/* ── Billing arrangement (this payee) ── */}
             <Section
               title="Billing arrangement (this payee)"
@@ -518,7 +518,7 @@ function Section({ title, caption, children }: {
         <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">{title}</h3>
         {caption && <p className="mt-0.5 text-[11px] text-muted-foreground/80">{caption}</p>}
       </div>
-      <div className="space-y-3">{children}</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*:not(label)]:col-span-full [&>label:has(textarea)]:col-span-full">{children}</div>
     </section>
   );
 }
@@ -541,7 +541,7 @@ function Field({ label, hint, prefix, suffix, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <span className="text-xs font-semibold text-foreground">{label}</span>
         {hint && <span className="text-right text-[11px] font-normal text-muted-foreground">{hint}</span>}

@@ -11,6 +11,7 @@ import {
 } from '@/lib/data/segments';
 import { SegmentCreateModal } from '@/components/segments/segment-create-modal';
 import { PageHeader } from '@/components/ui/page-header';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 interface BrandOption { slug: string; label: string; }
 interface MemberRow {
@@ -124,7 +125,7 @@ export default function SegmentsPage() {
     return (
       <div key={rowKey} className="border border-border rounded-xl bg-card overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => toggleMembers(rowKey, criteria)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+          <button aria-expanded={isOpen} onClick={() => toggleMembers(rowKey, criteria)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
             {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground truncate">{name}</p>
@@ -176,7 +177,7 @@ export default function SegmentsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={layout.page}>
       <PageHeader
         eyebrow="Creators"
         title="Segments"
@@ -185,7 +186,7 @@ export default function SegmentsPage() {
           !readOnly && (
             <button
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:brightness-[1.07] transition-all flex-shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-primary-foreground bg-[var(--primary)] hover:brightness-[1.07] transition-all flex-shrink-0"
             >
               <Plus className="h-4 w-4" /> New Segment
             </button>
@@ -193,7 +194,8 @@ export default function SegmentsPage() {
         }
       />
 
-      <section className="space-y-2">
+      <div className={layout.balanced}>
+      <section className={layout.stack}>
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Lifecycle</h2>
         <div className="space-y-2">
           {PREBUILT_SEGMENTS.map((p) =>
@@ -202,7 +204,7 @@ export default function SegmentsPage() {
         </div>
       </section>
 
-      <section className="space-y-2">
+      <section className={layout.stack}>
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Your segments</h2>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
@@ -229,6 +231,7 @@ export default function SegmentsPage() {
           </div>
         )}
       </section>
+      </div>
 
       {showCreate && (
         <SegmentCreateModal

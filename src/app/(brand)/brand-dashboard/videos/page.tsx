@@ -1,3 +1,5 @@
+import { PortalMetricStrip } from '@/components/layout/portal-metric-strip';
+import portal from '@/components/layout/portal-workspace.module.css';
 import { Search, ExternalLink, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -60,7 +62,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
   })();
   const sortDir: SortDir = params.dir === 'asc' ? 'asc' : 'desc';
 
-  const accent = ctx.activeBrand.color || '#FF4D8D';
+  const accent = ctx.activeBrand.color || '#6e4bcc';
   const admin = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuid = slugToUuid(reg, ctx.activeBrand.slug) ?? ctx.activeBrand.id;
@@ -111,8 +113,8 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+    <div className={portal.page}>
+      <div className={portal.pageHeader}>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Videos</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -120,10 +122,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
             creators · {data.periodLabel}
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <SearchBox initialQuery={params.q ?? ''} period={period} />
-          <PeriodTabs current={period} accentColor={accent} />
-        </div>
+
       </div>
 
       <p className="text-xs text-muted-foreground -mt-3">
@@ -131,7 +130,18 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
         Lifetime GMV (totals since posting) is shown as a secondary number.
       </p>
 
+      <PortalMetricStrip items={[
+        { label: 'Roster GMV', value: fmtCurrency(data.totalGmv), note: data.periodLabel },
+        { label: 'Posts published', value: fmtNumber(data.totalPosts), note: 'Published in the selected period' },
+        { label: 'Managed creators', value: fmtNumber(data.managedCount), note: 'Brand roster' },
+        { label: 'Tracked posts', value: fmtNumber(data.videos.length), note: 'Before search filters' },
+      ]} />
+
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3">
+          <SearchBox initialQuery={params.q ?? ''} period={period} />
+          <PeriodTabs current={period} accentColor={accent} />
+        </div>
         {visible.length === 0 ? (
           <p className="text-sm text-muted-foreground px-4 py-12 text-center">
             {data.videos.length === 0

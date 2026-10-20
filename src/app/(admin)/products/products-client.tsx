@@ -23,6 +23,7 @@
  * redirect + client surface).
  */
 import { InterfaceIcon } from '@/components/ui/interface-icon';
+import layout from '@/components/ui/workspace-layout.module.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronRight, Download, Loader2, Package, Search,
@@ -205,7 +206,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
   const isInitial = loading && !data;
 
   return (
-    <div className="space-y-6">
+    <div className={layout.page}>
       {/* Header row: title + date picker */}
       <PageHeader
         eyebrow="Performance"
@@ -223,7 +224,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
       />
 
       {/* Brand pills */}
-      <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} />
+      <div className={layout.toolbar}><BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} /></div>
 
       {error && (
         <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
@@ -232,10 +233,8 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
       )}
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className={layout.cardMetrics}>
         <StatCard
-          className="col-span-2"
-          hero
           label="Total GMV"
           value={data ? formatCurrency(data.kpis.totalGmv) : '—'}
           trend={data?.kpis.gmvChangePct ?? undefined}
@@ -257,9 +256,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
         />
       </div>
 
-      {/* Top 5 products */}
-      <TopProductsCard products={data?.products ?? []} totalGmv={data?.kpis.totalGmv ?? 0} loading={isInitial} />
-
+      <div className={layout.columns}>
       {/* Table */}
       <Card className="relative overflow-hidden">
         {/* Indeterminate load bar — shows on first load AND every refetch
@@ -278,11 +275,12 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
             <div className="relative">
               <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
+                aria-label="Search product performance"
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search products..."
-                className="w-56 pl-8 py-1.5 text-sm"
+                className="w-full sm:w-56 pl-8 py-1.5 text-sm"
               />
             </div>
             <Button
@@ -344,6 +342,10 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
           </table>
         </div>
       </Card>
+      <aside className={layout.stack} aria-label="Product leaders">
+        <TopProductsCard products={data?.products ?? []} totalGmv={data?.kpis.totalGmv ?? 0} loading={isInitial} />
+      </aside>
+      </div>
     </div>
   );
 }
@@ -440,15 +442,15 @@ function ProductRowGroup({
         )}
       >
         <td className="px-4 py-3 align-top">
-          <div className="flex items-start gap-2">
+          <button type="button" aria-expanded={isExpanded} aria-label={`${isExpanded ? 'Hide' : 'Show'} creators for ${product.product_name || 'unnamed product'}`} onClick={event => { event.stopPropagation(); onToggle(); }} className="flex w-full items-start gap-2 text-left focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2">
             {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />}
-            <div className="min-w-0">
-              <div className="font-medium text-[var(--foreground)] truncate" title={product.product_name}>{titleClipped}</div>
+            <span className="min-w-0">
+              <span className="block font-medium text-[var(--foreground)] truncate" title={product.product_name}>{titleClipped}</span>
               {product.product_category && (
-                <div className="text-[11px] text-muted-foreground mt-0.5">{product.product_category}</div>
+                <span className="block text-[11px] text-muted-foreground mt-0.5">{product.product_category}</span>
               )}
-            </div>
-          </div>
+            </span>
+          </button>
         </td>
         <td className="px-4 py-3 align-top">
           <Chip dotColor={brandColor}>{brandMeta.label(product.brand)}</Chip>

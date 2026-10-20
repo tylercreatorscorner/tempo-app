@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { CreatorInvitesSection } from "@/components/settings/creator-invites-section";
 import { NavigationLink } from "@/components/ui/navigation-link";
+import layout from '@/components/ui/workspace-layout.module.css';
 export default async function Page({ searchParams }: { searchParams: Promise<{ brand?: string }> }) {
   const scope = await requireScreen("roster");
   if (scope.impersonating || !["owner", "admin"].includes(scope.role))
@@ -19,12 +20,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
   const requestedBrand = (await searchParams).brand;
   const selectedBrand = data?.find(brand => brand.slug === requestedBrand)?.slug;
   return (
-    <div className="max-w-5xl space-y-5">
+    <div className={layout.page}>
       <PageHeader
         title="Onboarding"
         subtitle="Bring creators into the right brand, then manage them from the roster."
       />
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className={layout.columns}>
+      <CreatorInvitesSection key={selectedBrand} tenantId={scope.tenantId} initialBrand={selectedBrand} brands={data ?? []} />
+      <aside className={layout.stack} aria-label="Creator onboarding guide">
         <section className="rounded-xl border border-border bg-card px-4 py-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--primary)]">01 · Invite</p>
           <h2 className="mt-1 text-sm font-semibold">Send a direct roster link</h2>
@@ -36,8 +39,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
           <p className="mt-1 text-sm text-muted-foreground">Review the creator’s record and brand assignment after they join.</p>
           <NavigationLink href="/roster" className="mt-2">Open creator roster</NavigationLink>
         </section>
+      </aside>
       </div>
-      <CreatorInvitesSection key={selectedBrand} tenantId={scope.tenantId} initialBrand={selectedBrand} brands={data ?? []} />
     </div>
   );
 }

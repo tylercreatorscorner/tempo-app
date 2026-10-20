@@ -1,6 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/ui/page-header';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 import { useEffect, useState, useCallback } from 'react';
 import { Check, X, Search, Users, Zap, HelpCircle, RefreshCw, ChevronDown } from 'lucide-react';
@@ -145,10 +146,10 @@ export default function DiscordScanPage() {
     .filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
 
   return (
-    <div className="space-y-4">
+    <div className={layout.page}>
       {/* Header */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <PageHeader eyebrow="Discord" title="Discord scanner" subtitle="Match Discord server members to managed creators." />
           <button
             onClick={fetchQueue}
@@ -160,7 +161,7 @@ export default function DiscordScanPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+        <div className={layout.cardMetrics}>
           {[
             { label: 'Total Scanned', value: stats.total, icon: Users, color: 'text-muted-foreground' },
             { label: 'Pending Review', value: stats.pending, icon: HelpCircle, color: 'text-amber-600' },
@@ -179,11 +180,12 @@ export default function DiscordScanPage() {
       </div>
 
       {/* Tabs + Bulk Actions */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-1 bg-card border border-border rounded-lg p-1">
+      <div className={layout.toolbar}>
+        <div className="flex flex-wrap gap-1" aria-label="Scanner review status">
           {tabs.map(t => (
             <button
               key={t.key}
+              aria-pressed={tab === t.key}
               onClick={() => setTab(t.key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 tab === t.key
@@ -217,16 +219,16 @@ export default function DiscordScanPage() {
           <p className="text-muted-foreground">No entries found. Run <code className="bg-muted px-2 py-0.5 rounded text-sm">/scan</code> in Discord to get started.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className={layout.queue}>
           {entries.map(entry => (
             <div
               key={entry.id}
-              className={`bg-card rounded-xl border border-border p-4 flex items-center gap-4 transition-all ${
+              className={`${layout.queueRow} transition-opacity ${
                 actionLoading === entry.id ? 'opacity-50' : ''
               }`}
             >
               {/* Discord user */}
-              <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className={`${layout.queueIdentity} flex items-center gap-3`}>
                 {entry.discord_avatar_url ? (
                   <img
                     src={entry.discord_avatar_url}
@@ -248,7 +250,7 @@ export default function DiscordScanPage() {
               </div>
 
               {/* Match info */}
-              <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="flex flex-wrap items-center gap-3 min-w-0">
                 {entry.creator ? (
                   <div className="text-right">
                     <p className="text-sm font-medium text-foreground">{entry.creator.real_name}</p>
@@ -275,7 +277,7 @@ export default function DiscordScanPage() {
 
               {/* Actions */}
               {entry.status === 'pending' && (
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
                   {entry.matched_creator_id && (
                     <button
                       onClick={() => handleAction(entry.id, 'approve')}

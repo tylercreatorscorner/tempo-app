@@ -10,6 +10,7 @@
  * The Monday question this page answers is "who has not filed", so unfiled
  * brands sort to the top and the count leads the header.
  */
+import styles from './workspace.module.css';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -59,7 +60,7 @@ export default async function WeeklyReportPage({
   const canGoForward = weekEnd < latest;
 
   return (
-    <div className="space-y-6">
+    <div className={styles.page}>
       <PageHeader
         eyebrow="Internal"
         title="Weekly manager report"
@@ -72,7 +73,7 @@ export default async function WeeklyReportPage({
           <div className="flex items-center gap-1">
             <Link
               href={`/reporting/weekly?week=${shiftWeek(weekEnd, -1)}`}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted"
+              className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted"
               aria-label="Previous week"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -84,14 +85,14 @@ export default async function WeeklyReportPage({
             {canGoForward ? (
               <Link
                 href={`/reporting/weekly?week=${shiftWeek(weekEnd, 1)}`}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted"
+                className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted"
                 aria-label="Next week"
               >
                 <ChevronRight className="h-4 w-4" />
               </Link>
             ) : (
               <span
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground/30"
+                className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-md border border-border text-muted-foreground/30"
                 aria-hidden
               >
                 <ChevronRight className="h-4 w-4" />
@@ -101,6 +102,7 @@ export default async function WeeklyReportPage({
         }
       />
 
+      <div className={styles.layout}><div className={styles.forms}>
       {rows.length === 0 ? (
         <EmptyState
           title="No brands assigned to you"
@@ -111,19 +113,14 @@ export default async function WeeklyReportPage({
           }
         />
       ) : (
-        <div className="space-y-2">
+        <div className={styles.forms}>
           {rows.map((row) => (
             <ReportForm key={row.brandId} row={row} weekEnding={weekEnd} />
           ))}
         </div>
       )}
 
-      <p className="max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
-        Internal only. Client health and renewal risk are never shown to a brand, and this report is
-        not the client-facing one: those go out per brand on their own cadence, while this lands the
-        same day every week so the weeks are comparable. GMV, managed GMV, capture rate and posts are
-        calculated from Tempo and cannot be typed.
-      </p>
+      </div><aside className={styles.aside}><div><h2>Submission progress</h2><p className="mt-2"><strong className="text-foreground">{filed} of {rows.length}</strong> filed · {rows.length-filed} remaining</p><div className={styles.progress} aria-hidden="true"><span style={{width:rows.length?`${filed/rows.length*100}%`:'0%'}}/></div></div><nav className={styles.queue} aria-label="Manager report brands">{rows.map(row=><Link key={row.brandId} href={`#report-${row.brandSlug}`}><span>{row.brandLabel}</span><small>{row.submission?'Filed':'Not filed'}</small></Link>)}</nav><p>Internal only. Client health and renewal risk never appear in client reports. Submissions are due before the Monday meeting.</p><p>GMV, managed GMV, capture rate and posts are calculated from Tempo. Review coverage alongside each brand’s figures.</p></aside></div>
     </div>
   );
 }

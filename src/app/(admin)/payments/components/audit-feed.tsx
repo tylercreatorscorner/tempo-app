@@ -47,7 +47,7 @@ export function AuditFeed({ logs, loading }: Props) {
   const brandMeta = useBrandMeta();
   if (loading && logs.length === 0) {
     return (
-      <div className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border shadow-sm p-12 text-center">
+      <div role="status" className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border p-6 text-center">
         <div className="inline-block h-6 w-6 rounded-full border-2 border-border border-t-[var(--primary)] animate-spin" />
       </div>
     );
@@ -55,7 +55,7 @@ export function AuditFeed({ logs, loading }: Props) {
 
   if (logs.length === 0) {
     return (
-      <div className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border shadow-sm p-12 text-center">
+      <div className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border p-6 text-center">
         <div className="mx-auto h-12 w-12 rounded-[var(--workspace-surface-radius,14px)] bg-muted flex items-center justify-center mb-3">
           <History className="h-5 w-5 text-muted-foreground" />
         </div>
@@ -68,23 +68,23 @@ export function AuditFeed({ logs, loading }: Props) {
   }
 
   return (
-    <div className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border shadow-sm overflow-hidden">
-      <div className="px-5 pt-4 pb-3 flex items-baseline justify-between">
+    <section aria-label="Recent financial activity" className="min-w-0 rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border overflow-hidden">
+      <div className="px-4 py-3 flex items-baseline justify-between">
         <div>
-          <h3 className="text-sm font-bold text-[var(--foreground)]">Recent Activity</h3>
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Recent activity</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Latest {logs.length} change{logs.length === 1 ? '' : 's'} to financial state</p>
         </div>
       </div>
-      <div className="divide-y divide-border border-t border-border">
+      <div tabIndex={0} aria-label="Financial activity entries" className="max-h-[560px] overflow-y-auto divide-y divide-border border-t border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40">
         {logs.map((log) => {
           const { icon: Icon, tint, iconColor } = entityIconAndBg(log.entity_type);
           return (
-            <div key={log.id} className="flex items-start gap-3 px-5 py-3 hover:bg-muted/40 transition-colors">
+            <div key={log.id} className="flex items-start gap-2.5 px-4 py-3 hover:bg-muted/40 transition-colors">
               <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5', tint)}>
                 <Icon className={cn('h-4 w-4', iconColor)} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-[var(--foreground)]">
+                <p className="break-words text-xs leading-relaxed text-[var(--foreground)]">
                   <span className="font-semibold">{log.field_changed}</span>
                   {log.creator_name && <> for <span className="font-semibold">{log.creator_name}</span></>}
                   {log.brand && <span className="text-muted-foreground"> · {brandMeta.label(log.brand)}</span>}
@@ -96,7 +96,7 @@ export function AuditFeed({ logs, loading }: Props) {
                     <> to <code className="font-mono text-[11px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded">{log.new_value}</code></>
                   )}
                 </p>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
                   <span className="text-[11px] text-muted-foreground">{formatDate(log.created_at)}</span>
                   <span className="text-[11px] text-muted-foreground">·</span>
                   <span className="text-[11px] text-muted-foreground">{log.changed_by}</span>
@@ -112,6 +112,6 @@ export function AuditFeed({ logs, loading }: Props) {
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

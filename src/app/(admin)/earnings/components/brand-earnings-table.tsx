@@ -90,7 +90,7 @@ export function BrandEarningsTable({
                         style={{ backgroundColor: meta.color(row.brand) }}
                         aria-hidden="true"
                       />
-                      <span className="font-semibold text-foreground">{row.brandLabel}</span>
+                      <button type="button" aria-expanded={isExpanded} aria-label={`${isExpanded ? 'Hide' : 'Show'} creator breakdown for ${row.brandLabel}`} onClick={(event) => { event.stopPropagation(); toggle(row.brand); }} className="text-left font-semibold text-foreground hover:text-primary focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">{row.brandLabel}</button>
                       {row.umbrella && (
                         <span className="whitespace-nowrap text-[10px] text-muted-foreground">
                           (umbrella · {row.umbrella.storeCount} store{row.umbrella.storeCount === 1 ? '' : 's'})
@@ -191,7 +191,7 @@ export function BrandEarningsTable({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onEdit(row); }}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-[color,opacity,background-color] hover:bg-card hover:text-[var(--primary)] focus-visible:opacity-100 group-hover:opacity-100"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                         title="Edit brand settings"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -250,17 +250,17 @@ function SortHeader({ k, label, align, sortKey, sortDir, onSort }: {
   const active = sortKey === k;
   return (
     <th
-      onClick={() => onSort(k)}
+      aria-sort={active ? sortDir === 'asc' ? 'ascending' : 'descending' : undefined}
       className={cn(
         'cursor-pointer select-none px-4 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors',
         align === 'right' ? 'text-right' : 'text-left',
         active ? 'text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground',
       )}
     >
-      <span className="inline-flex items-center gap-1">
+      <button type="button" onClick={() => onSort(k)} className="inline-flex items-center gap-1 rounded text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
         {label}
         {active && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-      </span>
+      </button>
     </th>
   );
 }

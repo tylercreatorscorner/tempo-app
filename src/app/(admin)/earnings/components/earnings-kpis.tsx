@@ -9,16 +9,11 @@
  * Money renders an em-dash while data is missing — never a fake $0.
  */
 import { InterfaceIcon } from '@/components/ui/interface-icon';
-import { StatCard } from '@/components/ui/stat-card';
-import type { ReactNode } from 'react';
+import { FinanceMetricStrip } from '@/components/finance/finance-metric-strip';
 import { isOverdue } from '@/lib/finance/overdue';
 import { formatCurrency } from '@/lib/utils/format';
 import type { SeriesPoint } from './earnings-trend-chart';
 import type { BrandRow, EarningsResponse } from './types';
-
-function KpiCard({ label, value, detail }: { label: string; value: string; detail?: ReactNode }) {
-  return <StatCard label={label} value={value} detail={detail} />;
-}
 
 /** ▲6% / ▼3% vs-prior-month line, pulse pos/neg. Null when no prior month. */
 function MomDelta({ pct, label }: { pct: number | null; label: string }) {
@@ -72,48 +67,12 @@ export function EarningsKpis({ data, series, todayIso }: {
   const overdueCount = invoicedRows.filter((r) => r.invoice && isOverdue(r.invoice, todayIso)).length;
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-      <KpiCard
-        label="Total earnings"
-        value={data ? formatCurrency(data.totals.earnings) : '—'}
-        detail={data ? <MomDelta pct={momPct(series, 'earnings')} label={prevMonthLabel(series)} /> : undefined}
-      />
-      <KpiCard
-        label="Retainers"
-        value={data ? formatCurrency(data.totals.retainers) : '—'}
-        detail={data ? <span className="text-muted-foreground">monthly base</span> : undefined}
-      />
-      <KpiCard
-        label="Commission"
-        value={data ? formatCurrency(data.totals.commission) : '—'}
-        detail={data ? <MomDelta pct={momPct(series, 'commission')} label={prevMonthLabel(series)} /> : undefined}
-      />
-      <KpiCard
-        label="Invoiced"
-        value={data ? `${invoicedRows.length} of ${invoiceableCount}` : '—'}
-        detail={
-          data ? (
-            <span className="tabular-nums text-muted-foreground">
-              {invoicedRows.length > 0 ? `${formatCurrency(invoicedAmount)} sent` : 'nothing invoiced yet'}
-            </span>
-          ) : undefined
-        }
-      />
-      <KpiCard
-        label="Collected"
-        value={data ? formatCurrency(collectedAmount) : '—'}
-        detail={
-          data ? (
-            overdueCount > 0 ? (
-              <span className="tabular-nums" style={{ color: 'var(--pulse-neg)' }}>
-                {overdueCount} overdue
-              </span>
-            ) : (
-              <span className="text-muted-foreground">{invoicedRows.length > 0 ? 'nothing overdue' : 'no invoices yet'}</span>
-            )
-          ) : undefined
-        }
-      />
-    </div>
+    <FinanceMetricStrip label="Monthly earnings summary" metrics={[
+      { label: 'Total earnings', value: data ? formatCurrency(data.totals.earnings) : '—', tone: 'primary', detail: data ? <MomDelta pct={momPct(series, 'earnings')} label={prevMonthLabel(series)} /> : undefined },
+      { label: 'Retainers', value: data ? formatCurrency(data.totals.retainers) : '—', detail: data ? 'monthly base' : undefined },
+      { label: 'Commission', value: data ? formatCurrency(data.totals.commission) : '—', detail: data ? <MomDelta pct={momPct(series, 'commission')} label={prevMonthLabel(series)} /> : undefined },
+      { label: 'Invoiced', value: data ? `${invoicedRows.length} of ${invoiceableCount}` : '—', detail: data ? invoicedRows.length > 0 ? `${formatCurrency(invoicedAmount)} sent` : 'nothing invoiced yet' : undefined },
+      { label: 'Collected', value: data ? formatCurrency(collectedAmount) : '—', detail: data ? overdueCount > 0 ? <span className="text-[var(--pulse-neg)]">{overdueCount} overdue</span> : invoicedRows.length > 0 ? 'nothing overdue' : 'no invoices yet' : undefined },
+    ]} />
   );
 }

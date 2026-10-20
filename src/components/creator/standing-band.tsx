@@ -1,5 +1,6 @@
 import { formatCurrency } from '@/lib/utils/format';
 import type { BrandStanding } from '@/lib/data/creator-portal';
+import portal from '@/components/layout/portal-workspace.module.css';
 
 /**
  * "{Brand} · where you stand" hairline band — brand totals (GMV / orders /
@@ -27,15 +28,14 @@ export function StandingBand({
   const topPct = Math.max(1, Math.ceil((standing.myRank / Math.max(1, standing.creatorCount)) * 100));
 
   return (
-    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-[var(--pulse-elev-1)] sm:grid-cols-5">
+    <div className={portal.standing}>
       {cells.map((c) => (
-        <div key={c.k} className="bg-card p-4 sm:p-5">
+        <div key={c.k} className="bg-card">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
           <p className="font-ledger-num mt-1.5 text-xl font-bold text-foreground sm:text-[23px]">{c.v}</p>
         </div>
       ))}
       <div
-        className="col-span-2 p-4 sm:col-span-1 sm:p-5"
         style={{ background: 'color-mix(in srgb, var(--primary) 7%, var(--card))' }}
       >
         {variant === 'share' ? (

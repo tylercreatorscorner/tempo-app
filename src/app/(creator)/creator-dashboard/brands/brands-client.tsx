@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import { Briefcase, Sparkles } from 'lucide-react';
@@ -46,11 +48,11 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
   const affiliateCount = rows.length - contractedCount;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-12">
+    <div className={portal.page}>
       {/* Ledger page header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className={portal.pageHeader}>
         <div>
-          <p className="font-ledger text-[13px] italic text-primary">My Brands</p>
+          <p className={portal.eyebrow}>My Brands</p>
           <h1 className="font-ledger mt-1 text-[26px] font-bold tracking-tight text-foreground">
             {firstName ? `${firstName}'s brands` : 'My Brands'}
           </h1>
@@ -62,7 +64,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
       </div>
 
       {/* Ledger strip */}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-[var(--pulse-elev-1)] sm:grid-cols-4">
+      <div className={portal.metrics}>
         <StripCell
           k="Total retainer"
           v={`${formatCurrency(totalRetainer)}`}
@@ -88,7 +90,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
       {/* Untapped-lane nudge */}
       {untapped && (
         <section
-          className="flex items-center gap-3 rounded-2xl border px-4 py-3"
+          className="flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3"
           style={{
             borderColor: 'color-mix(in srgb, var(--primary) 24%, var(--border))',
             background: 'color-mix(in srgb, var(--primary) 6%, var(--card))',
@@ -97,7 +99,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-pulse-grad text-white">
             <Sparkles className="h-4 w-4" />
           </span>
-          <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+          <p className="min-w-[160px] flex-1 text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">
               You&apos;ve left {untapped.displayName} untapped.
             </span>{' '}
@@ -130,6 +132,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
         />
       ) : (
         <TableCard>
+          <div className={portal.panelHeader}><h2 className="text-sm font-semibold text-foreground">Brand agreements &amp; performance</h2><span className="text-xs text-muted-foreground">{rows.length} brands · {rangeLabel}</span></div>
           <div className="overflow-x-auto">
             <Table className="min-w-[600px]">
               <THead>
@@ -224,7 +227,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
 
 function StripCell({ k, v, sub }: { k: string; v: string; sub?: string }) {
   return (
-    <div className="bg-card p-4 sm:p-5">
+    <div className="bg-card">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{k}</p>
       <p className="font-ledger-num mt-1.5 text-xl font-bold text-foreground sm:text-[23px]">{v}</p>
       {sub && <p className="mt-1 text-[11px] text-muted-foreground/70">{sub}</p>}

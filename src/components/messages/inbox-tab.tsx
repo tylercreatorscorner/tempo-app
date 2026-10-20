@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, ArrowRight, Bot, Info, MessageSquare, RotateCw } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, Bot, Info, MessageSquare, RotateCw } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -96,7 +96,7 @@ function InboxSetup() {
   return (
     <div className="flex min-h-[420px] flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-lg space-y-6 text-center">
-        <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-pulse-grad shadow-pulse-primary">
+        <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
           <Bot className="h-8 w-8 text-white" />
         </div>
         <div>
@@ -112,7 +112,7 @@ function InboxSetup() {
             { step: '3', label: 'Start messaging creators', desc: 'DM threads and broadcasts land here' },
           ].map((s) => (
             <div key={s.step} className="flex items-center gap-3 rounded-lg border border-border bg-secondary/60 px-4 py-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-pulse-grad text-xs font-bold text-white">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                 {s.step}
               </span>
               <div className="min-w-0">
@@ -124,7 +124,7 @@ function InboxSetup() {
         </div>
         <Link
           href="/workflows/integrations"
-          className="inline-flex items-center gap-2 rounded-md bg-pulse-grad px-5 py-2.5 text-sm font-semibold text-white shadow-pulse-primary transition-[filter] hover:brightness-[1.07]"
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-[1.07]"
         >
           Go to Settings
           <ArrowRight className="h-4 w-4" />
@@ -215,9 +215,9 @@ export function InboxTab({
       {mobileShowThread && (
         <button
           onClick={() => setMobileShowThread(false)}
-          className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground md:hidden"
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground md:hidden"
         >
-          &larr; Back to conversations
+          <ArrowLeft className="h-4 w-4" /> Back to conversations
         </button>
       )}
 

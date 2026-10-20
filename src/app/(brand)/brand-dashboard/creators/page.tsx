@@ -1,3 +1,5 @@
+import { PortalMetricStrip } from '@/components/layout/portal-metric-strip';
+import portal from '@/components/layout/portal-workspace.module.css';
 import Link from 'next/link';
 import { Search, ChevronRight, ChevronLeft } from 'lucide-react';
 import { requireBrandPortalContext } from '@/lib/data/brand-portal';
@@ -55,7 +57,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
   })();
   const sortDir: SortDir = params.dir === 'asc' ? 'asc' : 'desc';
 
-  const accent = ctx.activeBrand.color || '#FF4D8D';
+  const accent = ctx.activeBrand.color || '#6e4bcc';
   const admin = await createAdminClient();
   const brandUuid = ctx.activeBrand.id;
   const data = await getBrandPortalDashboard(
@@ -111,8 +113,8 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+    <div className={portal.page}>
+      <div className={portal.pageHeader}>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Creators</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -122,13 +124,20 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
             {data.periodLabel}
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+      </div>
+
+      <PortalMetricStrip items={[
+        { label: 'Roster GMV', value: fmtCurrency(data.totalGmv), note: data.periodLabel },
+        { label: 'Posts published', value: fmtNumber(data.totalPosts), note: 'Published in the selected period' },
+        { label: 'Managed creators', value: fmtNumber(data.managedCount), note: 'Brand roster' },
+        { label: 'Creator fees', value: fmtCurrency(data.monthlyRetainerTotal), note: 'Recorded agreement fees' },
+      ]} />
+
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3">
           <SearchBox initialQuery={params.q ?? ''} period={period} />
           <PeriodTabs current={period} accentColor={accent} />
         </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

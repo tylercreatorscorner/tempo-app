@@ -25,7 +25,7 @@ import { daysOverdue, isOverdue } from '@/lib/finance/overdue';
 import { formatCurrency, formatDate, formatPeriod } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
-import { StatCard } from '@/components/ui/stat-card';
+import { FinanceMetricStrip } from '@/components/finance/finance-metric-strip';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -219,43 +219,28 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
   }, [buildExportRows]);
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4">
       {/* Stats row — all $ amounts with counts as context */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard
-          className="col-span-2"
-          hero
-          label="Outstanding"
-          value={formatCurrency(stats.outstandingAmount)}
-          subValue={`${stats.pendingCount + stats.sentCount} unpaid`}
-        />
-        <StatCard
-          label="Pending"
-          value={formatCurrency(stats.pendingAmount)}
-          subValue={`${stats.pendingCount} invoice${stats.pendingCount === 1 ? '' : 's'}`}
-          accentColor="var(--pulse-warn)"
-        />
-        <StatCard
-          label="Sent"
-          value={formatCurrency(stats.sentAmount)}
-          subValue={`${stats.sentCount} invoice${stats.sentCount === 1 ? '' : 's'}`}
-          accentColor="var(--primary)"
-        />
-        <StatCard
-          label="Paid This Year"
-          value={formatCurrency(stats.paidThisYearAmount)}
-          subValue={`${stats.paidThisYearCount} invoice${stats.paidThisYearCount === 1 ? '' : 's'}`}
-          accentColor="var(--pulse-pos)"
-        />
-      </div>
-
-      {/* Aging panel — click a bucket to filter the table */}
-      <AgingPanel invoices={scopedInvoices} todayIso={todayIso} active={agingBucket} onPick={setAgingBucket} />
+      <FinanceMetricStrip label="Invoice summary for selected brands and payees" metrics={[
+        { label: 'Outstanding', value: formatCurrency(stats.outstandingAmount), detail: `${stats.pendingCount + stats.sentCount} unpaid`, tone: 'primary' },
+        { label: 'Pending', value: formatCurrency(stats.pendingAmount), detail: `${stats.pendingCount} invoice${stats.pendingCount === 1 ? '' : 's'}` },
+        { label: 'Sent', value: formatCurrency(stats.sentAmount), detail: `${stats.sentCount} invoice${stats.sentCount === 1 ? '' : 's'}` },
+        { label: 'Paid this year', value: formatCurrency(stats.paidThisYearAmount), detail: `${stats.paidThisYearCount} invoice${stats.paidThisYearCount === 1 ? '' : 's'}`, tone: 'positive' },
+      ]} />
 
       {/* Filter bar + table */}
-      <Card className="relative overflow-hidden">
+      <Card className="relative min-w-0 overflow-hidden">
         <TableLoadBar active={showBar} />
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <div><h2 className="text-sm font-semibold text-foreground">Invoice ledger</h2><p className="mt-0.5 text-xs text-muted-foreground">{filteredInvoices.length} of {invoices.length} invoices · select rows for bulk actions</p></div>
+          <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading} title="Refresh"><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />Refresh</Button>
+          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={loading || invoices.length === 0} title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to CSV` : `Export all ${invoices.length} invoices to CSV`}><FileDown className="h-3.5 w-3.5" />CSV</Button>
+          <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={loading || invoices.length === 0} title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to Excel` : `Export all ${invoices.length} invoices to Excel`}><FileSpreadsheet className="h-3.5 w-3.5" />Excel</Button>
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+          <div className="max-w-full overflow-x-auto">
           <SegmentedControl<Status>
             ariaLabel="Filter by status"
             size="sm"
@@ -274,6 +259,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
               };
             })}
           />
+          </div>
 
           <BrandFilter value={brand} onChange={setBrand} options={brandOptions} labelFor={brandMeta.label} />
 
@@ -294,33 +280,8 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
             </button>
           )}
 
-          <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading} className="ml-auto" title="Refresh">
-            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-            Refresh
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCsv}
-            disabled={loading || invoices.length === 0}
-            title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to CSV` : `Export all ${invoices.length} invoices to CSV`}
-          >
-            <FileDown className="h-3.5 w-3.5" />
-            CSV
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportXlsx}
-            disabled={loading || invoices.length === 0}
-            title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to Excel` : `Export all ${invoices.length} invoices to Excel`}
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            Excel
-          </Button>
         </div>
+        <AgingPanel invoices={scopedInvoices} todayIso={todayIso} active={agingBucket} onPick={setAgingBucket} />
 
         {bulkError && (
           <div className="flex items-center gap-2 border-b border-[var(--pulse-neg)]/20 bg-[var(--pulse-neg-bg)] px-5 py-3 text-sm text-[var(--pulse-neg)]">
@@ -390,7 +351,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                         />
                       </td>
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">
-                        <div>{inv.invoice_number}</div>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(inv); }} className="rounded text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40" aria-label={`Open invoice ${inv.invoice_number}`}>{inv.invoice_number}</button>
                         {/* Issuer name when there's > 1 team member, so Tyler's and
                             Vic's invoices are distinguishable unfiltered. */}
                         {teamMembers.length > 1 && inv.team_member_id && (

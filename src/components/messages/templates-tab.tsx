@@ -6,6 +6,7 @@
  * the compose panel. CRUD arrives with the templates library (Phase B).
  */
 
+import styles from './workspace.module.css';
 import { ArrowRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,20 +19,20 @@ export function TemplatesTab({ onUse }: { onUse: (key: string) => void }) {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Starter templates with personalization tokens. Tokens resolve per creator at send time
-        from the same rollups the roster uses. Editing and saving your own arrives in Phase B.
+        from the same rollups the roster uses. Choose a starter, then edit it in the broadcast composer.
       </p>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className={styles.templateList}>
         {BROADCAST_TEMPLATES.map((t) => {
           const tokens = [...new Set(
             splitByTokens(t.body).filter((p) => p.type === 'token').map((p) => p.value),
           )];
           return (
-            <Card key={t.key} className="flex flex-col overflow-hidden">
-              <div className="border-b border-border px-5 py-4">
+            <Card key={t.key} className={styles.templateCard}>
+              <div className={styles.templateTitle}>
                 <h3 className="text-[13px] font-extrabold text-foreground">{t.name}</h3>
                 <p className="mt-0.5 text-[11.5px] text-muted-foreground">{t.description}</p>
               </div>
-              <div className="flex flex-1 flex-col gap-3 p-5">
+              <div className={styles.templateBody}>
                 <div className="flex-1 rounded-lg border border-border bg-secondary/60 px-3.5 py-3">
                   <TokenText body={t.body} className="text-[12.5px] leading-relaxed text-foreground" />
                 </div>

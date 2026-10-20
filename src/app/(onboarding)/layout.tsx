@@ -1,6 +1,7 @@
+import portal from '@/components/layout/portal-workspace.module.css';
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background p-4">
+    <main className={`${portal.theme} ${portal.entry}`}>
       {children}
     </main>
   );

@@ -170,7 +170,7 @@ export function RunInvoicesModal({
                     const belowMin = r.total < RUN_MINIMUM_USD;
                     const result = results?.get(r.brand);
                     return (
-                      <div key={r.brand} className="flex items-center gap-2.5 border-b border-border px-4 py-2.5 text-[12.5px] last:border-0">
+                      <div key={r.brand} className="flex flex-wrap items-center gap-2.5 border-b border-border px-4 py-2.5 text-[12.5px] last:border-0">
                         <button
                           type="button"
                           role="checkbox"

@@ -1,3 +1,4 @@
+import styles from './workspace.module.css';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -155,7 +156,7 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
     .slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+    <div className={styles.page}>
       <PageHeader eyebrow="Internal · All brands" title="Weekly agency brief"
         subtitle={`${day(weekStart)}–${day(weekEnd)} · Monday–Sunday · ${filed} of ${updateCount} assigned-brand updates filed`}
         actions={<div className="flex items-center gap-2">
@@ -166,7 +167,7 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
           <Link href={`/reporting/weekly?week=${weekEnd}`} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">Manager submissions</Link>
         </div>} />
 
-      <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+      <div className={styles.intro}>
         <div>
           <h2 className="text-xl font-semibold tracking-tight">
             {!covered ? 'Check data coverage before the meeting.' : managedDelta === null
@@ -179,7 +180,7 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
               : 'One or more brands lack a complete seven-day comparison. Current recorded totals remain visible; movement claims are withheld until coverage is complete.'}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className={styles.agenda}>
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Meeting agenda</h2>
           {agenda.length ? <ol className="mt-2 space-y-2 text-sm">
             {agenda.map(brand => {
@@ -206,12 +207,12 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
         </div>)}
       </div>
 
-      <section>
+      <div className={styles.analysis}><section>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-base font-semibold">Brand movement &amp; owner actions</h2>
           <span className="text-xs text-muted-foreground">Coverage gaps first · current assignments</span>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <div className={styles.tablePanel}>
           <table className="w-full min-w-[780px] text-left text-sm">
             <thead className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr><th className="px-4 py-3">Brand</th><th className="px-3 py-3 text-right">Managed GMV</th>
@@ -243,12 +244,12 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
         </div>
       </section>
 
-      <section>
+      <section className={styles.managerPanel}>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-base font-semibold">Manager check-in</h2>
           <span className="text-xs text-muted-foreground">Recorded GMV · submissions · next step</span>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className={styles.managerList}>
           {(managers ?? []).filter(manager => !manager.id.startsWith('unavailable:') && manager.id !== 'unassigned').map(manager => {
             const owned = dataBrands.filter(brand => manager.brands.includes(brand.slug));
             const complete = owned.length > 0 && owned.every(readyWithData);
@@ -269,6 +270,7 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
         </div>
       </section>
 
+      </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
         Internal leadership view. Weekly GMV and share compare matched seven-day windows only where both weeks have full coverage.
         Manager actions come from submitted weekly reviews. Monthly retainer commitments and return multiples are intentionally omitted.

@@ -1,10 +1,11 @@
 import { PageHeaderSkeleton, CardGridSkeleton } from '@/components/ui/page-skeletons';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 export default function Loading() {
   return (
-    <div className="space-y-4">
+    <div className={layout.page}>
       <PageHeaderSkeleton />
-      <CardGridSkeleton count={6} height="h-32" className="grid grid-cols-1 md:grid-cols-3 gap-4" />
+      <div className={layout.balanced}><CardGridSkeleton count={5} height="h-20" className="grid gap-2" /><CardGridSkeleton count={3} height="h-20" className="grid gap-2" /></div>
     </div>
   );
 }
