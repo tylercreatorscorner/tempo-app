@@ -4,6 +4,7 @@ import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Sparkles, BarChart3, Trophy, Wallet, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import portal from '@/components/layout/portal-workspace.module.css';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/creator/brand-switcher';
@@ -52,7 +53,7 @@ export function CreatorSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className={cn('flex h-screen w-[232px] flex-col border-r border-border bg-card', className)}>
+    <aside className={cn(portal.sidebar, 'flex h-dvh w-[232px] flex-col border-r border-border bg-card', className)}>
       <div className="flex h-[76px] items-center gap-2 px-5">
         <TempoLogo size="md" animated />
       </div>

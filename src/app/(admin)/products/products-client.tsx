@@ -41,6 +41,7 @@ import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import mobile from './products-mobile.module.css';
 
 interface ProductRow {
   product_id: string;
@@ -295,10 +296,20 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
         </div>
 
         {/* Table */}
-        <div className={`overflow-x-auto transition-opacity duration-200 ${showBar && data ? 'opacity-60' : 'opacity-100'}`}>
-          <table className="w-full text-sm">
+        <div className={`${mobile.region} overflow-x-auto transition-opacity duration-200 ${showBar && data ? 'opacity-60' : 'opacity-100'}`} aria-busy={loading}>
+          <div className={mobile.sortControls}>
+            <label>Sort products
+              <select value={sortKey} onChange={event => { const key = event.target.value as SortKey; setSortKey(key); setSortDir(key === 'product_name' ? 'asc' : 'desc'); }}>
+                <option value="gmv">GMV</option><option value="orders">Orders</option><option value="items_sold">Items sold</option><option value="videos">Videos</option><option value="avg_creators_with_sales">Creators per day</option><option value="product_name">Product name</option>
+              </select>
+            </label>
+            <Button size="sm" variant="outline" onClick={() => setSortDir(value => value === 'asc' ? 'desc' : 'asc')} aria-label={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`} className="min-h-11">
+              <InterfaceIcon name={sortDir === 'asc' ? 'increase' : 'decrease'} /> {sortDir === 'asc' ? 'Ascending' : 'Descending'}
+            </Button>
+          </div>
+          <table role="table" aria-label="Product performance and creator breakdown" className={`${mobile.table} w-full text-sm`}>
             <thead>
-              <tr className="text-left">
+              <tr className={`${mobile.desktopColumns} text-left`}>
                 <SortableTh label="Product"  sortKey="product_name"             current={sortKey} dir={sortDir} onClick={changeSort} />
                 <Th>Brand</Th>
                 <SortableTh label="GMV"      sortKey="gmv"                      current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
@@ -307,6 +318,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
                 <SortableTh label="Videos"   sortKey="videos"                   current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                 <SortableTh label="Creators/Day" sortKey="avg_creators_with_sales" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
               </tr>
+              <tr className={mobile.phoneColumns}><th scope="col">Product</th><th scope="col">Brand</th><th scope="col">GMV</th><th scope="col">Orders</th><th scope="col">Items sold</th><th scope="col">Videos</th><th scope="col">Creators per day</th></tr>
             </thead>
             <tbody>
               {isInitial ? (
@@ -326,8 +338,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate, stal
                   const brandColor = brandMeta.color(p.brand);
                   return (
                     <ProductRowGroup
-                      key={key}
-                      productKey={key}
+                      key={`${key}:${startDate}:${endDate}`}
                       product={p}
                       brandColor={brandColor}
                       isExpanded={isExpanded}
@@ -366,14 +377,16 @@ function SortableTh({
   const arrow = active ? <InterfaceIcon name={dir === "asc" ? "increase" : "decrease"}/> : null;
   return (
     <th
-      onClick={() => onClick(sortKey)}
+      aria-sort={active ? dir === 'asc' ? 'ascending' : 'descending' : 'none'}
       className={cn(
         'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
         align === 'right' ? 'text-right' : 'text-left',
         active ? 'text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground'
       )}
     >
-      {label}{arrow && <span className="ml-1">{arrow}</span>}
+      <button type="button" onClick={() => onClick(sortKey)} className="inline-flex min-h-9 items-center gap-1 rounded-md focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
+        {label}{arrow && <span className="ml-1">{arrow}</span>}
+      </button>
     </th>
   );
 }
@@ -387,9 +400,8 @@ function Th({ children }: { children: React.ReactNode }) {
 // ── Product row + expanded creator breakdown ────────────────────────
 
 function ProductRowGroup({
-  productKey, product, brandColor, isExpanded, onToggle, startDate, endDate,
+  product, brandColor, isExpanded, onToggle, startDate, endDate,
 }: {
-  productKey: string;
   product: ProductRow;
   brandColor: string;
   isExpanded: boolean;
@@ -455,11 +467,11 @@ function ProductRowGroup({
         <td className="px-4 py-3 align-top">
           <Chip dotColor={brandColor}>{brandMeta.label(product.brand)}</Chip>
         </td>
-        <td className="px-4 py-3 text-right font-bold text-[var(--primary)] tabular-nums">{formatCurrency(product.gmv)}</td>
-        <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.orders)}</td>
-        <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.items_sold)}</td>
-        <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.videos)}</td>
-        <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.avg_creators_with_sales)}</td>
+        <td data-label="GMV" className="px-4 py-3 text-right font-bold text-[var(--primary)] tabular-nums">{formatCurrency(product.gmv)}</td>
+        <td data-label="Orders" className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.orders)}</td>
+        <td data-label="Items sold" className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.items_sold)}</td>
+        <td data-label="Videos" className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.videos)}</td>
+        <td data-label="Creators per day" className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.avg_creators_with_sales)}</td>
       </tr>
       {isExpanded && (
         <tr className="bg-muted/30 border-t border-border">
@@ -508,13 +520,13 @@ function CreatorBreakdown({
         {top.map((c, i) => {
           const share = productGmv > 0 ? (c.gmv / productGmv) * 100 : 0;
           return (
-            <div key={c.tiktok_username} className="flex items-center gap-3 text-xs px-2 py-1.5 hover:bg-muted rounded-lg transition-colors">
+            <div key={c.tiktok_username} className={`${mobile.creatorRow} text-xs px-2 py-1.5 hover:bg-muted rounded-lg transition-colors`}>
               <span className="w-6 text-muted-foreground font-medium tabular-nums">{i + 1}.</span>
               <span className="font-medium text-[var(--foreground)] flex-1 truncate">@{c.tiktok_username}</span>
-              <span className="text-muted-foreground w-24 text-right tabular-nums">{formatNumber(c.videos)} {c.videos === 1 ? 'vid' : 'vids'}</span>
-              <span className="text-muted-foreground w-24 text-right tabular-nums">{formatNumber(c.orders)} orders</span>
-              <span className="font-bold text-[var(--primary)] w-24 text-right tabular-nums">{formatCurrency(c.gmv)}</span>
-              <span className="text-[10px] text-muted-foreground w-12 text-right tabular-nums">{share.toFixed(1)}%</span>
+              <span className={`${mobile.creatorMetric} text-muted-foreground`}>{formatNumber(c.videos)} {c.videos === 1 ? 'vid' : 'vids'}</span>
+              <span className={`${mobile.creatorMetric} text-muted-foreground`}>{formatNumber(c.orders)} orders</span>
+              <span className={`${mobile.creatorMetric} font-bold text-[var(--primary)]`}><small>Creator GMV</small>{formatCurrency(c.gmv)}</span>
+              <span className={`${mobile.creatorMetric} text-[10px] text-muted-foreground`}><small>Product share</small>{share.toFixed(1)}%</span>
             </div>
           );
         })}

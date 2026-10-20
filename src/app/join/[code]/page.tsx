@@ -145,6 +145,8 @@ export default function JoinPage() {
                 <input
                   type="text"
                   aria-label="Full name"
+                  autoComplete="name"
+                  enterKeyHint="next"
                   placeholder="Your name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -153,6 +155,11 @@ export default function JoinPage() {
                 />
                 <input
                   type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="next"
                   aria-label="Email"
                   placeholder="your@email.com"
                   value={email}
@@ -184,6 +191,10 @@ export default function JoinPage() {
                       <input
                         type="text"
                         aria-label={`TikTok username ${i + 1}`}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        enterKeyHint="done"
                         placeholder="username"
                         value={u}
                         onChange={(e) => updateUsername(i, e.target.value)}

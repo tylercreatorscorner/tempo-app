@@ -108,10 +108,43 @@
 .forecastGrid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; gap: 16px; }
 .page summary { cursor: pointer; font-size: 13px; font-weight: 550; }
 .page details > p { margin-top: 10px; }
+.mobileView, .mobileClientPicker, .phoneInvoiceLink { display: none; }
+.clientPickerTrigger { display: flex; width: 100%; min-height: 54px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; text-align: left; }
+.clientPickerTrigger span:first-child { display: grid; min-width: 0; gap: 3px; }
+.clientPickerTrigger small { color: var(--muted-foreground); font-size: 11px; }
+.clientPickerTrigger strong { overflow-wrap: anywhere; font-size: 14px; }
+.clientPickerTrigger span:last-child { color: var(--primary); font-size: 12px; font-weight: 600; }
+.contractUpload { display: grid; gap: 10px; padding: 12px; border: 1px dashed var(--border); border-radius: 10px; }
+.contractUpload input { width: 100%; min-width: 0; font-size: 13px; }
+.contractUpload input::file-selector-button { min-height: 44px; margin-right: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--secondary); color: var(--foreground); }
+.contractUpload p { overflow-wrap: anywhere; }
+.invoiceDetail { scroll-margin-top: 80px; }
 
 @media (max-width: 1200px) { .overviewGrid, .invoiceWorkspace, .forecastGrid { grid-template-columns: 1fr; } }
 @media (max-width: 1050px) { .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .step { border-bottom: 1px solid var(--border); } .step:nth-child(2n) { border-right: 0; } .step:nth-last-child(-n+2) { border-bottom: 0; } .cards { gap: 12px; } }
 @media (max-width: 720px) { .clientWorkspace { grid-template-columns: 1fr; } .clientRail { position: static; } .clientList { display: flex; max-height: none; overflow-x: auto; } .clientList button { flex: 0 0 180px; border-bottom: 0; border-right: 1px solid var(--border); } .railHeader { grid-template-columns: 1fr minmax(0, 180px); align-items: center; } .grid, .cards { grid-template-columns: 1fr; } .heading { flex-wrap: wrap; gap: 10px; } .panel { padding: 14px; } .toolbar { align-items: stretch; } .toolbar select { flex: 1; } .tabs { gap: 18px; } .savebar { flex-wrap: wrap; } .field input, .field select, .field textarea, .toolbar select, .toolbar input, .railHeader input { font-size: 16px; } }
 @media (max-width: 390px) { .panel { padding: 12px; } .facts > div { grid-template-columns: 1fr; gap: 3px; } .step { padding: 10px; } }
+@media (max-width: 720px) {
+  .tabs { display: none; }
+  .mobileView { display: grid; }
+  .clientRail { display: none; }
+  .mobileClientPicker { display: block; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+  .mobileClientPicker .railHeader { grid-template-columns: 1fr; }
+  .mobileClientPicker .clientList { display: grid; max-height: min(45dvh,360px); overflow-y: auto; }
+  .mobileClientPicker .clientList button { border-right: 0; border-bottom: 1px solid var(--border); }
+  .sectionNav { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; border: 0; padding: 0; }
+  .sectionNav button { min-height: 44px; justify-content: center; border: 1px solid var(--border); background: var(--card); }
+  .clientHeading { flex-wrap: wrap; }
+  .clientHeading h2 { overflow-wrap: anywhere; }
+  .toolbar > .field { flex: 1 1 100%; }
+  .toolbar > .button { flex: 1 1 auto; }
+  .row { padding: 12px; }
+  .row strong { overflow-wrap: anywhere; }
+  .contractUpload > .button { width: 100%; }
+  .savebar { bottom: max(8px,env(safe-area-inset-bottom)); }
+  .savebar > .button { flex: 1 1 auto; min-height: 44px; }
+  .phoneInvoiceLink { display: inline-flex; min-height: 44px; align-items: center; color: var(--primary); font-size: 12px; font-weight: 600; }
+  .page p, .page summary { overflow-wrap: anywhere; }
+}
 @media (pointer: coarse) { .button, .field input, .field select, .toolbar select, .toolbar input, .sectionNav button, .clientList button { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .button { transition: none; } }

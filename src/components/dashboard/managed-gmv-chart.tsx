@@ -124,13 +124,16 @@ export function ManagedGmvChart({
             <div className="flex min-w-0 flex-1 flex-col">
               {/* min-h keeps the old floor; h-full lets the plot absorb the extra
                   height from the flex parent rather than leaving dead space below. */}
-              <div className="relative h-full min-h-[150px]" role="group" aria-label={`${label} by day. Use left and right arrow keys to inspect dates.`} tabIndex={0}
-                onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={() => setHi(null)}
+              <div className="relative h-full min-h-[150px]" role="group" aria-label={`${label} by day. Tap the chart or use left and right arrow keys to inspect dates.`} tabIndex={0}
+                onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={event => { if (event.pointerType === 'mouse') setHi(null); }}
                 onFocus={() => setHi(n - 1)} onBlur={() => setHi(null)}
                 onKeyDown={event => {
                   if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
                     event.preventDefault();
                     setHi(index => Math.max(0, Math.min(n - 1, (index ?? n - 1) + (event.key === 'ArrowLeft' ? -1 : 1))));
+                  } else if (event.key === 'Home' || event.key === 'End') {
+                    event.preventDefault();
+                    setHi(event.key === 'Home' ? 0 : n - 1);
                   }
                 }}>
                 <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
@@ -198,6 +201,7 @@ export function ManagedGmvChart({
                 {n > 2 && <span>{fmtAxisDay(pts[Math.floor((n - 1) / 2)].date)}</span>}
                 <span>{fmtAxisDay(pts[n - 1].date)}</span>
               </div>
+              <p className="mt-2 text-[10px] text-muted-foreground sm:hidden">Tap the chart to inspect a day.</p>
             </div>
           </div>
         ) : (

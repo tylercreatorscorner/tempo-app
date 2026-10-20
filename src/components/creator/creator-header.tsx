@@ -1,5 +1,7 @@
 'use client';
 
+import type { RefObject } from 'react';
+import portal from '@/components/layout/portal-workspace.module.css';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -36,9 +38,13 @@ function getInitials(name: string): string {
 export function CreatorHeader({
   profile,
   onMenuClick,
+  menuButtonRef,
+  mobileNavOpen = false,
 }: {
   profile: CreatorProfile;
   onMenuClick?: () => void;
+  menuButtonRef?: RefObject<HTMLButtonElement | null>;
+  mobileNavOpen?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -50,8 +56,10 @@ export function CreatorHeader({
     const h = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
     document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('keydown', onKey); };
   }, [menuOpen]);
 
   const pageLabel = BREADCRUMB_MAP[pathname] ?? 'Home';
@@ -62,17 +70,21 @@ export function CreatorHeader({
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card px-3 sm:px-5">
+    <header className={`${portal.portalHeader} sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card px-3 sm:px-5`}>
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
+          ref={menuButtonRef}
+          aria-haspopup="dialog"
+          aria-controls="creator-mobile-navigation"
+          aria-expanded={mobileNavOpen}
           onClick={onMenuClick}
-          className="rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
+          className="min-h-11 min-w-11 rounded-lg p-2 transition-colors hover:bg-muted lg:hidden"
           aria-label="Toggle menu"
         >
           <Menu className="h-5 w-5 text-muted-foreground" />
         </button>
         <div className="lg:hidden">
-          <TempoLogo size="sm" animated />
+          <TempoLogo size="sm" animated={false} />
         </div>
         <nav className="hidden min-w-0 items-center gap-1.5 text-sm sm:flex">
           <span className="hidden text-xs text-muted-foreground sm:inline">Creator Portal</span>
@@ -88,6 +100,8 @@ export function CreatorHeader({
 
         <div className="relative" ref={menuRef}>
           <button
+            aria-label="Open your account menu"
+            aria-expanded={menuOpen}
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-muted"
           >

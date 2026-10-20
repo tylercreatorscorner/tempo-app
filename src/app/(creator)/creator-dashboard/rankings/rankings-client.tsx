@@ -3,7 +3,7 @@
 import portal from '@/components/layout/portal-workspace.module.css';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Crown, Info, Medal, Play, Trophy } from 'lucide-react';
+import { ArrowUpRight, ArrowUp, ArrowDown, Crown, Info, Medal, Play, Trophy } from 'lucide-react';
 import { TableCard, Table, THead, TBody, TR, TH, TD, DataAvatar } from '@/components/ui/table';
 import { CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { StandingBand } from '@/components/creator/standing-band';
 import { formatCurrency } from '@/lib/utils/format';
-import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
+import { useVisibleThumbnail } from '@/components/creator/use-visible-thumbnail';
 import { cn } from '@/lib/utils';
 import type { BrandStanding, CreatorVideoRow, RankingEntry } from '@/lib/data/creator-portal';
 
@@ -228,14 +228,14 @@ function Leaderboard({ rankings }: { rankings: RowWithDelta[] }) {
         </span>
       </CardHeader>
       <div className="overflow-x-auto">
-        <Table>
+        <Table role="table" className={`${portal.recordTable} ${portal.rankRecords}`} aria-label="Creator leaderboard">
           <THead>
             <TR>
-              <TH className="w-14 text-left">Rank</TH>
-              <TH className="text-left">Creator</TH>
-              <TH>GMV</TH>
-              <TH className="hidden sm:table-cell">Orders</TH>
-              <TH>Δ</TH>
+              <TH scope="col" className="w-14 text-left">Rank</TH>
+              <TH scope="col" className="text-left">Creator</TH>
+              <TH scope="col">GMV</TH>
+              <TH scope="col" className="hidden sm:table-cell">Orders</TH>
+              <TH scope="col">Δ</TH>
             </TR>
           </THead>
           <TBody>
@@ -245,7 +245,7 @@ function Leaderboard({ rankings }: { rankings: RowWithDelta[] }) {
               return [
                 gap ? (
                   <TR key={`gap-${r.rank}`}>
-                    <TD colSpan={5} className="py-1 text-center text-xs text-muted-foreground/60">
+                    <TD colSpan={5} className={`${portal.gapRecord} py-1 text-center text-xs text-muted-foreground/60`}>
                       ⋯
                     </TD>
                   </TR>
@@ -254,7 +254,7 @@ function Leaderboard({ rankings }: { rankings: RowWithDelta[] }) {
                   key={r.tiktokUsername + r.rank}
                   className={cn('hover:bg-secondary/50', r.isMe && 'bg-primary/5')}
                 >
-                  <TD className="font-ledger-num text-left text-[15px] font-bold text-muted-foreground">
+                  <TD data-label="Rank" className="font-ledger-num text-left text-[15px] font-bold text-muted-foreground">
                     {r.rank <= 3 ? (
                       <span className="inline-flex items-center gap-1" style={{ color: MEDALS[r.rank - 1].metal }}>
                         {r.rank === 1 ? <Crown className="h-3.5 w-3.5" /> : <Medal className="h-3.5 w-3.5" />}#
@@ -264,7 +264,7 @@ function Leaderboard({ rankings }: { rankings: RowWithDelta[] }) {
                       <>#{r.rank}</>
                     )}
                   </TD>
-                  <TD className="text-left">
+                  <TD data-label="Creator" className="text-left">
                     <div className="flex items-center gap-3">
                       <DataAvatar
                         color={r.isMe ? undefined : 'var(--secondary)'}
@@ -280,11 +280,11 @@ function Leaderboard({ rankings }: { rankings: RowWithDelta[] }) {
                       </div>
                     </div>
                   </TD>
-                  <TD className="font-bold tabular-nums text-[var(--pulse-pos)]">{formatCurrency(r.gmv)}</TD>
-                  <TD className="hidden tabular-nums text-foreground sm:table-cell">
+                  <TD data-label="GMV" className="font-bold tabular-nums text-[var(--pulse-pos)]">{formatCurrency(r.gmv)}</TD>
+                  <TD data-label="Orders" className="hidden tabular-nums text-foreground sm:table-cell">
                     {r.orders.toLocaleString()}
                   </TD>
-                  <TD>
+                  <TD data-label="Rank change">
                     <RankDeltaBadge currentRank={r.rank} priorRank={r.priorRank} />
                   </TD>
                 </TR>,
@@ -310,13 +310,13 @@ function RankDeltaBadge({ currentRank, priorRank }: { currentRank: number; prior
   if (diff > 0) {
     return (
       <Badge variant="positive" size="sm">
-        ▲ {diff}
+        <ArrowUp className="h-3 w-3" /><span className="sr-only">Up </span>{diff}
       </Badge>
     );
   }
   return (
     <Badge variant="negative" size="sm">
-      ▼ {Math.abs(diff)}
+      <ArrowDown className="h-3 w-3" /><span className="sr-only">Down </span>{Math.abs(diff)}
     </Badge>
   );
 }
@@ -392,8 +392,9 @@ function SegBtn({ on, onClick, children }: { on: boolean; onClick: () => void; c
   return (
     <button
       onClick={onClick}
+      aria-pressed={on}
       className={cn(
-        'rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold whitespace-nowrap transition-colors',
+        'rounded-[7px] min-h-11 px-3 py-2 text-[11.5px] font-semibold whitespace-nowrap transition-colors',
         on ? 'bg-card text-primary shadow-[var(--pulse-elev-1)]' : 'text-muted-foreground hover:text-foreground',
       )}
     >
@@ -415,7 +416,7 @@ function TopVideoRow({
   mine: boolean;
   showAge: boolean;
 }) {
-  const { thumbnail, loading } = useTikTokThumbnail(video.videoUrl, {
+  const { coverRef, thumbnail, loading } = useVisibleThumbnail<HTMLSpanElement>(video.videoUrl, {
     creatorName: video.tiktokUsername,
     videoId: video.videoId,
   });
@@ -424,6 +425,7 @@ function TopVideoRow({
   const row = (
     <li
       className={cn(
+        portal.phoneRankVideoRow,
         'group flex items-center gap-3 rounded-xl px-2.5 py-2.5',
         mine && 'bg-primary/5',
       )}
@@ -431,10 +433,10 @@ function TopVideoRow({
       <span className="w-4 shrink-0 text-center font-mono text-xs text-muted-foreground/60">{rank}</span>
 
       {/* Thumbnail — real TikTok cover via oEmbed; placeholder tile while loading/on failure. */}
-      <span className="relative h-[54px] w-11 shrink-0 overflow-hidden rounded-lg border border-border bg-secondary">
+      <span ref={coverRef} className="relative h-[54px] w-11 shrink-0 overflow-hidden rounded-lg border border-border bg-secondary">
         {thumbnail ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
+          <img src={thumbnail} alt="" decoding="async" loading="lazy" className="h-full w-full object-cover" />
         ) : (
           <span
             className={cn(

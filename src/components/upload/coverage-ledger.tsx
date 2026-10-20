@@ -28,7 +28,7 @@
  * window, the other is a hole. Conflating them is what made every healthy brand
  * read "Silent 1d" in red every morning.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
@@ -259,6 +259,8 @@ export function CoverageLedger({
   const showBar = useDelayedFlag(loading);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRight = useRef(false);
+  const [phoneDate, setPhoneDate] = useState('');
+  const selectedPhoneDate = data?.days.includes(phoneDate) ? phoneDate : data?.days[0] ?? '';
 
   // The API sends days newest-first; the grid reads left-to-right oldest to
   // newest like a calendar. Reversed here rather than in the API so the
@@ -443,12 +445,36 @@ export function CoverageLedger({
         </p>
       ) : (
         <>
+          <div className="space-y-3 p-3 md:hidden">
+            <label className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
+              Coverage day
+              <select aria-label="Coverage day" value={selectedPhoneDate} onChange={event => setPhoneDate(event.target.value)} className="min-h-11 rounded-lg border border-input bg-card px-3 text-base">
+                {[...displayDays].reverse().map(day => <option key={day} value={day}>{shortDate(day)}</option>)}
+              </select>
+            </label>
+            {rows.map(({ brand, cells, summary }) => {
+              const cell = cells.find(item => item.date === selectedPhoneDate);
+              if (!cell) return null;
+              return <article key={brand.slug} className="overflow-hidden rounded-xl border border-border">
+                <header className="border-b border-border bg-secondary/40 px-3 py-2.5">
+                  <h3 className="text-sm font-semibold">{brand.label}</h3>
+                  <p className={cn('mt-0.5 text-xs', TONE_TEXT[summary.tone])}>{summary.label}</p>
+                </header>
+                {cellStates(cell).map(({ key, label, state }) => <button key={key} type="button" disabled={!state} aria-pressed={selection?.brand === brand.slug && selection?.date === cell.date && selection?.type === key}
+                  onClick={() => state && onSelect({ brand: brand.slug, brandLabel: brand.label, type: key, date: cell.date, state, exportLayout: brand.exportLayout })}
+                  className="block min-h-11 w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:opacity-60 aria-pressed:bg-primary/10">
+                  <span className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-medium">{label}</span><span className="inline-flex items-center gap-2"><TypeMark state={state}/>{state ? coverageLabel(state) : 'Not reported'}</span></span>
+                  {state && <span className="mt-1 block text-xs text-muted-foreground">{state.rows == null ? 'No row count reported' : `${state.rows.toLocaleString()} rows`}{state.reason ? ` · ${state.reason}` : ''}</span>}
+                </button>)}
+              </article>;
+            })}
+          </div>
           {/* The grid scrolls INSIDE this container so the page body never
               scrolls sideways. */}
           <div
             ref={scrollRef}
             className={cn(
-              'overflow-x-auto',
+              'hidden overflow-x-auto md:block',
               showBar && 'opacity-60 transition-opacity duration-200',
             )}
           >

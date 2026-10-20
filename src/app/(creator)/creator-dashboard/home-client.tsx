@@ -704,7 +704,7 @@ function VideoRow({
 
   return (
     <li
-      className={'flex items-center gap-3 py-2.5' + (video.isMine ? ' -mx-2 rounded-lg bg-primary/5 px-2' : '')}
+      className={portal.phoneVideoRow + ' flex items-center gap-3 py-2.5' + (video.isMine ? ' -mx-2 rounded-lg bg-primary/5 px-2' : '')}
     >
       <DataAvatar>{rank}</DataAvatar>
       <div className="min-w-0 flex-1">

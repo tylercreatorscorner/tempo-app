@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
-import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
+import { useVisibleThumbnail } from '@/components/creator/use-visible-thumbnail';
 import { cn } from '@/lib/utils';
 
 type InspirationVideo = CreatorVideoRow & { isMine: boolean };
@@ -147,7 +147,7 @@ export function InspirationClient({
 function VideoCard({ video, index, sells }: { video: InspirationVideo; index: number; sells: boolean }) {
   const isHot = index < 3;
   const brandMeta = useBrandMeta();
-  const { thumbnail, loading } = useTikTokThumbnail(video.videoUrl, {
+  const { coverRef, thumbnail, loading } = useVisibleThumbnail<HTMLDivElement>(video.videoUrl, {
     creatorName: video.tiktokUsername,
     videoId: video.videoId,
   });
@@ -161,12 +161,13 @@ function VideoCard({ video, index, sells }: { video: InspirationVideo; index: nu
       )}
     >
       {/* Cover — real TikTok thumbnail via oEmbed; branded placeholder otherwise. */}
-      <div className="relative aspect-[16/10] w-full overflow-hidden border-b border-border bg-secondary">
+      <div ref={coverRef} className="relative aspect-[16/10] w-full overflow-hidden border-b border-border bg-secondary">
         {thumbnail ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={thumbnail}
             alt=""
+            decoding="async"
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />

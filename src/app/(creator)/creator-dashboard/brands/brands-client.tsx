@@ -134,15 +134,15 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
         <TableCard>
           <div className={portal.panelHeader}><h2 className="text-sm font-semibold text-foreground">Brand agreements &amp; performance</h2><span className="text-xs text-muted-foreground">{rows.length} brands · {rangeLabel}</span></div>
           <div className="overflow-x-auto">
-            <Table className="min-w-[600px]">
+            <Table role="table" className={`${portal.recordTable} min-w-[600px]`} aria-label="Brand agreements and performance">
               <THead>
                 <TR>
-                  <TH>Brand</TH>
-                  <TH>Recorded fee</TH>
-                  <TH>Posts (mo)</TH>
-                  <TH>Your GMV</TH>
-                  <TH className="hidden md:table-cell">Brand GMV</TH>
-                  <TH className="hidden md:table-cell">Your share</TH>
+                  <TH scope="col">Brand</TH>
+                  <TH scope="col">Recorded fee</TH>
+                  <TH scope="col">Posts (mo)</TH>
+                  <TH scope="col">Your GMV</TH>
+                  <TH scope="col" className="hidden md:table-cell">Brand GMV</TH>
+                  <TH scope="col" className="hidden md:table-cell">Your share</TH>
                 </TR>
               </THead>
               <TBody>
@@ -157,13 +157,13 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                   const standing = standings[r.brandSlug];
                   return (
                     <TR key={r.brandSlug} className="hover:bg-secondary/50">
-                      <TD className="text-foreground">
+                      <TD data-label="Brand" className="text-foreground">
                         <div className="flex items-center gap-3">
                           <DataAvatar color={r.brandColor}>{initials(r.brandDisplayName)}</DataAvatar>
                           <span className="font-semibold">{r.brandDisplayName}</span>
                         </div>
                       </TD>
-                      <TD className="tabular-nums text-foreground">
+                      <TD data-label="Recorded fee" className="tabular-nums text-foreground">
                         {contracted ? (
                           <>{formatCurrency(r.retainer)}{r.agreementPeriod && <span className="block text-[11px] font-normal text-muted-foreground">{r.agreementPeriod} · {r.agreementPosts ?? '—'} posts</span>}</>
                         ) : (
@@ -172,7 +172,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                           </Badge>
                         )}
                       </TD>
-                      <TD>
+                      <TD data-label="Posts this month">
                         {r.postsThisMonth == null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
@@ -196,11 +196,11 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                           </div>
                         )}
                       </TD>
-                      <TD className="font-bold tabular-nums text-[var(--pulse-pos)]">{gmvLabel(r.gmv)}</TD>
-                      <TD className="hidden tabular-nums text-foreground md:table-cell">
+                      <TD data-label="Your GMV" className="font-bold tabular-nums text-[var(--pulse-pos)]">{gmvLabel(r.gmv)}</TD>
+                      <TD data-label="Brand GMV" className="hidden tabular-nums text-foreground md:table-cell">
                         {standing ? formatCurrency(standing.brandGmv) : '—'}
                       </TD>
-                      <TD className="hidden md:table-cell">
+                      <TD data-label="Your share" className="hidden md:table-cell">
                         {standing && standing.myShare > 0 ? (
                           <span className="text-pulse-grad font-ledger-num text-[15px] font-bold">
                             {(standing.myShare * 100).toFixed(1)}%

@@ -58,18 +58,19 @@ export function InvoiceChip({
   onGenerate: (brand: string) => void;
 }) {
   const inv = row.invoice;
-  const driftDot = row.frozen?.drifted ? (
+  const driftDot = row.frozen?.drifted ? (<>
     <span
       className="h-2 w-2 shrink-0 rounded-full bg-[var(--pulse-warn)]"
       title={`Invoiced at ${formatCurrency(row.frozen.totalAmount)} - data has drifted since`}
     />
-  ) : null;
+    <span className="text-xs text-[var(--pulse-warn)] sm:hidden">Figures changed since invoice</span>
+  </>) : null;
 
   if (inv) {
     const chip = invoiceChipProps(inv, todayIso);
     return (
-      <span className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-        <Link href={`/invoicing?id=${inv.id}`} title={inv.invoiceNumber} className="shrink-0">
+      <span className="inline-flex max-w-full flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <Link href={`/invoicing?id=${inv.id}`} title={inv.invoiceNumber} className="inline-flex min-h-11 items-center sm:min-h-6">
           <Badge size="sm" variant={chip.variant} className={cn(CHIP_CLASS, 'transition-[filter] hover:brightness-110')}>
             {chip.label}
           </Badge>
@@ -81,14 +82,15 @@ export function InvoiceChip({
 
   if (row.total >= RUN_MINIMUM_USD) {
     return (
-      <span className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      <span className="inline-flex max-w-full flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           onClick={() => onGenerate(row.brand)}
           disabled={generating}
           title="Generate a draft invoice for this brand and month"
+          aria-label={`Prepare draft invoice for ${row.brandLabel}`}
           className={cn(
-            'inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold leading-none text-primary',
+            'inline-flex min-h-11 items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-bold leading-tight text-primary sm:min-h-6 sm:py-0.5 sm:text-[10px]',
             CHIP_CLASS,
             'transition-colors hover:bg-[var(--primary)] hover:text-primary-foreground disabled:opacity-50',
           )}

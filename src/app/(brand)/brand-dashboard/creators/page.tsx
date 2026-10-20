@@ -1,3 +1,4 @@
+import { PortalMobileSort } from '@/components/layout/portal-mobile-sort';
 import { PortalMetricStrip } from '@/components/layout/portal-metric-strip';
 import portal from '@/components/layout/portal-workspace.module.css';
 import Link from 'next/link';
@@ -112,6 +113,11 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
     return `/brand-dashboard/creators${qs ? `?${qs}` : ''}`;
   }
 
+  function creatorHref(handle: string) {
+    const query = buildHref({page: safePage}).split('?')[1];
+    return `/brand-dashboard/creators/${handle}?${query}`;
+  }
+
   return (
     <div className={portal.page}>
       <div className={portal.pageHeader}>
@@ -135,13 +141,14 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
 
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3">
-          <SearchBox initialQuery={params.q ?? ''} period={period} />
+          <SearchBox initialQuery={params.q ?? ''} period={period} sort={sortColumn} direction={sortDir} />
           <PeriodTabs current={period} accentColor={accent} />
         </div>
+        <PortalMobileSort options={[{value:'creator',label:'Creator',asc:buildHref({sort:'creator',dir:'asc'}),desc:buildHref({sort:'creator',dir:'desc'})},{value:'gmv',label:'GMV',asc:buildHref({sort:'gmv',dir:'asc'}),desc:buildHref({sort:'gmv',dir:'desc'})},{value:'orders',label:'Orders',asc:buildHref({sort:'orders',dir:'asc'}),desc:buildHref({sort:'orders',dir:'desc'})},{value:'posts',label:'Posts published',asc:buildHref({sort:'posts',dir:'asc'}),desc:buildHref({sort:'posts',dir:'desc'})},{value:'retainer',label:'Recorded fee',asc:buildHref({sort:'retainer',dir:'asc'}),desc:buildHref({sort:'retainer',dir:'desc'})},{value:'roi',label:'ROI (30d)',asc:buildHref({sort:'roi',dir:'asc'}),desc:buildHref({sort:'roi',dir:'desc'})}]} active={sortColumn} direction={sortDir} />
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table role="table" className={`${portal.recordTable} w-full text-sm`} aria-label="Managed creators">
             <thead>
-              <tr className="bg-muted/30">
+              <tr className={`${portal.desktopHeaders} bg-muted/30`}>
                 <SortableHeader
                   label="Creator"
                   column="creator"
@@ -197,11 +204,12 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                 />
                 <th className="w-8"></th>
               </tr>
+              <tr className={portal.phoneHeaders}><th scope="col">Creator</th><th scope="col">GMV</th><th scope="col">Orders</th><th scope="col">Posts published</th><th scope="col">Recorded fee</th><th scope="col">ROI (30d)</th><th scope="col">Open creator</th></tr>
             </thead>
             <tbody className="divide-y divide-border/40">
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className={`${portal.emptyRecord} px-4 py-12 text-center text-sm text-muted-foreground`}>
                     {data.creators.length === 0
                       ? 'No managed creators yet.'
                       : 'No creators match your search.'}
@@ -210,10 +218,10 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
               ) : (
                 visible.map((c) => (
                   <tr key={c.managedId} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-2.5">
+                    <td data-label="Creator" className="px-4 py-2.5">
                       {c.primaryHandle ? (
                         <Link
-                          href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
+                          href={creatorHref(c.primaryHandle)}
                           className="inline-flex items-center gap-1.5 font-medium hover:underline"
                           style={{ color: 'var(--brand-ink)' }}
                           title={c.realName ?? undefined}
@@ -241,29 +249,29 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                         </span>
                       )}
                     </td>
-                    <td className="text-right px-3 py-2.5 tabular-nums font-medium">
+                    <td data-label="GMV" className="text-right px-3 py-2.5 tabular-nums font-medium">
                       {fmtCurrency(c.gmv)}
                     </td>
-                    <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
+                    <td data-label="Orders" className="text-right px-3 py-2.5 tabular-nums text-foreground">
                       {fmtNumber(c.orders)}
                     </td>
-                    <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
+                    <td data-label="Posts published" className="text-right px-3 py-2.5 tabular-nums text-foreground">
                       {fmtNumber(c.posts)}
                     </td>
-                    <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
+                    <td data-label="Recorded fee" className="text-right px-3 py-2.5 tabular-nums text-foreground">
                       {c.retainer > 0 || c.hasVerifiedAgreement ? fmtCurrency(c.retainer) : <span className="text-muted-foreground">—</span>}{c.agreementPeriod && <span className="block text-[11px] text-muted-foreground">{c.agreementPeriod}</span>}
                     </td>
-                    <td className="text-right px-4 py-2.5">
-                      {c.hasVerifiedAgreement ? <span title="The rolling 30-day window does not establish agreement-period ROI">—</span> : <RoiCell gmv30d={c.gmv30d} retainer={c.retainer} />}
+                    <td data-label="ROI (30d)" className="text-right px-4 py-2.5">
+                      {c.hasVerifiedAgreement ? <span title="The rolling 30-day window does not establish agreement-period ROI">—<span className={`${portal.phoneOnly} text-xs font-normal text-muted-foreground`}> Rolling 30-day GMV does not establish agreement-period ROI.</span></span> : <RoiCell gmv30d={c.gmv30d} retainer={c.retainer} />}
                     </td>
-                    <td className="text-right pr-3">
+                    <td className={`${portal.rowAction} text-right pr-3`}>
                       {c.primaryHandle && (
                         <Link
-                          href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
+                          href={creatorHref(c.primaryHandle)}
                           className="text-muted-foreground hover:text-muted-foreground inline-flex"
                           aria-label="Open creator"
                         >
-                          <ChevronRight className="h-4 w-4" />
+                          <span className={portal.phoneOnly}>Open creator</span><ChevronRight className="h-4 w-4" />
                         </Link>
                       )}
                     </td>
@@ -276,7 +284,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-muted-foreground">
+          <div className={`${portal.pagination} flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-muted-foreground`}>
             <span>
               {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, sorted.length)} of {sorted.length}
             </span>
@@ -363,15 +371,26 @@ function RoiCell({ gmv30d, retainer }: { gmv30d: number; retainer: number }) {
 function SearchBox({
   initialQuery,
   period,
+  sort,
+  direction,
 }: {
   initialQuery: string;
   period: BrandPortalPeriod;
+  sort: string;
+  direction: SortDir;
 }) {
   return (
     <form className="relative" method="GET">
       <input type="hidden" name="period" value={period} />
+      <input type="hidden" name="sort" value={sort} />
+      <input type="hidden" name="dir" value={direction} />
       <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       <input
+        type="search"
+        enterKeyHint="search"
+        autoCapitalize="none"
+        autoCorrect="off"
+        aria-label="Search creators"
         name="q"
         defaultValue={initialQuery}
         placeholder="Search creators…"

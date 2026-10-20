@@ -16,13 +16,13 @@ export function FilterSelect({ value, onValueChange, children, className, id, 'a
 }) {
   const options = Children.toArray(children).filter(isValidElement<{ value: string; children: ReactNode }>);
   return <Select.Root value={value || '__empty'} onValueChange={next => onValueChange(next === '__empty' ? '' : next)}>
-    <Select.Trigger id={id} aria-label={label} className={cn('inline-flex h-8 items-center justify-between gap-3 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground shadow-sm hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=open]:border-primary/50', className)}>
+    <Select.Trigger id={id} aria-label={label} className={cn('inline-flex h-8 max-md:min-h-11 max-w-full items-center justify-between gap-3 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground shadow-sm hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=open]:border-primary/50', className)}>
       <Select.Value />
       <Select.Icon><ChevronDown size={13} className="shrink-0 text-muted-foreground" /></Select.Icon>
     </Select.Trigger>
-    <Select.Portal><Select.Content position="popper" sideOffset={5} collisionPadding={8} className="z-50 min-w-[var(--radix-select-trigger-width)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-lg border border-border bg-card text-foreground shadow-lg">
+    <Select.Portal><Select.Content position="popper" sideOffset={5} collisionPadding={8} className="z-50 min-w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-16px)] max-h-[var(--radix-select-content-available-height)] overflow-hidden rounded-lg border border-border bg-card text-foreground shadow-lg">
       <Select.Viewport className="p-1">
-        {options.map(option => <Select.Item key={option.props.value} value={option.props.value || '__empty'} className="relative flex cursor-default select-none items-center rounded px-3 py-2 pr-9 text-xs outline-none data-[highlighted]:bg-secondary data-[state=checked]:font-medium">
+        {options.map(option => <Select.Item key={option.props.value} value={option.props.value || '__empty'} className="relative flex max-md:min-h-11 cursor-default select-none items-center rounded px-3 py-2 pr-9 text-xs outline-none data-[highlighted]:bg-secondary data-[state=checked]:font-medium">
           <Select.ItemText>{option.props.children}</Select.ItemText>
           <Select.ItemIndicator className="absolute right-3"><Check size={13} /></Select.ItemIndicator>
         </Select.Item>)}

@@ -201,9 +201,9 @@ export function ChatThread({
   const channelConfig = getChannelConfig(sendChannel);
 
   return (
-    <div className="flex flex-col h-full bg-[var(--background)]">
+    <div className="flex min-h-0 flex-col h-full bg-[var(--background)]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border bg-card flex items-center justify-between">
+      <div className="shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-border bg-card flex items-center justify-between gap-2">
         <div>
           <h2 className="font-semibold text-[var(--foreground)]">{creatorName}</h2>
           <div className="flex items-center gap-2 mt-0.5">
@@ -226,7 +226,7 @@ export function ChatThread({
       </div>
 
       {/* Messages */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+      <div ref={containerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 py-4 space-y-3">
         {hasMore && (
           <button
             onClick={() => fetchMessages(page + 1, true)}
@@ -265,7 +265,7 @@ export function ChatThread({
               )}
               <div
                 className={cn(
-                  'max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
+                  'max-w-[90%] sm:max-w-[70%] break-words rounded-2xl px-4 py-2.5 text-sm shadow-sm',
                   msg.direction === 'outbound'
                     ? 'bg-gradient-to-br from-primary to-purple-500 text-white rounded-br-md'
                     : 'bg-card text-[var(--foreground)] border border-border rounded-bl-md'
@@ -298,7 +298,7 @@ export function ChatThread({
       </div>
 
       {/* Compose */}
-      <div className="px-6 py-4 border-t border-border bg-card">
+      <div className="shrink-0 px-4 sm:px-6 py-4 pb-[max(16px,env(safe-area-inset-bottom))] border-t border-border bg-card">
         {/* Channel indicator */}
         <div className="flex items-center gap-1.5 mb-2">
           <ChannelIcon channel={sendChannel} size="sm" showLabel />
@@ -308,12 +308,13 @@ export function ChatThread({
         </div>
         <div className="flex items-end gap-3">
           <textarea
+            aria-label="Message draft"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Ctrl+Enter to send)"
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-border px-4 py-2.5 text-sm bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-transparent transition-all"
+            className="min-w-0 flex-1 resize-none rounded-xl border border-border px-4 py-2.5 text-base md:text-sm bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-transparent transition-all"
             style={{ minHeight: '40px', maxHeight: '120px' }}
             onInput={e => {
               const t = e.target as HTMLTextAreaElement;
@@ -324,7 +325,8 @@ export function ChatThread({
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
-            className="flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+            aria-label="Send message"
+            className="flex shrink-0 items-center justify-center h-11 w-11 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </button>

@@ -36,6 +36,8 @@
 .panel { position: relative; display: flex; flex-direction: column; width: min(100%, 620px); height: 100%; overflow-y: auto; background: var(--card); box-shadow: var(--workspace-surface-raised-shadow, -12px 0 60px #0002); }
 .panel h2 { font-size: 22px; font-weight: 600; letter-spacing: -.025em; }
 .panelHeader { display: flex; align-items: center; gap: 14px; }
+.panelHeader h2 { min-width: 0; overflow-wrap: anywhere; }
+.mobileAction { display: none; }
 .page button:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 @container (max-width: 900px) { .overview { grid-template-columns: 1fr; } }
 @container (max-width: 1000px) { .table th, .table td { padding-inline: 12px; } }
@@ -52,7 +54,7 @@
   .table th { display: block; padding: 0; }
   .table th button { min-height: 44px; padding: 8px; border-radius: var(--workspace-control-radius, 8px); font-size: 12px; }
   .table th:not(:has(button)):not(:has(input)) { display: none; }
-  .table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 20px 16px; }
+  .table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; }
   .table tbody td { display: block; min-width: 0; padding: 0; text-align: left; }
   .table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 6px; color: var(--muted-foreground); font-size: 12px; }
   .table td[data-label="Creator"] { grid-column: 1 / -1; }
@@ -62,7 +64,8 @@
   .table td:empty { display: none; }
   .person { max-width: none; min-width: 0; }
   .person .avatar { width: 48px; height: 48px; }
+  .mobileAction { display: inline-flex; min-height: 44px; align-items: center; gap: 4px; margin-top: 4px; color: var(--primary); font-size: 12px; font-weight: 600; }
 }
 @container (max-width: 300px) { .metrics { grid-template-columns: 1fr; } .metric, .metric:last-child { border-left: 0; padding: 16px; grid-column: span 1; } .metric:nth-child(2) { border-top: 1px solid var(--border); } }
-@media (max-width: 600px) { .toolbar { padding: 12px; gap: 8px; } .toolbar input, .toolbar select { font-size: 16px; } }
+@media (max-width: 600px) { .toolbar { padding: 12px; gap: 8px; } .toolbar input, .toolbar select { font-size: 16px; } .panelTop { flex-wrap: wrap; gap: 12px; padding: 14px; } .panelTop > div { min-width: 0; } .panelTop > div:first-child { flex-basis: 100%; } .panelTop > div:last-child { width: 100%; justify-content: flex-end; } .panelTop button { min-height: 44px; } }
 @media (pointer: coarse) { .scope button, .toolbar button, .toolbar select, .toolbar input, .pagination button { min-height: 44px; } }

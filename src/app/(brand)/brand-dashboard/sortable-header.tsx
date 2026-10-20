@@ -35,7 +35,7 @@ export function SortableHeader({
   const nextDir: SortDir = isActive ? (activeDir === 'desc' ? 'asc' : 'desc') : 'desc';
 
   return (
-    <th className={cn('px-3 py-3', align === 'right' ? 'text-right' : 'text-left', className)}>
+    <th scope="col" aria-sort={isActive ? (activeDir === 'asc' ? 'ascending' : 'descending') : undefined} className={cn('px-3 py-3', align === 'right' ? 'text-right' : 'text-left', className)}>
       <Link
         href={buildHref(column, nextDir)}
         className={cn(

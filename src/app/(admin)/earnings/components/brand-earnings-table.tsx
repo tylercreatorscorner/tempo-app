@@ -15,6 +15,8 @@ import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { InvoiceChip } from './invoice-chip';
 import { MarketingGmvEditor } from './marketing-gmv-editor';
 import { modelCaption, type BrandRow, type EarningsResponse } from './types';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import mobile from '@/components/finance/finance-mobile.module.css';
 
 export type SortKey = 'brandLabel' | 'totalGmv' | 'commission' | 'retainer' | 'total';
 
@@ -50,9 +52,13 @@ export function BrandEarningsTable({
   });
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
+    <div className={mobile.ledger}>
+      <div className={mobile.mobileTools}>
+        <ChoiceMenu compact label="Sort brand earnings" value={sortKey} onChange={value => { if (value !== sortKey) onSort(value as SortKey); }} options={[{ value: 'brandLabel', label: 'Brand' }, { value: 'totalGmv', label: 'Managed GMV' }, { value: 'commission', label: 'Commission' }, { value: 'retainer', label: 'Retainer' }, { value: 'total', label: 'Total earnings' }]} />
+        <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-xs" aria-label={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`} onClick={() => onSort(sortKey)}>{sortDir === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}{sortDir === 'asc' ? 'Ascending' : 'Descending'}</button>
+      </div>
+      <table role="table" className="w-full text-sm">
+        <thead className={mobile.desktopTools}>
           <tr className="border-y border-border bg-secondary">
             <SortHeader k="brandLabel" label="Brand"       align="left"  sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Model</th>
@@ -64,6 +70,7 @@ export function BrandEarningsTable({
             <th className="w-16 px-4 py-3" aria-label="Row actions" />
           </tr>
         </thead>
+        <thead className={mobile.phoneHeaders}><tr>{['Brand', 'Compensation model', 'Managed GMV', 'Commission', 'Retainer', 'Total earnings', 'Invoice', 'Actions'].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
         <tbody>
           {rows.map((row) => {
             const isExpanded = expanded.has(row.brand);
@@ -83,14 +90,14 @@ export function BrandEarningsTable({
                   onClick={() => toggle(row.brand)}
                 >
                   {/* Brand */}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                  <td data-mobile-title data-mobile-full className="px-4 py-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span
                         className="h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: meta.color(row.brand) }}
                         aria-hidden="true"
                       />
-                      <button type="button" aria-expanded={isExpanded} aria-label={`${isExpanded ? 'Hide' : 'Show'} creator breakdown for ${row.brandLabel}`} onClick={(event) => { event.stopPropagation(); toggle(row.brand); }} className="text-left font-semibold text-foreground hover:text-primary focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">{row.brandLabel}</button>
+                      <button type="button" aria-expanded={isExpanded} aria-label={`${isExpanded ? 'Hide' : 'Show'} creator breakdown for ${row.brandLabel}`} onClick={(event) => { event.stopPropagation(); toggle(row.brand); }} className="min-w-0 break-words text-left font-semibold text-foreground hover:text-primary focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">{row.brandLabel}</button>
                       {row.umbrella && (
                         <span className="whitespace-nowrap text-[10px] text-muted-foreground">
                           (umbrella · {row.umbrella.storeCount} store{row.umbrella.storeCount === 1 ? '' : 's'})
@@ -99,7 +106,7 @@ export function BrandEarningsTable({
                     </div>
                   </td>
                   {/* Model */}
-                  <td className="px-4 py-3">
+                  <td data-label="Compensation model" className="px-4 py-3">
                     <div
                       className="text-[11px] text-muted-foreground"
                       title={
@@ -122,11 +129,11 @@ export function BrandEarningsTable({
                     )}
                   </td>
                   {/* Managed GMV */}
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td data-label="Managed GMV" data-mobile-full className="px-4 py-3 text-right tabular-nums">
                     <div className="font-semibold text-foreground" title="Affiliate GMV — matches the Creators page Managed GMV">
                       {formatCurrency(row.affiliateGmv)}
                     </div>
-                    <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+                    <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-muted-foreground max-sm:flex-wrap max-sm:justify-start">
                       <span className="uppercase tracking-wide">affiliate</span>
                       <span aria-hidden="true">·</span>
                       <MarketingGmvEditor row={row} month={month} onSaved={onMarketingSaved} onError={onMarketingError} />
@@ -138,7 +145,7 @@ export function BrandEarningsTable({
                     )}
                   </td>
                   {/* Commission */}
-                  <td className={cn('px-4 py-3 text-right font-semibold tabular-nums', moneyCell)} style={{ color: 'var(--pulse-pos)' }} title={moneyTitle}>
+                  <td data-label="Commission" className={cn('px-4 py-3 text-right font-semibold tabular-nums', moneyCell)} style={{ color: 'var(--pulse-pos)' }} title={moneyTitle}>
                     {row.commission > 0 ? formatCurrency(row.commission) : <span className="font-normal text-muted-foreground">—</span>}
                     {row.commission > 0 && row.marketingCommission > 0 && (
                       <div className="mt-0.5 text-[10px] font-normal text-muted-foreground" title="Affiliate vs marketing commission split">
@@ -153,17 +160,18 @@ export function BrandEarningsTable({
                       save (owner-reported: edits under a commission_only
                       payee "didn't take"; they saved fine, the billed value
                       is just 0 by model). */}
-                  <td className={cn('px-4 py-3 text-right tabular-nums text-foreground', moneyCell)} title={moneyTitle}>
+                  <td data-label="Retainer" className={cn('px-4 py-3 text-right tabular-nums text-foreground', moneyCell)} title={moneyTitle}>
                     {retainerTotal > 0 ? (
                       formatCurrency(retainerTotal)
-                    ) : row.configuredRetainer > 0 ? (
+                    ) : row.configuredRetainer > 0 ? (<>
                       <span
                         className="text-muted-foreground line-through decoration-[var(--pulse-warn)]/60"
                         title={`Configured ${formatCurrency(row.configuredRetainer)} - not billed under the ${modelCaption(row.compensationModel, row.rate)} model`}
                       >
                         {formatCurrency(row.configuredRetainer)}
                       </span>
-                    ) : (
+                      <span className="mt-1 block text-[11px] text-muted-foreground sm:hidden">Not billed by this model</span>
+                    </>) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                     {row.productRetainer > 0 && (
@@ -173,7 +181,7 @@ export function BrandEarningsTable({
                     )}
                   </td>
                   {/* Total */}
-                  <td className={cn('px-4 py-3 text-right font-bold tabular-nums text-foreground', moneyCell)} title={moneyTitle}>
+                  <td data-label="Total earnings" className={cn('px-4 py-3 text-right font-bold tabular-nums text-foreground', moneyCell)} title={moneyTitle}>
                     {formatCurrency(row.total)}
                     {row.launchFee > 0 && (
                       <div className="mt-0.5 text-[10px] font-normal text-muted-foreground">
@@ -182,19 +190,20 @@ export function BrandEarningsTable({
                     )}
                   </td>
                   {/* Invoice lifecycle */}
-                  <td className="px-4 py-3">
+                  <td data-label="Invoice" data-mobile-full className="px-4 py-3">
                     <InvoiceChip row={row} todayIso={todayIso} generating={generatingBrand === row.brand} onGenerate={onGenerateInvoice} />
                   </td>
                   {/* Actions + expander */}
-                  <td className="px-4 py-3">
+                  <td data-mobile-actions className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onEdit(row); }}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                        className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-muted-foreground transition-colors hover:bg-muted hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:h-7 sm:min-h-0 sm:w-7 sm:px-0"
                         title="Edit brand settings"
                       >
                         <Pencil className="h-3.5 w-3.5" />
+                        <span className="ml-1 text-xs sm:hidden">Edit agreement</span>
                       </button>
                       <ChevronRight
                         className={cn(
@@ -221,15 +230,15 @@ export function BrandEarningsTable({
             <tr className="border-t-2 border-border bg-secondary font-bold text-foreground">
               <td className="px-4 py-3">Totals</td>
               <td />
-              <td className="px-4 py-3 text-right tabular-nums">
+              <td data-label="Managed GMV" className="px-4 py-3 text-right tabular-nums">
                 <div>{formatCurrency(totals.affiliateGmv)}</div>
                 {totals.marketingGmv > 0 && (
                   <div className="text-[10px] font-medium tabular-nums text-muted-foreground">= {formatCurrency(totals.totalGmv)} total</div>
                 )}
               </td>
-              <td className="px-4 py-3 text-right tabular-nums" style={{ color: 'var(--pulse-pos)' }}>{formatCurrency(totals.commission)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.retainers)}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-[var(--primary)]">{formatCurrency(totals.earnings)}</td>
+              <td data-label="Commission" className="px-4 py-3 text-right tabular-nums" style={{ color: 'var(--pulse-pos)' }}>{formatCurrency(totals.commission)}</td>
+              <td data-label="Retainers" className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.retainers)}</td>
+              <td data-label="Total earnings" className="px-4 py-3 text-right tabular-nums text-[var(--primary)]">{formatCurrency(totals.earnings)}</td>
               <td colSpan={2} />
             </tr>
           </tfoot>
@@ -280,8 +289,8 @@ function CreatorBreakdownPanel({ row }: { row: BrandRow }) {
   const remainingCommission = row.creators.slice(25).reduce((s, c) => s + c.commission, 0);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex items-baseline justify-between border-b border-border bg-muted/40 px-4 py-2">
+    <div className={`${mobile.ledger} rounded-xl border border-border bg-card`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border bg-muted/40 px-4 py-2">
         <h4 className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
           Creator Breakdown
         </h4>
@@ -289,7 +298,7 @@ function CreatorBreakdownPanel({ row }: { row: BrandRow }) {
           {row.creators.length} creator{row.creators.length === 1 ? '' : 's'} · {formatCurrency(row.affiliateGmv)} affiliate GMV
         </span>
       </div>
-      <table className="w-full text-xs">
+      <table role="table" className="w-full text-xs">
         <thead>
           <tr className="border-b border-border">
             <th className="px-4 py-1.5 text-left text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Creator</th>
@@ -303,17 +312,17 @@ function CreatorBreakdownPanel({ row }: { row: BrandRow }) {
             const isOverride = Math.abs(c.rate - row.rate) > 0.01;
             return (
               <tr key={`${c.name}-${i}`} className="border-b border-border last:border-0">
-                <td className="px-4 py-1 font-medium text-foreground">
+                <td data-mobile-title className="px-4 py-1 font-medium text-foreground">
                   {c.name.startsWith('@') ? c.name : `@${c.name}`}
                 </td>
-                <td className="px-4 py-1 text-right tabular-nums text-muted-foreground">{formatCurrency(c.gmv)}</td>
-                <td className="px-4 py-1 text-right tabular-nums">
+                <td data-label="GMV" className="px-4 py-1 text-right tabular-nums text-muted-foreground">{formatCurrency(c.gmv)}</td>
+                <td data-label="Rate" className="px-4 py-1 text-right tabular-nums">
                   <span className={cn(isOverride ? 'font-semibold text-[var(--primary)]' : 'text-muted-foreground')}>
                     {c.rate.toFixed(2)}%
                   </span>
                   {isOverride && <span className="ml-1 text-[9px] text-[var(--primary)]" title="Per-creator rate override">*</span>}
                 </td>
-                <td className="px-4 py-1 text-right font-semibold tabular-nums" style={{ color: 'var(--pulse-pos)' }}>
+                <td data-label="Commission" className="px-4 py-1 text-right font-semibold tabular-nums" style={{ color: 'var(--pulse-pos)' }}>
                   {formatCurrency(c.commission)}
                 </td>
               </tr>
@@ -321,12 +330,12 @@ function CreatorBreakdownPanel({ row }: { row: BrandRow }) {
           })}
           {remaining > 0 && (
             <tr className="border-b border-border bg-muted/30 last:border-0">
-              <td className="px-4 py-1 italic text-muted-foreground">
+              <td data-mobile-title className="px-4 py-1 italic text-muted-foreground">
                 + {remaining} more creator{remaining === 1 ? '' : 's'}
               </td>
-              <td className="px-4 py-1 text-right tabular-nums text-muted-foreground">{formatCurrency(remainingGmv)}</td>
+              <td data-label="GMV" className="px-4 py-1 text-right tabular-nums text-muted-foreground">{formatCurrency(remainingGmv)}</td>
               <td className="px-4 py-1" />
-              <td className="px-4 py-1 text-right tabular-nums text-muted-foreground">{formatCurrency(remainingCommission)}</td>
+              <td data-label="Commission" className="px-4 py-1 text-right tabular-nums text-muted-foreground">{formatCurrency(remainingCommission)}</td>
             </tr>
           )}
         </tbody>

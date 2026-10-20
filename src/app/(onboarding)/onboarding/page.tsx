@@ -244,6 +244,8 @@ function SignupForm() {
             </label>
             <input
               id="fullName"
+              autoComplete="name"
+              enterKeyHint="next"
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -260,6 +262,11 @@ function SignupForm() {
             <input
               id="email"
               type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="next"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(''); }}
               placeholder="you@company.com"
@@ -274,6 +281,8 @@ function SignupForm() {
             </label>
             <input
               id="company"
+              autoComplete="organization"
+              enterKeyHint="done"
               type="text"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}

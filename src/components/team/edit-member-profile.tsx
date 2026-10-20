@@ -27,7 +27,7 @@ export function EditMemberProfile({ member, onClose, onSaved }: {
       <div className="fixed inset-0 flex items-center justify-center bg-black/30 p-4 backdrop-blur-[2px]" onClick={close}>
         <form ref={panel} role="dialog" aria-modal="true" aria-labelledby="edit-member-title"
           aria-describedby="edit-member-description" aria-busy={pending}
-          className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+          className="max-h-[calc(100dvh-32px)] w-full max-w-md overflow-y-auto overscroll-contain rounded-xl border border-border bg-card shadow-xl [&_button]:min-h-11"
           onClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => {
             if (event.key !== 'Tab') return;

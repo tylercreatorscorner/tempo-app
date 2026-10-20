@@ -21,6 +21,7 @@ export function Switch({ checked, onCheckedChange, disabled, className, ...props
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         'relative h-[23px] w-10 shrink-0 rounded-full transition-colors ' +
+          'before:absolute before:-inset-y-[11px] before:-inset-x-0.5 before:content-[""] ' +
           'disabled:opacity-50 disabled:cursor-not-allowed ' +
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         checked ? 'bg-primary' : 'bg-input',
