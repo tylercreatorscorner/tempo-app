@@ -36,6 +36,7 @@ export function shiftMonth(value: string, offset: number) { const [y, m] = value
 export function managerFor(settings: FinanceSettings, month: string) { return settings.managerTerms.filter(t => t.effectiveMonth <= month).sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth))[0] ?? null; }
 export function readiness(settings: FinanceSettings) { return Boolean(settings.legalName && settings.billingEmail && settings.billingAddress); }
 export function buildInvoice(client: ClientRecord, record: FinanceRecord, month: string, gmvCents: number, issuedDate: string): InvoiceSnapshot {
+  if (client.historical) throw new Error('Past agreements are kept for history. Reactivate this client before preparing a new invoice.');
   if (record.settings.termsReviewRequired) throw new Error('Review the contract differences and confirm the billing agreement before preparing an invoice.');
   if (!readiness(record.settings)) throw new Error('Complete the legal name, billing email, and billing address first.');
   if (!record.settings.agencyName || !record.settings.agencyAddress || !record.settings.paymentInstructions) throw new Error('Add the issuing agency name, address, and payment instructions before invoicing.');
@@ -55,7 +56,9 @@ export function buildInvoice(client: ClientRecord, record: FinanceRecord, month:
 export type CashEvent = { clientId: string; clientName: string; month: string; source: 'Invoice' | 'Draft' | 'Estimate'; receiptDate: string | null; payoutDate: string | null; receiptCents: number; payoutCents: number; overdue: boolean };
 export function forecast(clients: ClientRecord[], records: FinanceRecord[], invoices: AgencyInvoice[], today: string, delay = 0) {
   const events: CashEvent[] = [], missing: string[] = [];
-  for (const invoice of invoices.filter(i => i.status !== 'void')) {
+  const historicalIds = new Set(clients.filter(client => client.historical).map(client => client.id));
+  // Issued/collected obligations survive archiving. Unissued drafts remain historical records.
+  for (const invoice of invoices.filter(i => i.status !== 'void' && !(i.status === 'draft' && historicalIds.has(i.client_id)))) {
     const s = invoice.snapshot;
     const expected = addDays(s.expectedDate, delay);
     const receiptDate = invoice.status === 'paid' ? null : expected < today ? today : expected;
@@ -64,6 +67,7 @@ export function forecast(clients: ClientRecord[], records: FinanceRecord[], invo
       receiptCents: receiptDate ? s.feeCents : 0, payoutCents: payoutDate ? s.managerCents : 0, overdue: Boolean((receiptDate && expected < today) || (payoutDate && payoutDate < today)) });
   }
   for (const client of clients) {
+    if (client.historical) continue;
     const record = records.find(r => r.client_id === client.id);
     // Include last month's unbilled service as well as months feeding the 13-week window.
     for (let offset = -1; offset <= 3; offset++) {

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Users, Package, BarChart3 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import styles from '../brands.module.css';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -20,29 +20,37 @@ export function BrandTabs({
   products: React.ReactNode;
 }) {
   const [active, setActive] = useState<TabId>('overview');
+  const instance = useId();
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-1 p-1 bg-muted rounded-xl w-fit">
-        {TABS.map(({ id, label, icon: Icon }) => (
+    <div className={styles.tabs}>
+      <div className={styles.tabList} role="tablist" aria-label="Brand performance sections">
+        {TABS.map(({ id, label, icon: Icon }, index) => (
           <button
             key={id}
+            type="button"
+            role="tab"
+            id={`${instance}-${id}`}
+            aria-selected={active===id}
+            aria-controls={`${instance}-panel`}
+            tabIndex={active===id ? 0 : -1}
             onClick={() => setActive(id)}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
-              active === id
-                ? 'bg-card text-[var(--foreground)] shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
+            onKeyDown={event=>{
+              const next = event.key==='ArrowRight' ? (index+1)%TABS.length : event.key==='ArrowLeft' ? (index+TABS.length-1)%TABS.length : event.key==='Home' ? 0 : event.key==='End' ? TABS.length-1 : null;
+              if(next===null) return;
+              event.preventDefault();setActive(TABS[next].id);
+              event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+            }}
+            className={styles.tab}
           >
             <Icon className="h-4 w-4" />
             {label}
           </button>
         ))}
       </div>
-      {active === 'overview' && overview}
-      {active === 'creators' && creators}
-      {active === 'products' && products}
+      <div id={`${instance}-panel`} role="tabpanel" aria-labelledby={`${instance}-${active}`} tabIndex={0} className={styles.tabPanel}>
+        {active === 'overview' ? overview : active === 'creators' ? creators : products}
+      </div>
     </div>
   );
 }

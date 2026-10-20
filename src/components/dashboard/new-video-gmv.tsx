@@ -9,8 +9,8 @@ import type { NewVideoGmv } from '@/lib/data/new-video-gmv';
 import { validVideoRange } from '@/lib/data/new-video-gmv';
 import { VideoGmvBreakdown } from './video-gmv-breakdown';
 
-interface Props { brand?: string | null; range?: string; start?: string | null; end?: string | null; showCreators?: boolean }
-export function NewVideoGmvCard({brand,range='custom',start,end,showCreators=false}:Props) {
+interface Props { brand?: string | null; range?: string; start?: string | null; end?: string | null; showCreators?: boolean; compact?: boolean }
+export function NewVideoGmvCard({brand,range='custom',start,end,showCreators=false,compact=false}:Props) {
   const [postStart,setPostStart] = useState('');
   const [postEnd,setPostEnd] = useState('');
   const [posting,setPosting] = useState<{start:string;end:string}|null>(null);
@@ -21,19 +21,20 @@ export function NewVideoGmvCard({brand,range='custom',start,end,showCreators=fal
   if (end) params.set('end',end);
   if (posting) { params.set('postStart',posting.start); params.set('postEnd',posting.end); }
   const url = '/api/new-video-gmv?'+params;
-  // Remount on filter changes so an old selection never appears under new filters.
-  return <section className="space-y-3" aria-label="Video GMV and posting dates">
-    <form className="flex flex-wrap items-end gap-3" onSubmit={e=>{e.preventDefault();if (!invalid && postStart && postEnd) setPosting({start:postStart,end:postEnd});}}>
+  const filters = <form className="flex flex-wrap items-end gap-2" onSubmit={e=>{e.preventDefault();if (!invalid && postStart && postEnd) setPosting({start:postStart,end:postEnd});}}>
       <label className="text-xs text-muted-foreground">Videos posted from (optional)<input type="date" value={postStart} onChange={e=>setPostStart(e.target.value)} className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>
       <label className="text-xs text-muted-foreground">Videos posted through<input type="date" value={postEnd} onChange={e=>setPostEnd(e.target.value)} className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>
       <Button type="submit" size="sm" variant="outline" disabled={invalid || !postStart || !postEnd}>Apply posting dates</Button>
       {(postStart || postEnd || posting) && <Button type="button" size="sm" variant="ghost" onClick={()=>{setPostStart('');setPostEnd('');setPosting(null);}}>Clear</Button>}
       {invalid && <p role="status" className="w-full text-xs text-muted-foreground">Choose both posting dates in order, up to 400 days apart.</p>}
-    </form>
-    <VideoGmvContent key={url} url={url} showCreators={showCreators} posting={posting}/>
+    </form>;
+  // Remount on filter changes so an old selection never appears under new filters.
+  return <section className="min-w-0 space-y-3" aria-label="Video GMV and posting dates">
+    {!compact && filters}
+    <VideoGmvContent key={url} url={url} showCreators={showCreators} posting={posting} compact={compact} filters={filters}/>
   </section>;
 }
-function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boolean;posting:{start:string;end:string}|null}) {
+function VideoGmvContent({url,showCreators,posting,compact,filters}:{url:string;showCreators:boolean;posting:{start:string;end:string}|null;compact:boolean;filters:React.ReactNode}) {
   const [data,setData] = useState<NewVideoGmv|null>(null);
   const [failed,setFailed] = useState(false);
   const [attempt,setAttempt] = useState(0);
@@ -64,18 +65,22 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
     return '/api/new-video-gmv?'+params;
   };
   return <Card aria-label={title}>
-    <CardHeader><CardTitle><span className="inline-flex items-center gap-2"><Video size={16} aria-hidden="true"/>{title}</span></CardTitle><span className="text-xs text-muted-foreground">Managed creators · {posting ? 'Custom posting dates' : 'All posting dates'}</span></CardHeader>
-    <CardContent>
-      <p className="mb-4 max-w-3xl text-xs leading-relaxed text-muted-foreground">{posting ? `GMV earned in the selected period from videos posted ${posting.start} through ${posting.end}, including both dates.` : 'GMV earned in the selected period from all managed videos, regardless of when they were posted. Apply posting dates above to narrow the results.'} Excludes live and product-card sales.</p>
+    <CardHeader className={compact ? 'flex-wrap gap-1 px-4 py-3' : undefined}><CardTitle><span className="inline-flex items-center gap-2"><Video size={16} aria-hidden="true"/>{title}</span></CardTitle><span className="text-[11px] text-muted-foreground">{compact ? '' : 'Managed creators · '}{posting ? 'Custom posting dates' : 'All posting dates'}</span></CardHeader>
+    <CardContent className={compact ? 'px-4 pb-3' : undefined}>
+      {!compact && <p className="mb-4 max-w-3xl text-xs leading-relaxed text-muted-foreground">{posting ? `GMV earned in the selected period from videos posted ${posting.start} through ${posting.end}, including both dates.` : 'GMV earned in the selected period from all managed videos, regardless of when they were posted. Apply posting dates above to narrow the results.'} Excludes live and product-card sales.</p>}
       {!data && !failed && <p role="status" className="flex items-center gap-2 py-3 text-sm text-muted-foreground"><Loader2 size={16} className="animate-spin" aria-hidden="true"/>Loading video GMV…</p>}
       {failed && <div role="alert" className="flex flex-wrap items-center gap-3 text-sm"><span>Video GMV couldn’t be loaded.</span><Button variant="outline" size="sm" onClick={()=>{setFailed(false);setAttempt(n=>n+1);}}>Retry</Button></div>}
       {data && <>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {compact ? <div className="flex flex-wrap items-center justify-between gap-2">
+          <button type="button" aria-expanded={showVideos} aria-label="View videos driving video GMV" onClick={()=>setShowVideos(v=>!v)} className="text-left text-2xl font-semibold tabular-nums tracking-tight underline decoration-dotted underline-offset-4 hover:text-primary">{data.factCount ? money(data.gmv30d) : '—'}</button>
+          <div className="text-right text-[11px] text-muted-foreground"><p>{share===null ? '—' : share.toFixed(1)+'%'} of managed video GMV</p><p>{data.factCount ? data.videos30d.toLocaleString('en-US') : '—'} {posting ? 'matching videos' : 'videos'} with sales data</p></div>
+        </div> : <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div><p className="text-xs text-muted-foreground">{title}</p><button type="button" aria-expanded={showVideos} aria-label="View videos driving video GMV" onClick={()=>setShowVideos(v=>!v)} className="mt-1 text-left text-2xl font-semibold tabular-nums underline decoration-dotted underline-offset-4 hover:text-primary">{data.factCount ? money(data.gmv30d) : '—'}</button><div><button type="button" className="mt-1 text-xs text-muted-foreground underline hover:text-foreground" aria-expanded={showVideos} onClick={()=>setShowVideos(v=>!v)}>{showVideos ? 'Hide videos' : 'View videos'}</button></div></div>
           <div><p className="text-xs text-muted-foreground">Share of managed video GMV</p><p className="mt-1 text-2xl font-semibold tabular-nums">{share===null ? '—' : share.toFixed(1)+'%'}</p></div>
           <div><p className="text-xs text-muted-foreground">{posting ? 'Matching videos' : 'Videos'} with recorded sales data</p><p className="mt-1 text-2xl font-semibold tabular-nums">{data.factCount ? data.videos30d.toLocaleString('en-US') : '—'}</p></div>
-        </div>
-        <p className="mt-4 text-xs text-muted-foreground">{data.start} – {data.end} · {data.brands} {data.brands===1?'brand':'brands'} · {money(data.totalGmv)} recorded managed video GMV</p>
+        </div>}
+        {compact && <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><button type="button" className="text-xs font-medium text-primary hover:underline" aria-expanded={showVideos} onClick={()=>setShowVideos(v=>!v)}>{showVideos ? 'Hide videos' : 'View videos'}</button><span className="text-[11px] text-muted-foreground">{data.start} – {data.end}</span></div>}
+        {!compact && <p className="mt-4 text-xs text-muted-foreground">{data.start} – {data.end} · {data.brands} {data.brands===1?'brand':'brands'} · {money(data.totalGmv)} recorded managed video GMV</p>}
         {!data.factCount && <p className="mt-2 text-sm text-muted-foreground">No managed video data recorded for this selection.</p>}
         {data.recordedBrandDays<data.expectedBrandDays && <p className="mt-2 text-xs text-muted-foreground">Managed video data is recorded for {data.recordedBrandDays} of {data.expectedBrandDays} brand-days. Totals reflect available records; days without records may have no activity or missing uploads.</p>}
         {data.unknownPostDateGmv!==0 && <p className="mt-2 text-xs text-muted-foreground">{money(data.unknownPostDateGmv)} has no video post date and is {posting ? 'excluded from this posting-date selection' : 'included because no posting-date filter is applied'}.</p>}
@@ -93,6 +98,7 @@ function VideoGmvContent({url,showCreators,posting}:{url:string;showCreators:boo
           {creators.length>limit && <Button className="mt-3" size="sm" variant="outline" onClick={()=>setLimit(n=>n+20)}>Show more creators</Button>}
         </details>}
       </>}
+      {compact && <details className="mt-3 border-t border-border pt-2 text-xs"><summary className="cursor-pointer font-medium text-muted-foreground">Posting dates & metric details</summary><div className="mt-3 space-y-3">{filters}<p className="text-xs leading-relaxed text-muted-foreground">{posting ? `Includes videos posted ${posting.start} through ${posting.end}, including both dates.` : 'Includes all posting dates. Set both dates to filter by when videos were posted.'} GMV is earned in the selected GMV dates from managed videos. Excludes live and product-card sales.{data && <> {money(data.totalGmv)} recorded managed video GMV across {data.brands} {data.brands===1?'brand':'brands'}.</>}</p></div></details>}
     </CardContent>
   </Card>;
 }

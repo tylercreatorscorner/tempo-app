@@ -28,16 +28,15 @@ export function DashboardCharts({
   end,
   brand,
   initial,
-  share,
 }: {
   start: string;
   end: string;
   brand: string | null;
   initial: { date: string; gmv: number | null; recordedBrands?: number }[];
-  share: React.ReactNode;
 }) {
   const [metric, setMetric] = useState<MetricKey>("gmv");
   const [months, setMonths] = useState("6");
+  const [view, setView] = useState<'daily' | 'monthly'>('daily');
   const [result, setResult] = useState<{
     rows: MetricRow[];
     brands: number;
@@ -96,7 +95,7 @@ export function DashboardCharts({
       fontFamily: "inherit",
       foreColor: ink,
     },
-    colors: ["#8556ed", "#20a58e", "#8e92a5"],
+    colors: [dark ? '#ae94f3' : '#6e4bcc', dark ? '#82d9af' : '#217457', dark ? '#a0aabd' : '#697386'],
     stroke: { width: [3, 3, 2], curve: "straight", dashArray: [0, 0, 5] },
     markers: { size: 3, hover: { sizeOffset: 2 } },
     grid: { borderColor: dark ? "#303036" : "#ececf0", strokeDashArray: 4 },
@@ -152,10 +151,16 @@ export function DashboardCharts({
     dataLabels: { enabled: false },
   };
   return (
-    <>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+    <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-card" aria-label="Performance analysis">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold">Performance</h2>
+        <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5" role="group" aria-label="Performance view">
+          {([{id:'daily',label:'Selected period'},{id:'monthly',label:'Monthly history'}] as const).map(option=><button key={option.id} type="button" aria-pressed={view===option.id} onClick={()=>setView(option.id)} className={`min-h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary ${view===option.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{option.label}</button>)}
+        </div>
+      </header>
+      {view==='daily' ? <div className="px-4 pb-4">
           <ManagedGmvChart
+            embedded
             key={metric}
             data={points}
             label={selected.label}
@@ -178,20 +183,10 @@ export function DashboardCharts({
               </div>
             }
           />
-        </div>
-        {share}
-      </div>
-      <section
-        className="rounded-2xl border border-border bg-card px-4 py-4 sm:px-5"
-        aria-label="Monthly performance"
-      >
-        <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold">Month over month</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              GMV and managed contribution
-            </p>
-          </div>
+          {error && <p role="alert" className="mt-3 text-xs text-muted-foreground">Additional chart metrics could not be loaded. <button type="button" className="font-medium text-primary underline" onClick={()=>setRetry(value=>value+1)}>Retry</button></p>}
+        </div> : <div className="px-4 py-3" aria-label="Monthly performance">
+        <header className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">GMV and managed contribution by month</p>
           <div className="flex items-center gap-2">
             <InfoTooltip label="Dollar values use the left axis; managed share uses the right axis. An asterisk marks a partial month or missing daily records. Share is managed GMV divided by total GMV, not an average of daily percentages." />
             <ChoiceMenu
@@ -270,7 +265,7 @@ export function DashboardCharts({
             </details>
           </>
         )}
-      </section>
-    </>
+      </div>}
+    </section>
   );
 }

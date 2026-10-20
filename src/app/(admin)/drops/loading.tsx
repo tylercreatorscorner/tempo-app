@@ -5,13 +5,11 @@ export default function Loading() {
   return (
     <div className="space-y-4">
       <PageHeaderSkeleton />
-      {/* Control bar */}
-      <Skeleton className="h-[92px] rounded-xl" />
-      {/* The board itself */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-[340px] rounded-xl" />
-        ))}
+      <div className="grid items-start gap-4 md:grid-cols-[260px_minmax(0,1fr)]">
+        <Skeleton className="h-[300px] rounded-xl"/>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {Array.from({length:6},(_,i)=><Skeleton key={i} className="h-28 rounded-xl"/>)}
+        </div>
       </div>
     </div>
   );

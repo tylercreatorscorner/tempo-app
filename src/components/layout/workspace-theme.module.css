@@ -28,9 +28,9 @@
   --sidebar-border: #e2e5eb;
   --sidebar-ring: #6e4bcc;
 
-  --workspace-page-gap: 24px;
-  --workspace-page-padding: 28px;
-  --workspace-page-max-width: 1600px;
+  --workspace-page-gap: 16px;
+  --workspace-page-padding: 20px;
+  --workspace-page-max-width: none;
   --workspace-surface-radius: 14px;
   --workspace-control-radius: 8px;
   --workspace-control-height: 38px;
@@ -121,7 +121,7 @@
 .workspace { display: flex; min-height: 100dvh; min-width: 0; background: var(--background); color: var(--foreground); -webkit-font-smoothing: antialiased; }
 .frame { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .main { flex: 1; min-width: 0; outline: none; }
-.content { width: 100%; min-width: 0; max-width: var(--workspace-page-max-width); margin-inline: auto; padding: var(--workspace-page-gap) var(--workspace-page-padding) 40px; }
+.content { width: 100%; min-width: 0; max-width: var(--workspace-page-max-width); margin-inline: auto; padding: var(--workspace-page-gap) var(--workspace-page-padding) 28px; }
 .banners { padding-inline: var(--workspace-page-padding); }
 .banners:not(:empty) { padding-top: 16px; }
 .skipLink { position: fixed; left: 16px; top: 8px; z-index: 150; transform: translateY(-150%); padding: 10px 16px; border-radius: var(--workspace-control-radius); background: var(--primary); color: var(--primary-foreground); font-size: 14px; font-weight: 600; }
@@ -179,7 +179,7 @@
   .tenantLabel, .tenantLabel + .breadcrumbSeparator { display: none; }
 }
 @media (max-width: 767px) {
-  :global(body):has(.workspace) { --workspace-page-padding: 16px; --workspace-page-gap: 20px; }
+  :global(body):has(.workspace) { --workspace-page-padding: 14px; --workspace-page-gap: 16px; }
   .content { padding-bottom: 28px; }
   .header { gap: 8px; padding-inline: 12px; }
   .headerLead { gap: 8px; }

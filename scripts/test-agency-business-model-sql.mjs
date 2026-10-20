@@ -102,4 +102,39 @@ assert.equal(pending.revision, 2);
 assert.equal(pending.terms[0].tierCalculation, 'unconfirmed');
 await db.exec('reset role');
 
+// Historical is optional for older API clients. It must never be lost on their next save.
+const historicalMigration = readdirSync('supabase/migrations').find(name => name.endsWith('_agency_business_historical_clients.sql'));
+assert.ok(historicalMigration);
+assert.equal((await list()).find(row => row.id === first.id).historical, undefined, 'existing immutable snapshots remain unchanged');
+await db.exec(readFileSync(`supabase/migrations/${historicalMigration}`, 'utf8'));
+for (const role of ['anon', 'authenticated']) {
+  await db.exec(`set role ${role}`);
+  await assert.rejects(save({ ...draft, historical: true }), /permission denied/);
+  await db.exec('reset role');
+}
+await db.exec('set role service_role');
+const historicalDraft = { ...draft, name: 'Past agreement', brandIds: [], serviceStart: null, historical: true };
+for (const historical of [null, 'true', 'false', 0, 1, {}, []]) await assert.rejects(save({ ...historicalDraft, historical }), /Invalid agency/);
+await assert.rejects(save(historicalDraft, id(1), id(22)), /Invalid agency scope/);
+const archived = await save(historicalDraft);
+assert.equal(archived.historical, true);
+assert.equal(archived.serviceStart, null);
+assert.equal(archived.serviceEnd, null);
+assert.deepEqual(archived.terms, []);
+const oldWriterDraft = { ...historicalDraft }; delete oldWriterDraft.historical;
+const retainedArchive = await save({ ...oldWriterDraft, id: archived.id, expectedRevision: 1, name: 'Past agreement, renamed' });
+assert.equal(retainedArchive.historical, true, 'an older caller cannot silently reactivate a saved historical agreement');
+assert.equal(retainedArchive.revision, 2);
+await assert.rejects(save({ ...oldWriterDraft, id: archived.id, expectedRevision: 1 }), /changed/);
+const reactivated = await save({ ...oldWriterDraft, id: archived.id, expectedRevision: 2, historical: false });
+assert.equal(reactivated.historical, false, 'explicit false is required to reactivate');
+assert.equal(reactivated.serviceStart, null, 'reactivation does not invent unknown dates');
+const legacyWriter = await save({ ...oldWriterDraft, name: 'Legacy writer new client' });
+assert.equal(legacyWriter.historical, false, 'new clients from older callers default to current');
+const legacyRevision = await save({ ...tieredDraft, id: pending.id, expectedRevision: pending.revision });
+assert.equal(legacyRevision.historical, false, 'existing snapshots without the flag retain current behavior');
+assert.equal((await list()).find(row => row.id === archived.id).historical, false);
+await db.exec('reset role');
+assert.equal((await db.query("select prosecdef from pg_proc where oid='agency_business_save_client(uuid,uuid,jsonb)'::regprocedure")).rows[0].prosecdef, false);
+console.log('PASS historical agency SQL: optional strict boolean, immutable legacy snapshots, old-writer preservation, explicit reactivation, empty terms/unknown dates, scope and CAS');
 await db.close();

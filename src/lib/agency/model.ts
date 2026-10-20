@@ -12,6 +12,8 @@ export type ClientRecord = {
   id: string;
   revision: number;
   name: string;
+  /** Past agreements stay on file without implying unknown service dates. Missing means false. */
+  historical?: boolean;
   brandIds: string[];
   serviceStart: string | null;
   serviceEnd: string | null;
@@ -41,6 +43,9 @@ export function isAgencyDate(value: unknown): value is string {
   const parsed = new Date(`${value}T00:00:00Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
+function hasRecordedServicePeriod(client: ClientRecord): boolean {
+  return isAgencyDate(client.serviceStart) && isAgencyDate(client.serviceEnd) && client.serviceStart <= client.serviceEnd;
+}
 export function agencyMonthBounds(month: string): { start: string; end: string } {
   if (!/^(19|20|21)\d{2}-(0[1-9]|1[0-2])$/.test(month)) fail("Invalid effective month.");
   const [year, part] = month.split("-").map(Number);
@@ -52,11 +57,12 @@ function decimal(value: unknown, maximum: number, label: string): number {
   return value as number;
 }
 export function validateClientSaveInput(input: unknown): ClientSaveInput {
-  const row = object(input, ["id", "expectedRevision", "name", "brandIds", "serviceStart", "serviceEnd", "exitReason", "terms"], "client");
+  const row = object(input, ["id", "expectedRevision", "name", "historical", "brandIds", "serviceStart", "serviceEnd", "exitReason", "terms"], "client");
   if (row.id !== undefined && (typeof row.id !== "string" || !uuid.test(row.id))) fail("Invalid client ID.");
   if (!Number.isSafeInteger(row.expectedRevision) || (row.expectedRevision as number) < 0 || (row.expectedRevision as number) > 2147483646 ||
     (row.id === undefined && row.expectedRevision !== 0) || (row.id !== undefined && row.expectedRevision === 0)) fail("Invalid expected revision.");
   if (typeof row.name !== "string" || !row.name.trim() || row.name.trim().length > 200) fail("Client name must contain 1–200 characters.");
+  if (row.historical !== undefined && typeof row.historical !== "boolean") fail("Invalid historical client flag.");
   if (!Array.isArray(row.brandIds) || row.brandIds.length > 100 || row.brandIds.some(id => typeof id !== "string" || !brandUuid.test(id))) fail("Invalid brand IDs.");
   const brandIds = (row.brandIds as string[]).map(id => id.toLowerCase());
   if (new Set(brandIds).size !== brandIds.length) fail("Brand IDs must be unique.");
@@ -96,7 +102,7 @@ export function validateClientSaveInput(input: unknown): ClientSaveInput {
   }).sort((a, b) => a.effectiveMonth.localeCompare(b.effectiveMonth));
   if (new Set(terms.map(term => term.effectiveMonth)).size !== terms.length) fail("Each effective month must be unique.");
   return { ...(row.id ? { id: (row.id as string).toLowerCase() } : {}), expectedRevision: row.expectedRevision as number,
-    name: (row.name as string).trim(), brandIds, serviceStart: start, serviceEnd: end,
+    name: (row.name as string).trim(), ...(row.historical !== undefined ? { historical: row.historical as boolean } : {}), brandIds, serviceStart: start, serviceEnd: end,
     exitReason: typeof row.exitReason === "string" ? row.exitReason.trim() : null, terms };
 }
 export function selectMonthTerms(terms: AgencyTerms[], month: string): AgencyTerms | null {
@@ -119,6 +125,7 @@ export function calculateServiceRevenue(input: {
   let { gmvCents, gmvComplete } = input;
   const bounds = agencyMonthBounds(month), terms = selectMonthTerms(client.terms, month);
   const unavailable = (status: ServiceRevenueResult["status"]): ServiceRevenueResult => ({ status, revenueCents: null, retainerCents: null, shareCents: null, terms });
+  if (client.historical && !hasRecordedServicePeriod(client)) return unavailable("outside_service");
   if (!client.serviceStart) return unavailable("needs_lifecycle");
   if (client.serviceStart > bounds.end || (client.serviceEnd && client.serviceEnd < bounds.start)) return unavailable("outside_service");
   if (!terms) return unavailable("needs_setup");
@@ -167,7 +174,8 @@ export type ClientRetention = { opening: number; retained: number; churned: numb
 /** Opening excludes this month's starts. Recorded ends are exits during that month, including its last day. */
 export function summarizeClientRetention(clients: ClientRecord[], month: string): ClientRetention {
   const { start, end } = agencyMonthBounds(month);
-  const verified = clients.filter(client => client.serviceStart && isAgencyDate(client.serviceStart) && (!client.serviceEnd || isAgencyDate(client.serviceEnd)));
+  const current = clients.filter(client => !client.historical || hasRecordedServicePeriod(client));
+  const verified = current.filter(client => client.serviceStart && isAgencyDate(client.serviceStart) && (!client.serviceEnd || isAgencyDate(client.serviceEnd)));
   const opening = verified.filter(client => client.serviceStart! < start && (!client.serviceEnd || client.serviceEnd >= start));
   const retained = opening.filter(client => !client.serviceEnd || client.serviceEnd > end);
   const cohortMonths = [...new Set(opening.map(client => client.serviceStart!.slice(0, 7)))].sort();
@@ -180,7 +188,7 @@ export function summarizeClientRetention(clients: ClientRecord[], month: string)
   return { opening: opening.length, retained: retained.length, churned: opening.length - retained.length,
     exitedClients: verified.filter(client => client.serviceEnd && client.serviceEnd >= start && client.serviceEnd <= end).length,
     newClients: verified.filter(client => client.serviceStart! >= start && client.serviceStart! <= end).length,
-    missingLifecycle: clients.length - verified.length, retentionRate: opening.length ? retained.length / opening.length : null,
+    missingLifecycle: current.length - verified.length, retentionRate: opening.length ? retained.length / opening.length : null,
     churnRate: opening.length ? (opening.length - retained.length) / opening.length : null, cohorts };
 }
 
@@ -213,7 +221,8 @@ export function summarizeTenureGrowth(
   const [year, part] = month.split("-").map(Number);
   const priorMonth = new Date(Date.UTC(year, part - 2, 1)).toISOString().slice(0, 7);
   const priorStart = `${priorMonth}-01`;
-  const verified = clients.filter(client => client.serviceStart && isAgencyDate(client.serviceStart) && (!client.serviceEnd || isAgencyDate(client.serviceEnd)));
+  const current = clients.filter(client => !client.historical || hasRecordedServicePeriod(client));
+  const verified = current.filter(client => client.serviceStart && isAgencyDate(client.serviceStart) && (!client.serviceEnd || isAgencyDate(client.serviceEnd)));
   const active = verified.filter(client => client.serviceStart! <= end && (!client.serviceEnd || client.serviceEnd >= start));
   const cohorts = (["1-3", "4-6", "7-12", "13+"] as const).map(key => {
     const members = active.filter(client => {
@@ -244,5 +253,5 @@ export function summarizeTenureGrowth(
       currentGmvCents, priorGmvCents,
       growthRate: currentGmvCents !== null && priorGmvCents !== null && priorGmvCents > 0 ? (currentGmvCents - priorGmvCents) / priorGmvCents : null };
   });
-  return { missingLifecycle: clients.length - verified.length, cohorts };
+  return { missingLifecycle: current.length - verified.length, cohorts };
 }

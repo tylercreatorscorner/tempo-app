@@ -26,6 +26,7 @@ import { TableSkeleton } from '@/components/ui/page-skeletons';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ReportActions } from './report-actions';
 import { BrandIdentity } from '@/components/creators/brand-identity';
+import styles from './workspace.module.css';
 
 export interface ReportingBrandRow {
   slug: string;
@@ -134,23 +135,19 @@ export function BrandTable({
   const readyCount = (rows ?? []).filter(isReportable).length;
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-bold tracking-tight text-foreground">Brands</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Choose a brand to prepare its next update.</p>
-        </div>
-        <SearchInput aria-label="Search reporting brands" placeholder="Find a brand" onClear={() => setQuery('')} value={query} onChange={event => setQuery(event.target.value)} />
-      </div>
-      {rows && <div className="flex flex-wrap gap-1.5" role="group" aria-label="Reporting readiness">
+    <section className={styles.reportDirectory} aria-label="Client reporting brands">
+      <div className={styles.tableToolbar}>
+      <div className={styles.readinessFilters} role="group" aria-label="Reporting readiness">
         {([
-          ['all', 'All brands', rows.length],
+          ['all', 'All brands', rows?.length ?? null],
           ['ready', 'Can prepare', readyCount],
-          ['review', 'Check data', rows.length - readyCount],
-        ] as const).map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn('rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary', filter === value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-secondary')}>
-          {label}<span className="ml-2 tabular-nums opacity-70">{count}</span>
+          ['review', 'Check data', rows ? rows.length - readyCount : null],
+        ] as const).map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={styles.filterButton}>
+          {label}{rows && <span className="ml-2 tabular-nums opacity-70">{count}</span>}
         </button>)}
-      </div>}
+      </div>
+      <SearchInput className={styles.search} aria-label="Search reporting brands" placeholder="Find a brand" onClear={() => setQuery('')} value={query} onChange={event => setQuery(event.target.value)} />
+      </div>
 
       {error && rows !== null && (
         <div className="flex items-start gap-2 rounded-lg bg-[var(--pulse-warn-bg)] px-3 py-2 text-xs text-[var(--pulse-warn)]">
@@ -180,7 +177,7 @@ export function BrandTable({
           description="No brand in your scope has reportable data yet."
         />
       ) : (
-        <TableCard className="relative">
+        <TableCard className={`${styles.tableCard} relative`}>
           <TableLoadBar active={showBar} />
           <div className={showBar ? 'opacity-60 transition-opacity duration-200' : ''}>
             <div className="overflow-x-auto">

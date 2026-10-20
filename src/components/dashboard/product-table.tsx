@@ -14,19 +14,16 @@ interface Props {
 }
 
 function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 text-white text-xs font-bold shadow-sm">1</span>;
-  if (rank === 2) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 text-white text-xs font-bold">2</span>;
-  if (rank === 3) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white text-xs font-bold">3</span>;
-  return <span className="text-muted-foreground text-sm tabular-nums">{rank}</span>;
+  return <span className="text-xs font-medium tabular-nums text-muted-foreground">{rank}</span>;
 }
 
 export function ProductTable({ products, csvButton }: Props) {
   return (
-    <div className="rounded-2xl overflow-hidden bg-card border border-border shadow-sm">
-      <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+    <div className="rounded-xl overflow-hidden bg-card border border-border">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold tracking-tight text-[var(--foreground)]">Top Products</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Ranked by GMV</p>
+          <h3 className="text-sm font-semibold text-foreground">Product performance</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Ranked by GMV in the selected period</p>
         </div>
         {csvButton}
       </div>
@@ -34,11 +31,11 @@ export function ProductTable({ products, csvButton }: Props) {
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr className="border-b border-border text-muted-foreground">
-              <th className="px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
-              <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Product</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Items</th>
+              <th className="px-4 py-3 text-left font-medium text-[11px] w-12">#</th>
+              <th className="px-4 py-3 text-left font-medium text-[11px]">Product</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px]">GMV</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px]">Orders</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px] pr-6">Items</th>
             </tr>
           </thead>
           <tbody>
@@ -47,13 +44,13 @@ export function ProductTable({ products, csvButton }: Props) {
                 'border-b border-border transition-all duration-200',
                 'hover:bg-muted',
               )}>
-                <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
-                <td className="px-4 py-3.5 font-medium max-w-xs truncate text-[var(--foreground)]">
+                <td className="px-4 py-2.5"><RankBadge rank={i + 1} /></td>
+                <td className="px-4 py-2.5 font-medium max-w-xs truncate text-[var(--foreground)]">
                   {p.product_name}
                 </td>
-                <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(p.total_gmv)}</td>
-                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">{formatNumber(p.total_orders)}</td>
-                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums pr-6">{formatNumber(p.total_items_sold)}</td>
+                <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(p.total_gmv)}</td>
+                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(p.total_orders)}</td>
+                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums pr-6">{formatNumber(p.total_items_sold)}</td>
               </tr>
             ))}
             {products.length === 0 && (

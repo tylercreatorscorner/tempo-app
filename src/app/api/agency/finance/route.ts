@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       if (error.code === '23505') return reply({ error: 'An active invoice already exists for this client and service month.' }, 409);
       if (error.message.includes('revision conflict')) return reply({ error: 'This record changed. Reload and review before trying again.' }, 409);
+      if (error.message === 'Invalid historical finance client') return reply({ error: 'Past agreements cannot create or issue invoices. Reactivate the client before continuing.' }, 400);
       if (/Invalid |Unknown /.test(error.message)) return reply({ error: 'Check the dates, manager assignment, and current invoice status.' }, 400);
       return reply({ error: 'Finance changes could not be saved.' }, 503);
     }

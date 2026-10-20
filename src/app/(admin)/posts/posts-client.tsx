@@ -406,7 +406,7 @@ export function PostsClient({
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         eyebrow="Content"
         title="Video performance"
@@ -462,7 +462,9 @@ export function PostsClient({
         </div>
       )}
 
-      <section className="rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card px-4 py-4 shadow-sm sm:px-5" aria-label="Find videos">
+      <TableCard className="relative">
+        <TableLoadBar active={showBar} />
+      <section className="border-b border-border px-4 py-3" aria-label="Find videos">
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[180px] flex-1 text-xs font-semibold text-foreground sm:max-w-72">
             Search videos
@@ -482,33 +484,26 @@ export function PostsClient({
                 description: bucket.value === 'all' || loading ? undefined : `${ageStats.get(bucket.value)?.videos ?? 0} videos · ${formatCurrency(ageStats.get(bucket.value)?.gmv ?? 0)} GMV`,
               }))} /></div>
           </div>
+          <ReviewFilterPills active={reviewFilter} onChange={setReviewFilter} totals={data?.totals} />
           {hasTableFilters && <Button variant="ghost" size="sm" className="h-9" onClick={() => { setSearch(''); setCreator(''); setAge('all'); setReviewFilter('all'); }}><X className="h-3.5 w-3.5" /> Clear</Button>}
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">Video age is measured at the end of the selected sales window. The sales shown were earned inside that window.</p>
+        <details className="mt-2 text-xs text-muted-foreground"><summary className="cursor-pointer py-1">About video age</summary><p className="pb-1 pt-1 leading-relaxed">Video age is measured at the end of the selected sales window. The sales shown were earned inside that window.</p></details>
         {hasTableFilters && !loading && data && <div role="status" className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-border pt-3 text-sm">
           <strong className="font-semibold text-foreground">{formatNumber(visiblePosts.length)} videos · {formatCurrency(filteredGmv)} video GMV</strong>
           <span className="text-xs text-muted-foreground">Filters: {filterDescription}. Overview above remains the full brand, date and creator scope.</span>
         </div>}
       </section>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <ReviewFilterPills active={reviewFilter} onChange={setReviewFilter} totals={data?.totals} />
+      <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <p className="text-xs text-muted-foreground">{metricsView === 'sales' ? 'Sales earned in the selected window' : 'Audience activity in the selected window'}</p>
         <div className="flex items-center gap-2">
+          <span className="mr-auto text-xs tabular-nums text-muted-foreground lg:mr-1">{formatNumber(visiblePosts.length)} results</span>
           <SegmentedControl ariaLabel="Table metrics" size="sm" value={metricsView} onValueChange={v => setMetricsView(v as MetricsView)}
             options={[{ value: 'sales', label: 'Sales' }, { value: 'engagement', label: 'Engagement' }]} />
           <Button variant="outline" size="sm" onClick={downloadCsv} disabled={!visiblePosts.length}><Download className="h-3.5 w-3.5" /> CSV</Button>
         </div>
       </div>
 
-      <TableCard className="relative">
-        <TableLoadBar active={showBar} />
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Videos</h2>
-            <p className="text-xs text-muted-foreground">{metricsView === 'sales' ? 'Orders, units and GMV earned in the selected window' : 'Audience activity recorded in the selected window'}</p>
-          </div>
-          <span className="text-xs tabular-nums text-muted-foreground">{formatNumber(visiblePosts.length)} results</span>
-        </div>
         <div className="space-y-0 md:hidden">
           {loading && !data ? <div className="px-5 py-10 text-center text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Loading videos...</div>
             : visiblePosts.length === 0 ? <PostsEmptyState reviewFilter={reviewFilter} filtered={Boolean(creator || search || age !== 'all')} />
@@ -835,7 +830,7 @@ function OverviewMetric({ label, value, prominent = false }: {
   prominent?: boolean;
 }) {
   return <div className="min-w-0 px-4 py-3 sm:px-5">
-    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+    <p className="text-xs font-medium text-muted-foreground">{label}</p>
     <p className={cn('mt-1 tabular-nums font-semibold tracking-tight text-foreground', prominent ? 'text-2xl' : 'text-xl')}>{value}</p>
   </div>;
 }

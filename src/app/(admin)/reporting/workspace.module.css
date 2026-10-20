@@ -1,5 +1,23 @@
 /* Reporting inherits the same surfaces and colors as every workspace page. */
-.workspace { width: 100%; min-width: 0; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; min-width: 0; }
 .workspace table thead { background: var(--secondary); }
 .workspace table th { padding-top: 12px; padding-bottom: 12px; }
 .workspace table td { font-variant-numeric: tabular-nums; }
+.viewNavigation { display: flex; align-items: center; gap: 3px; padding: 3px; max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 9px; background: var(--card); }
+.viewNavigation button, .viewNavigation a { display: inline-flex; align-items: center; min-height: 34px; padding: 7px 11px; border-radius: 6px; color: var(--muted-foreground); font-size: 13px; white-space: nowrap; }
+.viewNavigation button[aria-current] { background: var(--secondary); color: var(--foreground); font-weight: 600; }
+.viewNavigation button:hover, .viewNavigation a:hover { background: var(--secondary); color: var(--foreground); }
+.reportDirectory { min-width: 0; border: 1px solid var(--border); border-radius: var(--workspace-surface-radius, 12px); background: var(--card); }
+.tableToolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.readinessFilters { display: flex; flex-wrap: wrap; gap: 3px; }
+.filterButton { min-height: 34px; padding: 7px 10px; border-radius: 6px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
+.filterButton[aria-pressed=true] { color: var(--primary); background: var(--accent); }
+.filterButton:hover { background: var(--secondary); color: var(--foreground); }
+.search { width: min(100%, 260px); }
+.tableCard { border: 0; border-radius: 0 0 var(--workspace-surface-radius, 12px) var(--workspace-surface-radius, 12px); box-shadow: none; }
+.reportDirectory table td { padding-top: 12px; padding-bottom: 12px; }
+.composeWorkspace { display: grid; gap: 12px; min-width: 0; width: 100%; }
+.composeWorkspace > button { justify-self: start; }
+.workspace button:focus-visible, .workspace a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (max-width: 650px) { .viewNavigation { width: 100%; }.viewNavigation button, .viewNavigation a { min-height: 44px; padding-inline: 10px; font-size: 12px; }.tableToolbar { align-items: stretch; }.search { width: 100%; }.readinessFilters { flex-wrap: nowrap; justify-content: space-between; width: 100%; }.filterButton { min-height: 44px; padding-inline: 8px; } }
+@media (pointer: coarse) { .filterButton, .viewNavigation button, .viewNavigation a { min-height: 44px; } }

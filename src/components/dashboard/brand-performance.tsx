@@ -119,7 +119,7 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
       </CardHeader>
 
       <div className="overflow-x-auto" role="region" aria-label="Brand performance metrics" tabIndex={0}>
-      <div className="min-w-[820px]">
+      <div className="min-w-[760px]">
       {/* Column headers — each metric header hover-explains itself */}
       <div className={`${COLS} border-b border-border px-5 py-2`}>
         <span className={TH}>Brand</span>
