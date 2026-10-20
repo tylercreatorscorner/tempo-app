@@ -30,6 +30,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/agency': 'Agency overview',
   '/agency/clients': 'Agency · Clients',
   '/agency/revenue': 'Agency · Revenue',
+  '/agency/finance': 'Agency · Client finance',
   '/agency/reports': 'Agency · Reports',
   '/': 'Dashboard',
   '/dashboard': 'Dashboard',

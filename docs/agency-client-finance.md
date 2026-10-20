@@ -1,0 +1,35 @@
+# Agency client finance
+
+Agency leadership can open **Agency / Client finance** to configure each client, store signed PDF contracts, prepare agency receivables, and forecast collections. The existing client editor remains the source of truth for linked brands, service dates, and effective agency fee terms.
+
+## Setup and operating flow
+
+1. Create a client in Agency / Clients and link its brands. Set service dates and agency fees.
+2. In Client finance, enter the client legal entity, accounts payable details, issuing agency details, and payment instructions. Currency is USD. Billing is monthly in arrears; invoice day, net terms, and expected collection delay are separate fields.
+3. Assign a manager with an effective month, managed-GMV percentage, and fixed monthly amount. Pay is due seven calendar days after full collection. Add a later effective arrangement for a change; historical invoice snapshots retain their prior terms.
+4. Store signed PDFs (up to 4 MB). Record the signed date, campaign start, renewal date, notice period, and auto-renewal status. Optional AI reading sends the PDF to the existing Tempo-managed Anthropic integration. It returns quoted suggestions and uncertainties. Leadership reviews the source and manually enters approved terms. Extraction does not execute document instructions or apply financial changes.
+5. Enter explicit monthly GMV estimates for forecasting. Missing estimates and incomplete setup are reported, never silently treated as zero.
+6. Prepare an invoice for a completed month. The server loads the current agency agreement, finance settings, and complete managed GMV for every linked brand. Partial service months and incomplete GMV are blocked for review. Drafts capture the fee calculation, billing details, manager arrangement, GMV, dates, and source revisions.
+7. Review and mark issued, print/save the client-facing PDF, and record full collection when received. Issuing does not email the invoice. Record manager payment separately after it is made. No action transfers funds.
+
+## Forecast rules
+
+The 13-week forecast uses rolling seven-day buckets from today in America/Chicago. Open invoices (including explicitly labeled drafts) replace estimates for the same client/month. Paid invoices contribute no future receipt, but unpaid manager obligations remain. Manager pay dates use actual collection where available; scenario delay changes only uncollected amounts. Overdue obligations appear in the first bucket. The detail schedule preserves dates outside the horizon, excluded from totals. Net cash is before overhead and is not profit or a bank balance.
+
+Future fees use recorded effective terms and explicit monthly GMV estimates. No automatic proration, growth extrapolation, or unverified contract interpretation is used. The schedule includes the prior unbilled month and current/next three service months. Older unbilled periods need invoice preparation to enter the schedule.
+
+## Boundaries
+
+This adds agency client receivables; historical individual-payee invoices remain in the existing Finance / Invoicing system and are not included in these forecast totals. Existing issued invoices and earnings are not migrated or recalculated. Only full collections and full manager payments are recorded in this first release; split receipts, refunds, taxes, credits, multiple simultaneous managers, and non-USD billing require a later extension. A manager selected here is a finance pay arrangement; it does not grant brand access or change user permissions.
+
+The PDF is an authenticated print view with client billing and agency fee amounts only. Internal manager compensation is not rendered. Issuing-agency identity, address, and payment instructions must be configured before invoice preparation. The invoice date is the draft preparation date and is visible for review; void and prepare again to replace a draft or uncollected invoice.
+
+## Access and integrity
+
+All routes require the existing agency leadership guard (owner/admin, all-brand reach, finance visibility, reporting/earnings permissions, and no impersonation). Writes also require earnings configuration permission and a same-origin request. Every privileged query uses the trusted workspace tenant. Contracts live in a private bucket with no public/authenticated object policy. Download URLs expire after 60 seconds and are issued only after an authorized tenant-scoped lookup.
+
+Finance writes serialize with client agreement saves using the same tenant advisory lock. Settings and invoice state changes use optimistic revisions. Invoice creation checks both source revisions under the lock. A partial unique index prevents two active invoices per client/month. Invoice states are draft, issued, paid, or void; paid invoices cannot be voided, and manager payment cannot precede collection. Every finance write appends an immutable audit snapshot. User-facing errors exclude database and provider internals.
+
+## Validation
+
+`npm run test:agency` includes financial model and PGlite database tests covering exact-cent calculations, effective terms, partial months, duplicate invoice prevention, tenant/actor/manager ownership, revision conflicts, transitions, audit immutability, forecast replacement, paid/overdue handling, and seven-day payouts. `node scripts/preview-agency-finance.mjs` provides a local fictional UI fixture with no production requests. Run typecheck and agency lint before release.

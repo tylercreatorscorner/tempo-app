@@ -1,0 +1,14 @@
+import { createRoot } from 'react-dom/client';
+import { AgencyFinanceWorkspace } from '../../src/app/(admin)/agency/finance/workspace';
+import { buildInvoice, emptyFinanceSettings } from '../../src/lib/agency/finance-model';
+import type { ClientRecord } from '../../src/lib/agency/model';
+const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const client: ClientRecord = { id: id(1), revision: 1, name: 'Northstar Beauty', brandIds: [id(3)], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 3000, revSharePercent: 5, feeModel: 'additive' }] };
+const record = { client_id: client.id, revision: 1, settings: { ...emptyFinanceSettings(), agencyName: 'Example Agency LLC', agencyAddress: '200 Example Avenue', paymentInstructions: 'Use the agreed bank transfer reference.', legalName: 'Northstar Beauty LLC', billingEmail: 'billing@example.com', billingAddress: '100 Example Street\nNew York, NY', signedDate: '2026-01-01', renewalDate: '2027-01-01', noticeDays: 30, managerTerms: [{ managerId: id(2), effectiveMonth: '2026-01', fixedMonthly: 500, gmvPercent: 1, payoutDays: 7 as const }], forecastGmv: ['2026-10', '2026-11', '2026-12'].map(month => ({ month, amount: 120000 })) } };
+const data = { clients: [client], settings: [record], managers: [{ user_id: id(2), name: 'Jordan Example' }], invoices: [{ id: id(5), client_id: client.id, month: '2026-09', revision: 1, status: 'issued', snapshot: buildInvoice(client, record, '2026-09', 10000000, '2026-10-01'), collected_on: null, manager_paid_on: null }], contracts: [{ id: id(6), client_id: client.id, name: 'Northstar signed agreement.pdf', created_at: '2026-01-01', extraction: { findings: [{ field: 'Renewal date', value: 'January 1, 2027', quote: 'The initial term ends on January 1, 2027.', page: 2 }], uncertainties: ['Confirm whether automatic renewal applies.'] } }], canEdit: true, extractionAvailable: true };
+window.fetch = async (url, init) => {
+  if (String(url).includes('/api/agency/business')) return Response.json({ clients: [client], brands: [{ id: id(3), name: client.name, slug: 'example' }], performance: [], month: '2026-09', storageReady: true, canEdit: true });
+  if (init?.method === 'POST') { const body = JSON.parse(String(init.body)); if (body.action === 'settings') { record.settings = body.settings; record.revision++; return Response.json(record); } return Response.json({ error: 'Fixture: this action is disabled.' }, { status: 400 }); }
+  return Response.json(data);
+};
+createRoot(document.getElementById('root')!).render(<AgencyFinanceWorkspace />);

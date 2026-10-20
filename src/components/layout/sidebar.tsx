@@ -38,9 +38,10 @@ const PRIMARY: Dest[] = [
 ];
 
 const AGENCY: Dest[] = [
-  { href: '/agency', label: 'Overview', icon: LayoutDashboard, match: ['/agency'], exclude: ['/agency/clients', '/agency/revenue', '/agency/reports'] },
+  { href: '/agency', label: 'Overview', icon: LayoutDashboard, match: ['/agency'], exclude: ['/agency/clients', '/agency/revenue', '/agency/reports', '/agency/finance'] },
   { href: '/agency/clients', label: 'Clients', icon: Building2, match: ['/agency/clients'] },
   { href: '/agency/revenue', label: 'Revenue', icon: Wallet, match: ['/agency/revenue'] },
+  { href: '/agency/finance', label: 'Client finance', icon: Wallet, match: ['/agency/finance'] },
   { href: '/agency/reports', label: 'Reports', icon: FileBarChart, match: ['/agency/reports'] },
 ];
 
