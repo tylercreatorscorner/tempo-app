@@ -1,3 +1,4 @@
+import { PortalMobileSort } from '@/components/layout/portal-mobile-sort';
 import { PortalMetricStrip } from '@/components/layout/portal-metric-strip';
 import portal from '@/components/layout/portal-workspace.module.css';
 import { Search, ExternalLink, TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -139,9 +140,10 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
 
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3">
-          <SearchBox initialQuery={params.q ?? ''} period={period} />
+          <SearchBox initialQuery={params.q ?? ''} period={period} sort={sortColumn} direction={sortDir} />
           <PeriodTabs current={period} accentColor={accent} />
         </div>
+        <PortalMobileSort options={[{value:'title',label:'Video',asc:buildHref({sort:'title',dir:'asc'}),desc:buildHref({sort:'title',dir:'desc'})},{value:'creator',label:'Creator',asc:buildHref({sort:'creator',dir:'asc'}),desc:buildHref({sort:'creator',dir:'desc'})},{value:'date',label:'Posting date',asc:buildHref({sort:'date',dir:'asc'}),desc:buildHref({sort:'date',dir:'desc'})},{value:'views',label:'Views',asc:buildHref({sort:'views',dir:'asc'}),desc:buildHref({sort:'views',dir:'desc'})},{value:'gmv',label:'Period GMV',asc:buildHref({sort:'gmv',dir:'asc'}),desc:buildHref({sort:'gmv',dir:'desc'})},{value:'change',label:'Change from prior',asc:buildHref({sort:'change',dir:'asc'}),desc:buildHref({sort:'change',dir:'desc'})},{value:'orders',label:'Orders',asc:buildHref({sort:'orders',dir:'asc'}),desc:buildHref({sort:'orders',dir:'desc'})},{value:'lifetime_gmv',label:'Lifetime GMV',asc:buildHref({sort:'lifetime_gmv',dir:'asc'}),desc:buildHref({sort:'lifetime_gmv',dir:'desc'})}]} active={sortColumn} direction={sortDir} />
         {visible.length === 0 ? (
           <p className="text-sm text-muted-foreground px-4 py-12 text-center">
             {data.videos.length === 0
@@ -151,9 +153,9 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table role="table" className={`${portal.recordTable} w-full text-sm`} aria-label="Tracked videos">
                 <thead>
-                  <tr className="bg-muted/30">
+                  <tr className={`${portal.desktopHeaders} bg-muted/30`}>
                     <SortableHeader
                       label="Video"
                       column="title"
@@ -224,6 +226,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                     />
                     <th className="w-8"></th>
                   </tr>
+                  <tr className={portal.phoneHeaders}><th scope="col">Video</th><th scope="col">Creator</th><th scope="col">Posted</th><th scope="col">Views</th><th scope="col">Period GMV</th><th scope="col">Change from prior</th><th scope="col">Orders</th><th scope="col">Lifetime GMV</th><th scope="col">Open on TikTok</th></tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
                   {visible.map((v) => {
@@ -234,7 +237,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                       resolveWatchUrl(v.url, v.creatorHandle, v.videoId) ?? undefined;
                     return (
                       <tr key={v.videoId} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-2.5">
+                        <td data-label="Video" className="px-4 py-2.5">
                           <a
                             href={href}
                             target="_blank"
@@ -244,7 +247,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                           >
                             {v.title}
                           </a>
-                          <p className="text-xs text-muted-foreground mt-0.5 sm:hidden">
+                          <p className="hidden text-xs text-muted-foreground mt-0.5">
                             @{v.creatorHandle}
                             {v.postDate && (
                               <>
@@ -254,30 +257,30 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                             )}
                           </p>
                         </td>
-                        <td className="px-3 py-2.5 hidden sm:table-cell">
+                        <td data-label="Creator" className="px-3 py-2.5 hidden sm:table-cell">
                           <span className="text-sm" style={{ color: 'var(--brand-ink)' }}>
                             @{v.creatorHandle}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 hidden md:table-cell text-muted-foreground text-xs">
+                        <td data-label="Posted" className="px-3 py-2.5 hidden md:table-cell text-muted-foreground text-xs">
                           {v.postDate ? fmtDate(v.postDate) : '—'}
                         </td>
-                        <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
+                        <td data-label="Views" className="text-right px-3 py-2.5 tabular-nums text-foreground">
                           {v.impressions > 0 ? fmtCompact(v.impressions) : <span className="text-muted-foreground">—</span>}
                         </td>
-                        <td className="text-right px-3 py-2.5 tabular-nums font-medium">
+                        <td data-label="Period GMV" className="text-right px-3 py-2.5 tabular-nums font-medium">
                           {fmtCurrency(v.periodGmv)}
                         </td>
-                        <td className="text-right px-3 py-2.5">
+                        <td data-label="Change from prior" className="text-right px-3 py-2.5">
                           <ChangePill curr={v.periodGmv} prior={v.priorGmv} />
                         </td>
-                        <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
+                        <td data-label="Orders" className="text-right px-3 py-2.5 tabular-nums text-foreground">
                           {fmtNumber(v.periodOrders)}
                         </td>
-                        <td className="text-right px-4 py-2.5 tabular-nums text-muted-foreground hidden lg:table-cell">
+                        <td data-label="Lifetime GMV" className="text-right px-4 py-2.5 tabular-nums text-muted-foreground hidden lg:table-cell">
                           {fmtCurrency(v.lifetimeGmv)}
                         </td>
-                        <td className="text-right pr-3">
+                        <td className={`${portal.rowAction} text-right pr-3`}>
                           <a
                             href={href}
                             target="_blank"
@@ -285,7 +288,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                             className="text-muted-foreground hover:text-muted-foreground inline-flex"
                             aria-label="Open on TikTok"
                           >
-                            <ExternalLink className="h-4 w-4" />
+                            <span className={portal.phoneOnly}>Open on TikTok</span><ExternalLink className="h-4 w-4" />
                           </a>
                         </td>
                       </tr>
@@ -296,7 +299,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
             </div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-muted-foreground">
+              <div className={`${portal.pagination} flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-muted-foreground`}>
                 <span>
                   {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, sorted.length)} of {sorted.length}
                 </span>
@@ -407,15 +410,26 @@ function ChangePill({ curr, prior }: { curr: number; prior: number }) {
 function SearchBox({
   initialQuery,
   period,
+  sort,
+  direction,
 }: {
   initialQuery: string;
   period: BrandPortalPeriod;
+  sort: string;
+  direction: SortDir;
 }) {
   return (
     <form className="relative" method="GET">
       <input type="hidden" name="period" value={period} />
+      <input type="hidden" name="sort" value={sort} />
+      <input type="hidden" name="dir" value={direction} />
       <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       <input
+        type="search"
+        enterKeyHint="search"
+        autoCapitalize="none"
+        autoCorrect="off"
+        aria-label="Search videos"
         name="q"
         defaultValue={initialQuery}
         placeholder="Search videos…"

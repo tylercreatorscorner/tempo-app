@@ -1,0 +1,20 @@
+.directory { overflow-x: auto; }
+.directory table { min-width: 900px; }
+
+@media (max-width: 767px) {
+  .directory { overflow: visible; }
+  .directory table { display: block; min-width: 0; }
+  .directory thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .directory tbody { display: block; }
+  .directory tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .directory td { min-width: 0; padding: 8px 14px; border-bottom: 0; text-align: left; overflow-wrap: anywhere; }
+  .directory td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 5px; font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
+  .directory .member { padding-block: 8px; border-bottom: 1px solid var(--border); }
+  .directory .identity, .directory .actions, .directory td[colspan] { grid-column: 1 / -1; }
+  .directory .identity { padding-bottom: 4px; }
+  .directory .identity > div { align-items: flex-start; }
+  .directory .identity :global(.truncate) { white-space: normal; overflow-wrap: anywhere; }
+  .directory .actions > div { justify-content: flex-start; }
+  .directory button:not([role=switch]) { min-height: 44px; min-width: 44px; }
+  .directory .section td { padding-block: 10px; }
+}

@@ -14,6 +14,7 @@ import {
 } from "@/lib/data/dashboard-series-model";
 import { formatCurrency } from "@/lib/utils/format";
 import { ChartLoading, LoadingStatus } from '@/components/ui/loading-status';
+import mobile from './performance-mobile.module.css';
 const ApexChart = dynamic(() => import("react-apexcharts"), { ssr: false, loading: () => <ChartLoading label="Preparing chart" /> });
 const options = [
   { value: "gmv", label: "Total GMV" },
@@ -230,8 +231,8 @@ export function DashboardCharts({
             </p>
             <details className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
               <summary className="w-fit cursor-pointer rounded-md py-1 font-medium text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-4">Monthly values</summary>
-              <div className="mt-3 overflow-x-auto rounded-xl border border-border" role="region" aria-label="Monthly performance values" tabIndex={0}>
-                <table className="w-full min-w-[460px] text-right tabular-nums [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-3">
+              <div className={`${mobile.monthlyRegion} mt-3 overflow-x-auto rounded-xl border border-border`} role="region" aria-label="Monthly performance values" tabIndex={0}>
+                <table role="table" className={`${mobile.monthlyTable} w-full min-w-[460px] text-right tabular-nums [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-3`}>
                   <caption className="sr-only">Monthly total GMV, managed GMV, and managed share. An asterisk marks partial coverage.</caption>
                   <thead className="bg-muted/40 text-[11px]">
                     <tr>
@@ -248,13 +249,13 @@ export function DashboardCharts({
                           {new Date(`${p.month}-01T00:00:00Z`).toLocaleDateString("en-US", {month:"short",year:"numeric",timeZone:"UTC"})}
                           {p.partial ? " *" : ""}
                         </th>
-                        <td>
+                        <td data-label="Total GMV">
                           {p.total === null ? "—" : formatCurrency(p.total)}
                         </td>
-                        <td>
+                        <td data-label="Managed GMV">
                           {p.managed === null ? "—" : formatCurrency(p.managed)}
                         </td>
-                        <td>
+                        <td data-label="Managed share">
                           {p.share === null ? "—" : p.share.toFixed(1) + "%"}
                         </td>
                       </tr>

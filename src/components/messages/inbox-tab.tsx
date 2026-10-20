@@ -221,7 +221,7 @@ export function InboxTab({
         </button>
       )}
 
-      <Card className="flex h-[calc(100vh-300px)] min-h-[480px] overflow-hidden">
+      <Card className="flex h-[max(320px,calc(100dvh-300px))] min-h-0 overflow-hidden">
         {/* Left — conversation list */}
         <div className={cn('w-full md:w-80 md:shrink-0', mobileShowThread ? 'hidden md:block' : 'block')}>
           {loading ? (

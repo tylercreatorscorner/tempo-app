@@ -64,6 +64,8 @@ export function MarketingGmvEditor({ row, month, onSaved, onError }: {
         <input
           autoFocus
           type="number"
+          inputMode="decimal"
+          aria-label={`Marketing GMV for ${row.brandLabel}`}
           min={0}
           step={100}
           value={draft}
@@ -77,7 +79,7 @@ export function MarketingGmvEditor({ row, month, onSaved, onError }: {
             if (cancelledRef.current) { cancelledRef.current = false; cancel(); return; }
             commit();
           }}
-          className="w-24 px-1.5 py-0.5 text-[11px] tabular-nums rounded-md border border-[var(--primary)]/50 bg-card focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/40"
+          className="min-h-11 w-28 px-2 py-1 text-base sm:min-h-8 sm:text-xs tabular-nums rounded-md border border-[var(--primary)]/50 bg-card focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/40"
         />
         {saving && <Loader2 className="h-3 w-3 animate-spin text-[var(--primary)]" />}
       </span>
@@ -88,7 +90,8 @@ export function MarketingGmvEditor({ row, month, onSaved, onError }: {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-      className="group/mkt inline-flex items-center gap-1 hover:text-[var(--primary)] transition-colors"
+      className="group/mkt inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs hover:text-[var(--primary)] transition-colors sm:min-h-6"
+      aria-label={`Edit marketing GMV for ${row.brandLabel}`}
       title="Edit marketing GMV for this month"
     >
       {row.marketingGmv > 0 ? (
@@ -98,7 +101,7 @@ export function MarketingGmvEditor({ row, month, onSaved, onError }: {
           <Plus className="h-2.5 w-2.5" /> marketing
         </span>
       )}
-      <Pencil className="h-2.5 w-2.5 opacity-0 group-hover/mkt:opacity-100 transition-opacity" />
+      <Pencil className="h-3 w-3" />
     </button>
   );
 }

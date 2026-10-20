@@ -63,13 +63,13 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
         aria-label="Workspace navigation"
         onClick={event => { if ((event.target as HTMLElement).closest('a[href]')) onClose(); }}
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200 ease-out',
+          'fixed inset-y-0 left-0 z-50 w-64 max-w-[calc(100vw-32px)] overscroll-contain transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-3 z-10 rounded-lg p-1.5 transition-colors hover:bg-muted"
+          className="absolute top-[max(12px,env(safe-area-inset-top))] right-2 z-10 grid size-11 place-items-center rounded-lg transition-colors hover:bg-muted"
           aria-label="Close menu"
         >
           <X className="h-4 w-4 text-muted-foreground" />

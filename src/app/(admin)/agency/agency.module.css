@@ -175,3 +175,19 @@
 .quickRow .fieldPair { gap: 8px; }
 .quickError { grid-column: 1 / -1; color: var(--destructive); font-size: 13px; }
 @media(max-width: 640px) { .quickRows { min-width: 0; } .quickRow { grid-template-columns: 1fr 1fr; } .quickRow > div:first-child { grid-column: 1 / -1; } }
+@media (max-width: 640px) {
+  .clientTable td[data-mobile-actions] .iconButton { width: auto; min-height: 44px; gap: 7px; padding: 8px 12px; }
+  .fieldPair, .addTerm, .quickRow { grid-template-columns: minmax(0,1fr); }
+  .quickRow { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+  .quickRows { display: grid; gap: 12px; }
+  .quickRow > button { min-height: 44px; }
+  .editorHeader { padding: 16px; }
+  .editorHeader h2 { font-size: 21px; }
+  .editorBody { padding-inline: 16px; }
+  .editorFooter { flex-wrap: wrap; gap: 8px; padding: 12px 16px max(12px,env(safe-area-inset-bottom)); }
+  .editorFooter > p { max-width: none; flex: 1 1 100%; }
+  .editorFooter > div { width: 100%; }
+  .editorFooter > div > button { flex: 1; min-height: 44px; }
+  .sectionHeading { flex-wrap: wrap; }
+  .addTerm p { grid-column: auto; }
+}

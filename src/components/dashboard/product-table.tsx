@@ -1,5 +1,6 @@
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
+import mobile from './performance-mobile.module.css';
 
 interface Product {
   product_name: string;
@@ -27,8 +28,8 @@ export function ProductTable({ products, csvButton }: Props) {
         </div>
         {csvButton}
       </div>
-      <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-        <table className="w-full text-sm">
+      <div className={`${mobile.tableRegion} overflow-x-auto max-h-[600px] overflow-y-auto`}>
+        <table role="table" aria-label="Product performance" className={`${mobile.table} w-full text-sm`}>
           <thead className="sticky top-0 z-10 bg-muted">
             <tr className="border-b border-border text-muted-foreground">
               <th className="px-4 py-3 text-left font-medium text-[11px] w-12">#</th>
@@ -45,12 +46,12 @@ export function ProductTable({ products, csvButton }: Props) {
                 'hover:bg-muted',
               )}>
                 <td className="px-4 py-2.5"><RankBadge rank={i + 1} /></td>
-                <td className="px-4 py-2.5 font-medium max-w-xs truncate text-[var(--foreground)]">
+                <td data-label="Product" className="px-4 py-2.5 font-medium max-w-xs truncate text-[var(--foreground)]">
                   {p.product_name}
                 </td>
-                <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(p.total_gmv)}</td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(p.total_orders)}</td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums pr-6">{formatNumber(p.total_items_sold)}</td>
+                <td data-label="GMV" className="px-4 py-2.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(p.total_gmv)}</td>
+                <td data-label="Orders" className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(p.total_orders)}</td>
+                <td data-label="Items" className="px-4 py-2.5 text-right text-muted-foreground tabular-nums pr-6">{formatNumber(p.total_items_sold)}</td>
               </tr>
             ))}
             {products.length === 0 && (

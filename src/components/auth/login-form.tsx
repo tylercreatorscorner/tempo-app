@@ -193,6 +193,11 @@ export function LoginForm() {
           <input
             id="email"
             type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="go"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(''); }}
             className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"

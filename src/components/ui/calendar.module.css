@@ -134,3 +134,11 @@
 /* Date inputs share the same size and focus treatment as other workspace fields. */
 .field > input{min-height:var(--workspace-control-height,38px);border-radius:var(--workspace-control-radius,8px);border-color:var(--input);font-size:13px}
 .panel{border-radius:var(--workspace-surface-radius,14px);box-shadow:var(--workspace-surface-raised-shadow,0 12px 36px #1620331a)}
+
+@media (max-width: 767px), (pointer: coarse) {
+  .field > input { min-height: 44px; font-size: 16px; padding-right: 48px; }
+  .open { right: 0; width: 44px; height: 44px; }
+  .calendar { --rdp-day-height: 44px; --rdp-day_button-height: 44px; --rdp-nav_button-height: 44px; --rdp-nav_button-width: 44px; }
+  .calendar :global(.rdp-month_caption) { height: 48px; }
+  .footer button { min-height: 44px; padding-inline: 10px; }
+}

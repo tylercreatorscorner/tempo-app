@@ -2,8 +2,8 @@
 
 import portal from '@/components/layout/portal-workspace.module.css';
 
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { PortalMobileDrawer } from '@/components/layout/portal-mobile-drawer';
 import { CreatorProfile } from '@/lib/data/creator-context';
 import { CreatorSidebar } from '@/components/creator/creator-sidebar';
 import { CreatorHeader } from '@/components/creator/creator-header';
@@ -26,31 +26,20 @@ export function CreatorLayoutClient({
   children: React.ReactNode;
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
   return (
     <NavigationPendingProvider>
-    <div className={`${portal.theme} flex min-h-screen`} style={{ backgroundColor: 'var(--background)' }}>
+    <div className={`${portal.theme} flex min-h-dvh`} style={{ backgroundColor: 'var(--background)' }}>
       <a href="#creator-content" onClick={() => setMobileNavOpen(false)} className={portal.skipLink}>Skip to content</a>
-      <CreatorSidebar className="sticky top-0 hidden h-screen lg:flex" profile={profile} />
+      <CreatorSidebar className="sticky top-0 hidden h-dvh lg:flex" profile={profile} />
 
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
-          <div className="fixed inset-0 bg-black/40" onClick={() => setMobileNavOpen(false)} />
-          <div className="relative">
-            <CreatorSidebar profile={profile} onNavigate={() => setMobileNavOpen(false)} />
-            <button
-              onClick={() => setMobileNavOpen(false)}
-              className="absolute -right-10 top-4 rounded-lg bg-card p-2 shadow"
-              aria-label="Close menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      )}
+      <PortalMobileDrawer open={mobileNavOpen} onOpenChange={setMobileNavOpen} triggerRef={menuTriggerRef} id="creator-mobile-navigation" title="Creator navigation">
+        <CreatorSidebar className={portal.drawerSidebar} profile={profile} onNavigate={() => setMobileNavOpen(false)} />
+      </PortalMobileDrawer>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <CreatorHeader profile={profile} onMenuClick={() => setMobileNavOpen(true)} />
+        <CreatorHeader profile={profile} onMenuClick={() => setMobileNavOpen(true)} menuButtonRef={menuTriggerRef} mobileNavOpen={mobileNavOpen} />
         <main id="creator-content" tabIndex={-1} className="min-w-0 flex-1">
           <div className={portal.content}>
             <NavigationPendingOverlay>{children}</NavigationPendingOverlay>

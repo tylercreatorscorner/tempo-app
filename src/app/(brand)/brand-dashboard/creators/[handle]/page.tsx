@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ handle: string }>;
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; q?: string; sort?: string; dir?: string; page?: string }>;
 }
 
 export default async function BrandCreatorDetailPage({ params, searchParams }: PageProps) {
@@ -54,12 +54,14 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
   // live. Both halves are stated so neither number can be mistaken for the
   // other — the whole bug on this page was two post counts wearing one name.
   const earning = detail.videos.filter((v) => v.gmv > 0).length;
+  const listQuery = new URLSearchParams({period});
+  for (const key of ['q', 'sort', 'dir', 'page'] as const) if (sp[key]) listQuery.set(key, sp[key]);
 
   return (
     <div className={portal.page}>
       {/* Back link */}
       <Link
-        href={`/brand-dashboard/creators?period=${period}`}
+        href={`/brand-dashboard/creators?${listQuery.toString()}`}
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="h-3.5 w-3.5" />

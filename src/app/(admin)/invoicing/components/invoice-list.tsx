@@ -34,6 +34,7 @@ import { TableLoadBar } from '@/components/ui/table-load-bar';
 import type { Invoice } from './invoice-detail-sheet';
 import { AgingPanel, bucketFor, type AgingBucket } from './aging-panel';
 import { NudgeButton, NudgedSpan, ViewedSpan } from './invoice-telemetry';
+import mobile from '@/components/finance/finance-mobile.module.css';
 
 type Status = 'all' | 'pending' | 'sent' | 'paid' | 'void';
 
@@ -219,7 +220,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
   }, [buildExportRows]);
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className={cn('min-w-0 space-y-4', selectedIds.size > 0 && 'pb-40 sm:pb-0')}>
       {/* Stats row — all $ amounts with counts as context */}
       <FinanceMetricStrip label="Invoice summary for selected brands and payees" metrics={[
         { label: 'Outstanding', value: formatCurrency(stats.outstandingAmount), detail: `${stats.pendingCount + stats.sentCount} unpaid`, tone: 'primary' },
@@ -240,7 +241,8 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
           </div>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-          <div className="max-w-full overflow-x-auto">
+          <div className="w-full sm:hidden"><ChoiceMenu compact label="Invoice status" value={status} onChange={value => setStatus(value as Status)} options={STATUS_TABS.map(tab => ({ value: tab.value, label: tab.label }))} triggerClassName="w-full" /></div>
+          <div className={`${mobile.desktopTools} max-w-full overflow-x-auto`}>
           <SegmentedControl<Status>
             ariaLabel="Filter by status"
             size="sm"
@@ -306,9 +308,10 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
             <p className="mt-1 text-xs text-muted-foreground">Try clearing search, status, or aging filters.</p>
           </div>
         ) : (
-          <div className={cn('overflow-x-auto', showBar && invoices.length > 0 && 'opacity-60 transition-opacity duration-200')}>
-            <table className="w-full text-sm">
-              <thead>
+          <div className={cn(mobile.ledger, showBar && invoices.length > 0 && 'opacity-60 transition-opacity duration-200')}>
+            <label className={mobile.mobileTools}><input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all invoices shown" className="h-4 w-4" /><span className="text-xs">Select all shown · {visibleSelectedCount} selected here</span></label>
+            <table role="table" className="w-full text-sm">
+              <thead className={mobile.desktopTools}>
                 <tr className="border-b border-border bg-muted/60">
                   <th className="w-10 px-4 py-3">
                     <input
@@ -329,6 +332,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                   <Th align="right">Actions</Th>
                 </tr>
               </thead>
+              <thead className={mobile.phoneHeaders}><tr>{['Selection', 'Invoice', 'Brand', 'Service period', 'Invoice total', 'Status', 'Issued', 'Due / aging', 'Actions'].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
               <tbody>
                 {filteredInvoices.map((inv) => {
                   const isSelected = selectedIds.has(inv.id);
@@ -341,7 +345,8 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                         isSelected ? 'bg-primary/10 hover:bg-primary/[0.14]' : 'hover:bg-muted/50',
                       )}
                     >
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td data-mobile-full className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <label className="inline-flex min-h-11 items-center gap-2 sm:min-h-0">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -349,8 +354,10 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                           className="h-3.5 w-3.5 cursor-pointer rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/30"
                           aria-label={`Select ${inv.invoice_number}`}
                         />
+                        <span className="text-xs text-muted-foreground sm:sr-only">Select invoice</span>
+                        </label>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">
+                      <td data-mobile-title className="px-4 py-3 font-mono text-xs font-semibold text-foreground">
                         <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(inv); }} className="rounded text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40" aria-label={`Open invoice ${inv.invoice_number}`}>{inv.invoice_number}</button>
                         {/* Issuer name when there's > 1 team member, so Tyler's and
                             Vic's invoices are distinguishable unfiltered. */}
@@ -360,7 +367,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Brand" className="px-4 py-3">
                         <span className="flex items-center gap-1.5">
                           <span
                             className="h-2 w-2 shrink-0 rounded-full"
@@ -370,11 +377,11 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                           <span className="font-semibold text-foreground">{brandMeta.label(inv.brand)}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{formatPeriod(inv.period_month, { short: true })}</td>
-                      <td className="px-4 py-3 text-right font-bold tabular-nums text-foreground">
+                      <td data-label="Service period" className="px-4 py-3 text-muted-foreground">{formatPeriod(inv.period_month, { short: true })}</td>
+                      <td data-label="Invoice total" className="px-4 py-3 text-right font-bold tabular-nums text-foreground">
                         {formatCurrency(Number(inv.total_amount))}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td data-label="Status" className="px-4 py-3 text-center">
                         <StatusBadge status={inv.status} />
                         {/* Viewed telemetry is only meaningful once sent. */}
                         {inv.sent_at && inv.status !== 'void' && (
@@ -384,8 +391,8 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                           <div className="mt-0.5 text-[10px]"><NudgedSpan invoice={inv} /></div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(inv.generated_at)}</td>
-                      <td className="px-4 py-3 text-xs">
+                      <td data-label="Issued" className="px-4 py-3 text-xs text-muted-foreground">{formatDate(inv.generated_at)}</td>
+                      <td data-label="Due / aging" className="px-4 py-3 text-xs">
                         {inv.due_date ? (
                           <div>
                             <div className="text-muted-foreground">{formatDate(inv.due_date)}</div>
@@ -395,7 +402,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                           <span className="text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td data-mobile-actions className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {isOverdue(inv, todayIso) && (
                             <NudgeButton invoice={inv} onDone={onRefresh} />
@@ -422,8 +429,8 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
 
       {/* Bulk action bar (sticky bottom) */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 animate-in slide-in-from-bottom-4">
-          <div className="flex items-center gap-3 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-foreground px-5 py-3 text-background shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))]">
+        <div className={`${mobile.bulkBar} animate-in slide-in-from-bottom-4`}>
+          <div className={mobile.bulkActions}>
             <span className="text-sm">
               <span className="font-bold">{selectedIds.size}</span> selected
             </span>
@@ -431,7 +438,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
             <button
               onClick={() => handleBulk('sent')}
               disabled={bulkAction !== null}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-bold text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-[filter] hover:brightness-110 disabled:opacity-50"
             >
               {bulkAction === 'sent' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               Mark as Sent
@@ -439,7 +446,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
             <button
               onClick={() => handleBulk('paid')}
               disabled={bulkAction !== null}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--pulse-pos)] px-3 py-1.5 text-xs font-bold text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--pulse-pos)]/30 bg-[var(--pulse-pos-bg)] px-3 py-1.5 text-xs font-bold text-[var(--pulse-pos)] transition-[filter] hover:brightness-110 disabled:opacity-50"
             >
               {bulkAction === 'paid' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
               Mark as Paid
@@ -455,7 +462,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
             <span className="h-5 w-px bg-background/20" />
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-background/60 transition-colors hover:bg-background/10 hover:text-background"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               title="Clear selection"
               aria-label="Clear selection"
             >

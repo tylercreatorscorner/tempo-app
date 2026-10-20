@@ -139,7 +139,7 @@ export function SettingsClient({
                   onClick={() => onRemove(a.id)}
                   disabled={pending || busyId === a.id}
                   aria-label={`Remove @${a.username}`}
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-[var(--pulse-neg)]/10 hover:text-[var(--pulse-neg)] disabled:opacity-50"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-[var(--pulse-neg)]/10 hover:text-[var(--pulse-neg)] disabled:opacity-50"
                 >
                   {busyId === a.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -164,6 +164,10 @@ export function SettingsClient({
                   if (e.key === 'Enter') onAdd();
                 }}
                 placeholder="add-a-handle"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="done"
                 className="pl-7"
                 aria-label="Add a TikTok handle"
               />
@@ -179,7 +183,7 @@ export function SettingsClient({
             </button>
           </div>
 
-          {error && <p className="text-sm text-[var(--pulse-neg)]">{error}</p>}
+          {error && <p role="alert" className="text-sm text-[var(--pulse-neg)]">{error}</p>}
           <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
             New handles are marked unverified until your manager confirms them. A handle already linked to
