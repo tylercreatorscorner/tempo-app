@@ -1,3 +1,4 @@
+import portal from '@/components/layout/portal-workspace.module.css';
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { Suspense } from 'react';
 import Link from 'next/link';
@@ -29,8 +30,8 @@ const TOP_VIDEOS_PREVIEW = 8;
 // lines at 80px and broke to three at 72px when it read "POSTS WITH SALES"
 // ("POSTS WITH" renders 74.2px in 10.5px/0.075em uppercase). Re-measure on
 // the live page if the label changes again.
-const CREATOR_COLS = 'grid grid-cols-[1.25rem_1fr_5rem_5rem_1rem] gap-x-3';
-const VIDEO_COLS = 'grid grid-cols-[1fr_3.5rem_5rem_1rem] gap-x-3';
+const CREATOR_COLS = 'grid grid-cols-[1rem_minmax(0,1fr)_4rem_4.5rem_1rem] gap-x-2';
+const VIDEO_COLS = 'grid grid-cols-[minmax(0,1fr)_3.5rem_4.5rem_1rem] gap-x-2';
 
 interface PageProps {
   searchParams: Promise<{ period?: string }>;
@@ -67,14 +68,14 @@ export default async function BrandOverview({ searchParams }: PageProps) {
   // this call site IS the access control.
   const billing = await getBrandBillingMonth(admin, ctx.activeBrand.slug);
 
-  const accent = ctx.activeBrand.color || '#FF4D8D';
+  const accent = ctx.activeBrand.color || '#6e4bcc';
   // Posts that actually earned in the selected window. See the Top posts card.
   const earnedInPeriod = data.videos.filter((v) => v.periodGmv > 0);
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
+    <div className={portal.page}>
       {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div className={portal.pageHeader}>
         <div className="flex items-center gap-3">
           {ctx.activeBrand.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -103,9 +104,6 @@ export default async function BrandOverview({ searchParams }: PageProps) {
         <PeriodTabs current={period} accentColor={accent} />
       </div>
 
-      {/* Account-manager note (full-width when present — easier to read) */}
-      {data.amNote && <AmNoteCard note={data.amNote} accent={accent} />}
-
       {/* ── The answer line ───────────────────────────────────────────────
           A brand's first question is "what did you actually do for me", and
           the page used to make them assemble it from three cards and a split
@@ -128,16 +126,8 @@ export default async function BrandOverview({ searchParams }: PageProps) {
           it sat between the reader and the chart. */}
       {data.goalProgress && <GoalBand goal={data.goalProgress} accent={accent} />}
 
-      {/* ── Trend, with the split attached ────────────────────────────────
-          The chart used to sit four sections down, below the goal card, the
-          split panel and the highlights. It is the thing a brand scrolls
-          looking for, so it comes first.
-
-          The roster-vs-organic split rides in the footer instead of getting
-          its own half-width card. As a card it restated the answer line at
-          the top of the page in a second visual language; as a footer it
-          does the one job the answer line can't — the organic side, with its
-          post counts, against the same trend the chart just drew. */}
+      <div className={portal.homeGrid}>
+        <div className={portal.stack}>
       {(data.dailyPerformance.length > 1 || data.split.totalGmv > 0) && (
         <Card>
           <CardHeader title="Daily GMV" subtitle={`Compared to ${priorLabel(period)}`} />
@@ -164,33 +154,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
         </Card>
       )}
 
-      {/* Highlights — "what changed" callouts */}
-      {(data.highlights.peakDay ||
-        data.highlights.topCreator ||
-        data.highlights.topViralPost) && (
-        <HighlightsCard highlights={data.highlights} accent={accent} period={period} />
-      )}
-
-      {/* ── Billing · monthly basis ────────────────────────────────────────
-          Everything above responds to the period tabs. This does NOT, and the
-          rule says so out loud: retainers and fees are billed monthly, so
-          slicing them into a 7-day window would be apportioning. Without the
-          visual break a client reads the ratio as belonging to the selected
-          week, which is exactly the misreading that would force an estimate. */}
-      <BillingBand billing={billing} />
-
-      {/* ── Detail panes ──────────────────────────────────────────────────
-          Table-first, not stacked two-line rows. The old shape spent one line
-          per row on a subtitle ("3 posts · Real Name") and still couldn't put
-          two rows' numbers in the same column, so nothing was comparable down
-          the list — which is the whole point of a ranking. Columns instead:
-          eight rows now fit in the height five used to take.
-
-          The counted columns are real reads, not decoration. Posts comes off
-          videos.video_id and views off get_brand_portal_video_engagement
-          (migration 146) — the per-video figures that were printing as zeros
-          on this portal until this week. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid min-w-0 grid-cols-1 gap-4">
         {/* Top creators */}
         <Card>
           <CardHeaderWithLink
@@ -328,6 +292,19 @@ export default async function BrandOverview({ searchParams }: PageProps) {
           )}
         </Card>
       </div>
+        </div>
+        <aside className={portal.stack} aria-label="Account context">
+          {data.amNote && <AmNoteCard note={data.amNote} accent={accent} />}
+      {/* Highlights — "what changed" callouts */}
+      {(data.highlights.peakDay ||
+        data.highlights.topCreator ||
+        data.highlights.topViralPost) && (
+        <HighlightsCard highlights={data.highlights} accent={accent} period={period} />
+      )}
+
+          <BillingBand billing={billing} />
+        </aside>
+      </div>
     </div>
   );
 }
@@ -355,7 +332,7 @@ function AmNoteCard({
         background: `linear-gradient(135deg, ${accent}08 0%, var(--card) 60%)`,
       }}
     >
-      <div className="p-5 sm:p-6 space-y-3">
+      <div className="p-4 space-y-3">
         <div className="flex items-center gap-2.5">
           <div
             className="h-7 w-7 rounded-lg flex items-center justify-center"
@@ -475,7 +452,7 @@ function HighlightsCard({
         <Sparkles className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />
         <h3 className="text-sm font-semibold text-foreground">Highlights this period</h3>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border/40">
+      <div className="grid grid-cols-1 divide-y divide-border/40">
         {highlights.peakDay && (
           <HighlightItem
             icon={Calendar}
@@ -547,7 +524,7 @@ function HighlightItem({
   truncatePrimary?: boolean;
 }) {
   const inner = (
-    <div className="px-5 py-5 group h-full transition-transform duration-200 hover:-translate-y-0.5">
+    <div className="px-4 py-3 group h-full">
       <div className="flex items-start gap-3">
         <div
           className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
@@ -704,8 +681,8 @@ function BillingBand({ billing }: { billing: BrandBillingMonth | null }) {
               : 'Last closed month. Not the period selected above.'
           }
         />
-        <div className="grid grid-cols-1 lg:grid-cols-2">
-          <div className="p-5">
+        <div className="grid grid-cols-1">
+          <div className="p-4">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               GMV per $1 of fees
             </div>
@@ -734,7 +711,7 @@ function BillingBand({ billing }: { billing: BrandBillingMonth | null }) {
             </p>
           </div>
 
-          <div className="p-5 border-t border-border lg:border-t-0 lg:border-l">
+          <div className="p-4 border-t border-border">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
               What you were billed
             </div>

@@ -79,8 +79,8 @@ export function RetainerBook({
   const bookTotal = useMemo(() => filtered.reduce((s, c) => s + c.retainer, 0), [filtered]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--pulse-elev-2)]">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pb-3 pt-4">
+    <div className="min-w-0 overflow-hidden rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card shadow-[var(--workspace-surface-shadow)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <h3 className="text-sm font-bold text-foreground">Retainer book</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -89,18 +89,12 @@ export function RetainerBook({
               : `${total} creator${total === 1 ? '' : 's'} on a monthly retainer`}
           </p>
         </div>
-        {total > 0 && (
-          <p className="text-xs text-muted-foreground">
-            <span className="font-bold tabular-nums text-foreground">{formatCurrency(bookTotal)}</span> /mo
-          </p>
-        )}
-      </div>
-
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 border-y border-border bg-muted/40 px-5 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
         <ChoiceMenu compact label="Retainer brand" value={brandFilter} onChange={handleBrandChange} options={[{ value: 'all', label: 'All brands' }, ...availableBrands.map(b => ({ value: b, label: brandMeta.label(b) }))]} />
         <SearchInput aria-label="Search retainers" value={search} onChange={e => handleSearchChange(e.target.value)} onClear={() => handleSearchChange('')} placeholder="Creator, handle or brand" />
+        </div>
       </div>
+      {total > 0 && <div className="border-b border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground"><span className="font-semibold tabular-nums text-foreground">{formatCurrency(bookTotal)}</span> /mo in the current filter · active managed creator agreements</div>}
 
       <div className={cn('transition-opacity duration-200', refetching && 'opacity-60')}>
         {loading && creators.length === 0 ? (

@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { useRouter } from 'next/navigation';
 import { ShieldOff, LogOut } from 'lucide-react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -20,14 +22,15 @@ export function NoBrandAccess({ email }: Props) {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center px-6"
+      className={`${portal.theme} ${portal.entry}`}
       style={{ backgroundColor: 'var(--background)' }}
     >
-      <div className="mb-6">
+      <div className={portal.entryCard}>
+      <div className="mb-6 flex justify-center">
         <TempoLogo size="lg" animated />
       </div>
 
-      <div className="rounded-xl border border-border bg-card shadow-sm p-8 max-w-md w-full text-center">
+      <div className="rounded-xl border border-border bg-card shadow-sm p-6 max-w-md w-full text-center">
         <div className="h-12 w-12 mx-auto rounded-full bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center mb-4">
           <ShieldOff className="h-6 w-6 text-amber-700 dark:text-amber-400" />
         </div>
@@ -45,6 +48,7 @@ export function NoBrandAccess({ email }: Props) {
           <LogOut className="h-4 w-4" />
           Sign out
         </button>
+      </div>
       </div>
     </div>
   );

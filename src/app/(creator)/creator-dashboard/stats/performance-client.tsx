@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { ArrowUpRight, Play, Sparkles, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -39,11 +41,11 @@ export function PerformanceClient({
   topVideos,
 }: Props) {
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-12">
+    <div className={portal.page}>
       {/* Ledger page header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className={portal.pageHeader}>
         <div>
-          <p className="font-ledger text-[13px] italic text-primary">Performance</p>
+          <p className={portal.eyebrow}>Performance</p>
           <h1 className="font-ledger mt-1 text-[26px] font-bold tracking-tight text-foreground">
             The full record
           </h1>
@@ -77,16 +79,13 @@ export function PerformanceClient({
         <CardContent>
           <DailyChart daily={daily} />
         </CardContent>
-      </Card>
-
       {/* Best day — positive callout. summary.bestDay is only set when there was
           real sales activity, so a null gmv never reaches here as a fake $0. */}
       {summary?.bestDay && summary.bestDay.gmv > 0 && (
-        <Card className="border-[var(--pulse-pos)]/25 bg-[var(--pulse-pos-bg)] shadow-[var(--pulse-elev-1)]">
-          <CardContent className="flex items-center gap-4 pt-5">
+        <div className="border-t border-border bg-[var(--pulse-pos-bg)]">
+          <CardContent className="flex flex-wrap items-center gap-3 py-3">
             <span
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white"
-              style={{ backgroundColor: 'var(--pulse-pos)' }}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--pulse-pos-bg)] text-[var(--pulse-pos)]"
             >
               <TrendingUp className="h-5 w-5" />
             </span>
@@ -105,8 +104,11 @@ export function PerformanceClient({
               </p>
             </div>
           </CardContent>
-        </Card>
+        </div>
       )}
+
+
+      </Card>
 
       {/* Video table */}
       {topVideos.length === 0 ? (
@@ -170,9 +172,9 @@ function LedgerStrip({ summary }: { summary: CreatorSummary | null }) {
     { k: 'Est. commission', v: summary ? formatCurrency(summary.totalCommission) : '—', d: null },
   ];
   return (
-    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-[var(--pulse-elev-1)] sm:grid-cols-4">
+    <div className={portal.metrics}>
       {cells.map((c) => (
-        <div key={c.k} className="bg-card p-4 sm:p-5">
+        <div key={c.k} className="bg-card">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
           <p className="font-ledger-num mt-1.5 text-xl font-bold text-foreground sm:text-[23px]">{c.v}</p>
           {c.d != null && (

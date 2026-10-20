@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, Crown, Info, Medal, Play, Trophy } from 'lucide-react';
 import { TableCard, Table, THead, TBody, TR, TH, TD, DataAvatar } from '@/components/ui/table';
@@ -39,11 +41,11 @@ export function RankingsClient({
   const totalCreators = standing?.creatorCount ?? rankings.length;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-12">
+    <div className={portal.page}>
       {/* Ledger page header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className={portal.pageHeader}>
         <div>
-          <p className="font-ledger text-[13px] italic text-primary">Leaderboard</p>
+          <p className={portal.eyebrow}>Leaderboard</p>
           <h1 className="font-ledger mt-1 text-[26px] font-bold tracking-tight text-foreground">
             {boardBrandDisplay ? `Where you stand on ${boardBrandDisplay}` : 'Where you stand'}
           </h1>
@@ -64,7 +66,6 @@ export function RankingsClient({
 
       {standing && <StandingBand standing={standing} variant="rank" />}
 
-      {rankings.length >= 3 && <Podium top3={rankings.slice(0, 3)} />}
 
       {rankings.length === 0 ? (
         <EmptyState
@@ -77,8 +78,11 @@ export function RankingsClient({
           }
         />
       ) : (
-        <div className="grid items-start gap-5 lg:grid-cols-[1.55fr_1fr]">
-          <Leaderboard rankings={rankings} />
+        <div className={portal.split}>
+          <div className={portal.stack}>
+            {rankings.length >= 3 && <Podium top3={rankings.slice(0, 3)} />}
+            <Leaderboard rankings={rankings} />
+          </div>
           <TopVideosPanel
             brandLabel={boardBrandDisplay}
             topGmv={topGmvVideos}
@@ -113,7 +117,7 @@ function Podium({ top3 }: { top3: RowWithDelta[] }) {
   return (
     <section className="relative">
       {meOnPodium && <ConfettiBurst />}
-      <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
+      <div className={portal.podium}>
         {order.map((entry, col) => {
           const place = col === 1 ? 0 : col === 0 ? 1 : 2; // 0=gold,1=silver,2=bronze
           return <PodiumCard key={entry.tiktokUsername + entry.rank} entry={entry} place={place} />;
@@ -176,11 +180,11 @@ function ConfettiBurst() {
   const pieces = useMemo(
     () =>
       Array.from({ length: 32 }, (_, i) => ({
-        left: Math.random() * 100,
-        delay: Math.random() * 1.2,
-        duration: 2.4 + Math.random() * 1.8,
+        left: (i * 37 + 11) % 100,
+        delay: ((i * 17) % 12) / 10,
+        duration: 2.4 + ((i * 11) % 18) / 10,
         color: ['var(--primary)', 'var(--pulse-accent-2)', '#D9A420', 'var(--pulse-pos)', '#FF6B9C'][i % 5],
-        size: 5 + Math.random() * 5,
+        size: 5 + ((i * 7) % 5),
       })),
     [],
   );

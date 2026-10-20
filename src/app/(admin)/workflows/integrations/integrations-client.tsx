@@ -1,5 +1,6 @@
 'use client';
 
+import styles from '../workspace.module.css';
 import { PageHeader } from '@/components/ui/page-header';
 
 /**
@@ -71,6 +72,8 @@ export function IntegrationsClient({
   initialIntegrations: IntegrationView[];
   brands: BrandOption[];
 }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('all');
   const [integrations, setIntegrations] = useState<IntegrationView[]>(initialIntegrations);
   const [active, setActive] = useState<IntegrationView | null>(null);
   const [connecting, setConnecting] = useState<{ type: string; label: string } | null>(null);
@@ -121,7 +124,7 @@ export function IntegrationsClient({
   // Group connected integrations by brand, with tenant-scoped at the bottom.
   const byBrand = useMemo(() => {
     const groups = new Map<string, { brandName: string; rows: IntegrationView[] }>();
-    for (const i of integrations) {
+    for (const i of integrations.filter(i => `${i.displayName} ${i.brandName ?? ''} ${i.type}`.toLowerCase().includes(query.toLowerCase()) && (status === 'all' || i.status === status))) {
       const key = i.brandName ?? '__tenant__';
       if (!groups.has(key)) {
         groups.set(key, { brandName: i.brandName ?? 'Workspace-wide', rows: [] });
@@ -135,7 +138,7 @@ export function IntegrationsClient({
       if (b.brandName === 'Workspace-wide') return -1;
       return a.brandName.localeCompare(b.brandName);
     });
-  }, [integrations]);
+  }, [integrations, query, status]);
 
   const catalogByCategory = useMemo(() => {
     const out: Record<string, typeof INTEGRATION_TYPE_CATALOG> = {};
@@ -146,14 +149,13 @@ export function IntegrationsClient({
   }, []);
 
   return (
-    <div className="space-y-4">
+    <div className={styles.workspace}>
       <PageHeader eyebrow="Settings" title="Connections" subtitle="Manage data imports, communications and connected services." />
-      <p className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">A configured connection does not confirm a successful sync or delivery. Check its latest recorded activity. Legacy TikTok sessions are separate from Shop API authorization.</p>
-
-      <NavigationLink href="#tiktok-shop" direction="down">Manage TikTok Shop API authorization</NavigationLink>
-
+      <div className={styles.summary} aria-label="Connection overview"><div><span>Configured services</span><strong>{integrations.length}</strong><small>Across brands and workspace</small></div><div><span>Connected</span><strong>{integrations.filter(i=>i.status==='connected').length}</strong><small>Configuration is in place</small></div><div><span>Needs attention</span><strong>{integrations.filter(i=>i.status==='error'||i.status==='revoked').length}</strong><small>Error or reconnect required</small></div></div>
+      <div className={styles.columns}><div className={styles.main}>
+      <div className={styles.toolbar}><div><h2>Connection directory</h2><p>Review configuration and the latest recorded activity.</p></div><div className={styles.filters}><input aria-label="Find a connection" placeholder="Find service or brand" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Connection status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="connected">Configured</option><option value="pending">Pending</option><option value="error">Error</option><option value="revoked">Reconnect required</option></select></div></div>
       {/* Connected section */}
-      <section className="space-y-4">
+      <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Configured services
@@ -168,7 +170,8 @@ export function IntegrationsClient({
             <p className="text-xs text-muted-foreground mt-1">Connect Discord, Slack, or another system below to power your first automation.</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className={styles.serviceGroups}>
+            {!byBrand.length && <p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">No connections match these filters.</p>}
             {byBrand.map(group => (
               <div key={group.brandName}>
                 <p className="text-xs font-semibold text-muted-foreground mb-2">
@@ -188,6 +191,8 @@ export function IntegrationsClient({
           </div>
         )}
       </section>
+
+      </div><aside className={styles.aside}><h2>Connection health</h2><p>A configured connection does not confirm a successful sync or delivery. Check its latest recorded activity.</p><NavigationLink href="#tiktok-shop" direction="down">TikTok Shop authorization</NavigationLink><p>Legacy TikTok sessions are separate from Shop API authorization.</p>
 
       {/* Flash banner — shown after OAuth callback with success/error */}
       {flash && (
@@ -221,14 +226,14 @@ export function IntegrationsClient({
       )}
 
       {/* Available section */}
-      <section className="space-y-4">
+      <section className={styles.catalog}>
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Available to add
         </h2>
         {Object.entries(catalogByCategory).map(([cat, items]) => (
           <div key={cat}>
-            <p className="text-xs font-semibold text-muted-foreground mb-2">{CATEGORY_LABELS[cat] ?? cat}</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <h3>{CATEGORY_LABELS[cat] ?? cat}</h3>
+            <div className="grid grid-cols-1 gap-2">
               {items.map(item => (
                 <CatalogCard
                   key={item.type}
@@ -240,6 +245,7 @@ export function IntegrationsClient({
           </div>
         ))}
       </section>
+      </aside></div>
     </div>
   );
 }
@@ -250,7 +256,7 @@ function IntegrationRow({ integration, onClick }: { integration: IntegrationView
   return (
     <button
       onClick={onClick}
-      className="w-full text-left flex items-start gap-4 p-4 hover:bg-muted/40 transition-colors"
+      className="w-full text-left flex items-start gap-3 p-3.5 hover:bg-muted/40 transition-colors"
     >
       <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
         <Icon className="h-5 w-5 text-muted-foreground" />

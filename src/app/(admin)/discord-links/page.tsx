@@ -2,6 +2,7 @@
 
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { PageHeader } from '@/components/ui/page-header';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 import { useEffect, useState, useCallback } from 'react';
 import {
@@ -164,7 +165,7 @@ export default function DiscordLinksPage() {
     .sort((a, b) => (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name));
 
   return (
-    <div className="space-y-4">
+    <div className={layout.page}>
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <PageHeader eyebrow="Discord" title="Discord identity review" subtitle="Review Discord identities before linking them to creator records." />
@@ -182,7 +183,7 @@ export default function DiscordLinksPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+        <div className={layout.cardMetrics}>
           {[
             { label: 'Pending', value: counts.pending, icon: HelpCircle, color: 'text-amber-600' },
             { label: 'Exact', value: counts.exact, icon: Check, color: 'text-emerald-600' },
@@ -201,11 +202,12 @@ export default function DiscordLinksPage() {
       </div>
 
       {/* Tabs + Bulk Actions */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex gap-1 bg-card border border-border rounded-lg p-1">
+      <div className={layout.toolbar}>
+        <div className="flex flex-wrap gap-1" aria-label="Identity review status">
           {tabs.map((t) => (
             <button
               key={t.key}
+              aria-pressed={tab === t.key}
               onClick={() => setTab(t.key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 tab === t.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
@@ -244,19 +246,19 @@ export default function DiscordLinksPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className={layout.queue}>
           {entries.map((entry) => {
             const matchType = entry.match_type ?? 'none';
             const SourceIcon = SOURCE_BADGES[entry.source]?.icon ?? Users;
             return (
               <div
                 key={entry.id}
-                className={`bg-card rounded-xl border border-border p-4 flex items-center gap-4 ${
+                className={`${layout.queueRow} ${
                   actionLoading === entry.id ? 'opacity-50' : ''
                 }`}
               >
                 {/* Discord user */}
-                <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className={`${layout.queueIdentity} flex items-center gap-3`}>
                   {entry.discord_avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -291,7 +293,7 @@ export default function DiscordLinksPage() {
                 </div>
 
                 {/* Match info */}
-                <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-3 min-w-0">
                   {entry.creator ? (
                     <div className="text-right max-w-[180px]">
                       <p className="text-sm font-medium text-foreground truncate">{entry.creator.real_name}</p>
@@ -325,7 +327,7 @@ export default function DiscordLinksPage() {
 
                 {/* Actions */}
                 {entry.status === 'pending' && (
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
                     {entry.matched_creator_id && (
                       <button
                         onClick={() => handleAction(entry.id, 'approve')}
@@ -353,7 +355,7 @@ export default function DiscordLinksPage() {
                         <ChevronDown className="h-3.5 w-3.5" />
                       </button>
                       {reassignOpen === entry.id && (
-                        <div className="absolute right-0 top-full mt-1 w-72 bg-card rounded-lg shadow-lg border border-border z-10 max-h-64 overflow-y-auto">
+                        <div className="absolute right-0 top-full mt-1 w-72 max-w-[calc(100vw-40px)] bg-card rounded-lg shadow-lg border border-border z-10 max-h-64 overflow-y-auto">
                           {knownCreators.length === 0 ? (
                             <p className="p-3 text-sm text-muted-foreground">No creators to reassign to yet.</p>
                           ) : (

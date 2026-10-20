@@ -1,5 +1,8 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -75,13 +78,13 @@ export function OnboardingForm({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-md">
+    <div className={`${portal.theme} ${portal.entry}`}>
+      <div className={portal.entryCard}>
         <div className="flex justify-center mb-6">
           <TempoLogo size="lg" animated />
         </div>
 
-        <div className="bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-8">
+        <div className="bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-6">
           <h1 className="text-xl font-bold text-foreground text-center">
             {firstName ? `Welcome, ${firstName}!` : 'Welcome to Tempo!'}
           </h1>
@@ -92,8 +95,9 @@ export function OnboardingForm({
 
           <form onSubmit={handleSave} className="space-y-4">
             <div>
-              <Label>Email</Label>
+              <Label htmlFor="contact-email">Email</Label>
               <Input
+                id="contact-email"
                 type="email"
                 placeholder="you@email.com"
                 value={email}
@@ -103,8 +107,9 @@ export function OnboardingForm({
             </div>
 
             <div>
-              <Label>Mobile phone</Label>
+              <Label htmlFor="contact-phone">Mobile phone</Label>
               <Input
+                id="contact-phone"
                 type="tel"
                 placeholder="(555) 123-4567"
                 value={phone}

@@ -21,6 +21,7 @@ import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import layout from '@/components/ui/workspace-layout.module.css';
 import type { ContestRow } from '@/lib/contests/types';
 import { ContestBuilderSheet, type SegmentOption } from './contest-builder-sheet';
 import { ContestDetailSheet } from './contest-detail-sheet';
@@ -47,6 +48,8 @@ export function ContestsClient() {
   const { brands } = useBrandList();
 
   const [contests, setContests] = useState<ContestRow[]>([]);
+  const [groupFilter, setGroupFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [segments, setSegments] = useState<SegmentOption[]>([]);
   const [segmentsFailed, setSegmentsFailed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -254,7 +257,7 @@ export function ContestsClient() {
   const coldFailure = loadError && !hasLoadedOnce;
 
   return (
-    <div className="space-y-6">
+    <div className={layout.page}>
       <PageHeader
         eyebrow="Creators"
         title="Contests"
@@ -269,6 +272,13 @@ export function ContestsClient() {
           )
         }
       />
+
+      <div className={layout.toolbar}>
+        <nav className="flex flex-wrap gap-1" aria-label="Contest status">
+          {[{ key: 'all', label: 'All', count: contests.length }, ...GROUP_ORDER.map(g => ({ ...g, count: groups[g.key].length }))].map(g => <button key={g.key} type="button" aria-pressed={groupFilter === g.key} onClick={() => setGroupFilter(g.key)} className={`rounded-lg px-3 py-2 text-sm font-medium ${groupFilter === g.key ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted'}`}>{g.label} <span className="ml-1 tabular-nums">{hasLoadedOnce ? g.count : '—'}</span></button>)}
+        </nav>
+        <input type="search" aria-label="Search contests" placeholder="Find a contest…" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-64" />
+      </div>
 
       {/* Warm refetch failed: keep last-good rows, say the data is stale. */}
       {loadError && hasLoadedOnce && (
@@ -306,9 +316,9 @@ export function ContestsClient() {
           }
         />
       ) : (
-        GROUP_ORDER.map(({ key, label, hint }) => {
-          const rows = groups[key];
-          if (rows.length === 0 && key !== 'live') return null;
+        GROUP_ORDER.filter(g => groupFilter === 'all' || groupFilter === g.key).map(({ key, label, hint }) => {
+          const rows = groups[key].filter(c => c.name.toLowerCase().includes(search.trim().toLowerCase()));
+          if (rows.length === 0 && key !== 'live' && groupFilter === 'all' && !search) return null;
           return (
             <section key={key} className="space-y-2">
               <div className="flex items-baseline gap-2">
@@ -320,7 +330,7 @@ export function ContestsClient() {
                 <div className={showBar && rows.length > 0 ? 'opacity-60 transition-opacity duration-200' : ''}>
                   {rows.length === 0 ? (
                     <p className="px-5 py-4 text-sm text-muted-foreground">
-                      {loading ? 'Loading…' : 'Nothing live right now.'}
+                      {loading ? 'Loading…' : search ? 'No contests match your search in this group.' : key === 'live' ? 'Nothing live right now.' : `No ${label.toLowerCase()} contests.`}
                     </p>
                   ) : (
                     <div className="divide-y divide-border">{rows.map(renderRow)}</div>

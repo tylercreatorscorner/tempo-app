@@ -1,3 +1,4 @@
+import portal from '@/components/layout/portal-workspace.module.css';
 import { LoginForm } from '@/components/auth/login-form';
 
 /**
@@ -14,8 +15,8 @@ import { LoginForm } from '@/components/auth/login-form';
  */
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4 bg-background">
-      <LoginForm />
+    <main className={`${portal.theme} ${portal.entry}`}>
+      <section className={`${portal.entryCard} ${portal.panel} p-6`} aria-label="Sign in to Tempo"><LoginForm /></section>
     </main>
   );
 }

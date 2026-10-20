@@ -337,17 +337,18 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
   // ONE "today" per render — the KPI band and every invoice chip read the
   // shared overdue rule against the same date so they can never disagree.
   const todayIso = todayIsoUtc();
+  const viewControl = <SegmentedControl<View>
+    options={[{ value: 'month', label: 'Month' }, { value: 'year', label: 'Year' }]}
+    value={view}
+    onValueChange={switchView}
+    ariaLabel="Earnings view"
+  />;
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4">
       {/* Controls toolbar (page title lives in the server page wrapper) */}
-      <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl<View>
-          options={[{ value: 'month', label: 'Month' }, { value: 'year', label: 'Year' }]}
-          value={view}
-          onValueChange={switchView}
-          ariaLabel="Earnings view"
-        />
+      {view === 'month' && <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card px-4 py-3">
+        {viewControl}
         {view === 'month' && (
           <>
             <div className="w-44">
@@ -378,10 +379,10 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
             )}
           </>
         )}
-      </div>
+      </div>}
 
       {view === 'year' ? (
-        <YearView initialYear={initialYear} />
+        <YearView initialYear={initialYear} viewControl={viewControl} />
       ) : (
         <>
           {error && (
@@ -399,14 +400,17 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
             <div inert={loading || !!error} className={cn('space-y-4', (loading || error) && data && 'opacity-60 transition-opacity duration-200')}>
               <EarningsKpis data={data} series={series} todayIso={todayIso} />
 
-              <Card className="overflow-hidden">
-                <div className="px-5 pb-3 pt-4">
-                  <CardTitle>Brand Breakdown</CardTitle>
+              <Card className="min-w-0 overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                  <div>
+                  <CardTitle>Brand earnings</CardTitle>
                   <CardDescription className="mt-0.5 text-xs">
                     {data
-                      ? `${data.brands.length} brands · click a row for the creator breakdown`
+                      ? `${data.brands.length} brands${payeeName ? ` · ${payeeName}` : ''} · select a row for creators`
                       : 'Loading…'}
                   </CardDescription>
+                  </div>
+                  {data && <span className="rounded-md bg-muted px-2.5 py-1.5 text-xs tabular-nums text-muted-foreground">{monthName} · {readyCount} ready to invoice</span>}
                 </div>
                 {loading && !data ? (
                   <div className="p-8"><div className="h-[240px] w-full animate-pulse rounded-xl bg-muted" /></div>

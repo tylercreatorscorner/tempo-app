@@ -11,6 +11,8 @@ import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { AffiliateLeaderboard } from '@/components/affiliates/affiliate-leaderboard';
 import { PageHeader } from '@/components/ui/page-header';
 import { formatCurrency } from '@/lib/utils/format';
+import layout from '@/components/ui/workspace-layout.module.css';
+import { WorkspaceMetrics } from '@/components/ui/workspace-metrics';
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string }>;
@@ -58,7 +60,7 @@ export default async function AffiliatesPage({ searchParams }: Props) {
   const scopeLabel = brandFilter ? brandLabel(reg, brandFilter) : 'all brands';
 
   return (
-    <div className="space-y-6">
+    <div className={layout.page}>
       <PageHeader
         eyebrow="Creators"
         title="Top Affiliates"
@@ -79,6 +81,10 @@ export default async function AffiliatesPage({ searchParams }: Props) {
         }
       />
 
+      {result.hasData && <WorkspaceMetrics label="Affiliate leaderboard summary" items={[
+        { label: 'Creators shown', value: result.rows.length, detail: 'Highest GMV in the selected period' },
+        { label: 'Agency GMV shown', value: formatCurrency(result.totalGmv), detail: 'Total for the displayed creators' },
+      ]} />}
       <AffiliateLeaderboard rows={result.rows} brandColors={brandColors} />
     </div>
   );

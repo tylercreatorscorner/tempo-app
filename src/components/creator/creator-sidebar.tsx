@@ -52,12 +52,12 @@ export function CreatorSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className={cn('flex h-screen w-64 flex-col border-r border-border bg-card', className)}>
-      <div className="flex items-center gap-2 px-5 py-5">
+    <aside className={cn('flex h-screen w-[232px] flex-col border-r border-border bg-card', className)}>
+      <div className="flex h-[76px] items-center gap-2 px-5">
         <TempoLogo size="md" animated />
       </div>
 
-      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-1">
+      <nav aria-label="Creator portal" className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-1">
         {NAV_ITEMS.map((item) => {
           const active = item.exact
             ? pathname === item.href
@@ -66,6 +66,7 @@ export function CreatorSidebar({
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? 'page' : undefined}
               onClick={onNavigate}
               className={cn(
                 'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150',

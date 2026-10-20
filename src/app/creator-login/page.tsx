@@ -1,5 +1,8 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
+
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useEffect, useState } from 'react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -54,14 +57,14 @@ export default function CreatorLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
+    <div className={`${portal.theme} ${portal.entry}`}>
+      <div className={portal.entryCard}>
         <div className="flex justify-center mb-8">
           <TempoLogo size="lg" animated />
         </div>
 
         <div
-          className="auth-settle bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-8"
+          className="auth-settle bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-6"
           style={{ '--d': '.12s' } as React.CSSProperties}
         >
           <h1 className="auth-rise text-xl font-bold text-foreground text-center mb-2" style={{ '--d': '.22s' } as React.CSSProperties}>Creator Login</h1>
@@ -95,7 +98,9 @@ export default function CreatorLoginPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="auth-rise space-y-4" style={{ '--d': '.34s' } as React.CSSProperties}>
+              <label htmlFor="creator-email" className="block text-sm font-medium text-foreground">Email</label>
               <Input
+                id="creator-email"
                 type="email"
                 placeholder="your@email.com"
                 value={email}

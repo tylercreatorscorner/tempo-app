@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Package, Plus, Pencil, Archive, X, Loader2, Check, Search, ArchiveRestore,
 } from 'lucide-react';
@@ -16,6 +16,8 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import layout from '@/components/ui/workspace-layout.module.css';
+import { WorkspaceMetrics } from '@/components/ui/workspace-metrics';
 
 interface CatalogProduct {
   id: string;
@@ -41,6 +43,9 @@ export function ProductCatalogClient() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [skus, setSkus] = useState<Sku[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadedBrand, setLoadedBrand] = useState('');
+  const [error, setError] = useState('');
+  const readSequence = useRef(0);
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<CatalogProduct | 'new' | null>(null);
   const showBar = useDelayedFlag(loading);
@@ -48,14 +53,20 @@ export function ProductCatalogClient() {
   const skuById = useMemo(() => new Map(skus.map((s) => [s.product_id, s])), [skus]);
 
   const load = useCallback(async (b: string) => {
-    if (!b) { setProducts([]); setSkus([]); return; }
+    const sequence = ++readSequence.current;
+    if (!b) { setProducts([]); setSkus([]); setLoadedBrand(''); setError(''); setLoading(false); return; }
     setLoading(true);
+    setError('');
     try {
       const res = await fetch(`/api/products/catalog?brand=${encodeURIComponent(b)}`);
       const data = await res.json();
-      if (res.ok) { setProducts(data.products ?? []); setSkus(data.skus ?? []); }
+      if (!res.ok) throw new Error(data.error || 'Could not load this catalog.');
+      if (sequence !== readSequence.current) return;
+      setProducts(data.products ?? []); setSkus(data.skus ?? []); setLoadedBrand(b);
+    } catch (error) {
+      if (sequence === readSequence.current) setError(error instanceof Error ? error.message : 'Could not load this catalog.');
     } finally {
-      setLoading(false);
+      if (sequence === readSequence.current) setLoading(false);
     }
   }, []);
 
@@ -64,11 +75,12 @@ export function ProductCatalogClient() {
   const productGmv = (p: CatalogProduct) =>
     (p.product_ids ?? []).reduce((sum, id) => sum + (skuById.get(id)?.gmv ?? 0), 0);
 
-  const visible = products.filter((p) => showArchived || p.status !== 'archived');
+  const currentBrandLoaded = loadedBrand === brand && Boolean(brand);
+  const visible = currentBrandLoaded ? products.filter((p) => showArchived || p.status !== 'archived') : [];
   const brandName = brands.find((b) => b.slug === brand)?.name;
 
   return (
-    <div className="space-y-5">
+    <div className={layout.page}>
       {/* Header */}
       <PageHeader
         eyebrow="Products"
@@ -82,17 +94,17 @@ export function ProductCatalogClient() {
       />
 
       {/* Brand picker */}
-      <Card className="p-4 flex flex-wrap items-center gap-3">
+      <div className={layout.toolbar}>
         <Label className="mb-0">Brand</Label>
-        <div className="min-w-[220px]">
+        <div className="w-full sm:w-64 min-w-0">
           <ChoiceMenu compact label="Catalog brand" value={brand} onChange={setBrand} options={[{ value: '', label: 'Select a brand…' }, ...brands.map(b => ({ value: b.slug, label: b.name }))]} />
         </div>
         {brand && (
           <span className="text-xs text-muted-foreground">
-            {skus.length} TikTok SKU{skus.length === 1 ? '' : 's'} in this brand&apos;s data
+            {currentBrandLoaded ? `${skus.length} TikTok SKU${skus.length === 1 ? '' : 's'} in this brand’s data` : loading ? 'Loading catalog…' : 'Catalog not loaded'}
           </span>
         )}
-        {products.some((p) => p.status === 'archived') && (
+        {currentBrandLoaded && products.some((p) => p.status === 'archived') && (
           <Button
             variant="ghost"
             size="sm"
@@ -102,8 +114,16 @@ export function ProductCatalogClient() {
             {showArchived ? 'Hide archived' : 'Show archived'}
           </Button>
         )}
-      </Card>
+      </div>
 
+      {brand && <WorkspaceMetrics label="Catalog summary" items={[
+        { label: 'Active products', value: loading || !currentBrandLoaded ? '—' : products.filter(p => p.status !== 'archived').length },
+        { label: 'TikTok SKUs', value: loading || !currentBrandLoaded ? '—' : skus.length },
+        { label: 'Archived products', value: loading || !currentBrandLoaded ? '—' : products.filter(p => p.status === 'archived').length },
+      ]} />}
+      {error && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm"><span>{error}{currentBrandLoaded ? ' Showing the last loaded catalog for this brand.' : ' Catalog counts are unavailable.'}</span><Button variant="outline" size="sm" disabled={loading} onClick={() => void load(brand)}>Retry</Button></div>}
+
+      <div className={brand ? layout.columns : layout.stack}>
       {/* Product list */}
       {!brand ? (
         <EmptyState
@@ -114,8 +134,8 @@ export function ProductCatalogClient() {
         <Card className="relative overflow-hidden">
           <TableLoadBar active={showBar} />
           <div className={showBar && visible.length > 0 ? 'opacity-60 transition-opacity duration-200' : ''}>
-            {visible.length === 0 && !loading ? (
-              <div className="p-16 text-center">
+            {!currentBrandLoaded ? <p role="status" className="p-6 text-sm text-muted-foreground">{loading ? 'Loading this brand’s catalog…' : 'Catalog data is unavailable. Retry to load products.'}</p> : visible.length === 0 && !loading ? (
+              <div className="p-8 text-center">
                 <Package className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground text-sm font-medium">No products defined for {brandName} yet</p>
                 <button onClick={() => setEditing('new')} className="text-[var(--primary)] text-sm font-semibold mt-2 hover:underline">
@@ -127,13 +147,13 @@ export function ProductCatalogClient() {
                 {visible.map((p) => {
                   const skuCount = (p.product_ids ?? []).length;
                   return (
-                    <div key={p.id} className="flex items-center gap-4 px-5 py-4 hover:bg-muted/50 transition-colors">
+                    <div key={p.id} className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-x-3 gap-y-2 px-4 py-3 hover:bg-muted/50 transition-colors sm:grid-cols-[36px_minmax(0,1fr)_auto_36px]">
                       <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                         <Package className="h-4 w-4 text-[var(--primary)]" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-[var(--foreground)] truncate">{p.display_name}</span>
+                          <span className="font-semibold text-[var(--foreground)] break-words sm:truncate">{p.display_name}</span>
                           {p.status === 'archived' && (
                             <Badge variant="neutral" size="sm">Archived</Badge>
                           )}
@@ -143,7 +163,7 @@ export function ProductCatalogClient() {
                           {(p.keywords ?? []).length > 0 ? ` · ${(p.keywords ?? []).length} keyword${(p.keywords ?? []).length === 1 ? '' : 's'}` : ''}
                         </p>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="col-start-2 row-start-2 text-left sm:col-start-3 sm:row-start-1 sm:text-right">
                         <p className="text-sm font-semibold text-[var(--foreground)] tabular-nums">{fmt(productGmv(p))}</p>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">all-time GMV</p>
                       </div>
@@ -152,6 +172,8 @@ export function ProductCatalogClient() {
                         size="icon"
                         onClick={() => setEditing(p)}
                         title="Edit"
+                        aria-label={`Edit ${p.display_name}`}
+                        className="col-start-3 row-start-1 sm:col-start-4"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -163,6 +185,8 @@ export function ProductCatalogClient() {
           </div>
         </Card>
       )}
+      {brand && <aside className={layout.panel}><h2>Product mapping</h2><p className="mt-2">Group related TikTok SKUs under one product. Creator tags use these mappings and the keywords you choose.</p><div className={layout.linkList}><p className="py-3">Edit a product to review its SKUs, name, and keywords.</p><p className="pt-3">Archived products remain available for historical reference. Use Show archived to review them.</p></div></aside>}
+      </div>
 
       {editing && (
         <ProductEditor

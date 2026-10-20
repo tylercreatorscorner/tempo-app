@@ -15,11 +15,9 @@
  */
 
 import { useMemo } from 'react';
-import { Clock, AlertTriangle, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { daysOverdue } from '@/lib/finance/overdue';
 import { formatCurrency } from '@/lib/utils/format';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Invoice } from './invoice-detail-sheet';
 
 export type AgingBucket = 'all' | 'current' | '1-30' | '31-60' | '61-90' | '90+';
@@ -41,22 +39,17 @@ interface BucketDef {
   value: Exclude<AgingBucket, 'all'>;
   label: string;
   description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  /** Color tokens for the card */
-  bg: string;
-  bgActive: string;
   text: string;
-  iconBg: string;
 }
 
 // Escalating severity, low → high: neutral → amber → orange → red → deep rose.
 // Tints use color-with-opacity so they read on the card surface in both themes.
 const BUCKETS: BucketDef[] = [
-  { value: 'current', label: 'Current',  description: 'Not yet due', icon: Clock,           bg: 'bg-card border-border',              bgActive: 'bg-muted border-muted-foreground/40 ring-2 ring-muted-foreground/20',  text: 'text-foreground',                      iconBg: 'bg-muted' },
-  { value: '1-30',    label: '1-30',     description: 'Days overdue', icon: Clock,          bg: 'bg-card border-amber-500/30',        bgActive: 'bg-amber-500/10 border-amber-500/60 ring-2 ring-amber-500/25',          text: 'text-amber-600 dark:text-amber-400',   iconBg: 'bg-amber-500/15' },
-  { value: '31-60',   label: '31-60',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-orange-500/30',       bgActive: 'bg-orange-500/10 border-orange-500/60 ring-2 ring-orange-500/25',       text: 'text-orange-600 dark:text-orange-400', iconBg: 'bg-orange-500/15' },
-  { value: '61-90',   label: '61-90',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-red-500/30',          bgActive: 'bg-red-500/10 border-red-500/60 ring-2 ring-red-500/25',                text: 'text-red-600 dark:text-red-400',       iconBg: 'bg-red-500/15' },
-  { value: '90+',     label: '90+',      description: 'Days overdue', icon: Flame,          bg: 'bg-card border-rose-500/40',         bgActive: 'bg-rose-500/15 border-rose-600 ring-2 ring-rose-500/30',                text: 'text-rose-600 dark:text-rose-400',     iconBg: 'bg-rose-500/20' },
+  { value: 'current', label: 'Current', description: 'Not yet due', text: 'text-foreground' },
+  { value: '1-30', label: '1-30 days', description: 'Days overdue', text: 'text-[var(--pulse-warn)]' },
+  { value: '31-60', label: '31-60 days', description: 'Days overdue', text: 'text-[var(--pulse-warn)]' },
+  { value: '61-90', label: '61-90 days', description: 'Days overdue', text: 'text-[var(--pulse-neg)]' },
+  { value: '90+', label: '90+ days', description: 'Days overdue', text: 'text-[var(--pulse-neg)]' },
 ];
 
 interface Props {
@@ -91,42 +84,25 @@ export function AgingPanel({ invoices, todayIso, active, onPick }: Props) {
   if (totalUnpaid === 0) return null; // Don't show empty aging panel
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="items-baseline">
-        <div>
-          <CardTitle className="text-sm">Aging</CardTitle>
-          <CardDescription className="text-xs mt-0.5">
-            Unpaid invoices by overdue age · click a bucket to filter
-          </CardDescription>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          <span className="font-bold text-foreground">{formatCurrency(totalUnpaid)}</span> unpaid
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <section aria-label="Filter invoices by overdue age" className="border-b border-border bg-muted/25 px-4 py-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><h3 className="font-medium">Unpaid by age · select to filter</h3><span className="tabular-nums">{formatCurrency(totalUnpaid)} unpaid</span></div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
           {BUCKETS.map((b) => {
             const data = buckets[b.value];
             const isActive = active === b.value;
-            const Icon = b.icon;
             return (
               <button
                 key={b.value}
+                aria-pressed={isActive}
+                aria-label={`${b.label}: ${data.count} invoices, ${formatCurrency(data.amount)}. ${b.description}.`}
                 onClick={() => onPick(isActive ? 'all' : b.value)}
                 className={cn(
-                  'rounded-xl border p-3 text-left transition-all',
-                  isActive ? b.bgActive : `${b.bg} hover:border-border`,
+                  'min-w-0 rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                  isActive ? 'border-primary/50 bg-primary/5' : 'border-border bg-card hover:border-primary/30',
                 )}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={cn('inline-flex items-center justify-center h-7 w-7 rounded-lg', b.iconBg)}>
-                    <Icon className={cn('h-3.5 w-3.5', b.text)} />
-                  </span>
-                  <span className={cn('text-[10px] font-bold uppercase tracking-wider', b.text)}>
-                    {b.label}
-                  </span>
-                </div>
-                <p className={cn('text-base font-semibold tabular-nums', isActive ? b.text : 'text-foreground')}>
+                <p className={cn('text-[11px] font-medium', b.text)}>{b.label}</p>
+                <p className="mt-1 break-words text-sm font-semibold tabular-nums text-foreground">
                   {data.amount > 0 ? formatCurrency(data.amount) : '—'}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -136,7 +112,6 @@ export function AgingPanel({ invoices, todayIso, active, onPick }: Props) {
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }

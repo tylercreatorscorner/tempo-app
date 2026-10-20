@@ -20,6 +20,7 @@ import { CellDetailDrawer } from './cell-detail-drawer';
 import { UploadHistory } from './upload-history';
 import { UploadClient } from '@/app/(admin)/upload/upload-client';
 import type { CoverageResponse } from './coverage-types';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 interface ActiveBrand {
   slug: string;
@@ -88,7 +89,8 @@ export function DataPipelineClient({ activeBrands }: { activeBrands: ActiveBrand
   const onUploaded = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   return (
-    <div className="space-y-6">
+    <div className={layout.page}>
+      <nav className={layout.toolbar} aria-label="Data pipeline sections"><span className="text-sm font-semibold">Data workspace</span><div className="flex flex-wrap gap-4 text-sm text-primary"><a href="#data-coverage" className="hover:underline">Coverage</a><a href="#data-upload" className="hover:underline">Upload queue</a><a href="#data-history" className="hover:underline">Recent uploads</a></div></nav>
       {/* `error` is passed as BOTH the cold failure and the warm-staleness
           signal. Pinning the second to null (which is what this did) meant a
           refetch failure left three lanes asserting a green all-clear while the
@@ -100,7 +102,7 @@ export function DataPipelineClient({ activeBrands }: { activeBrands: ActiveBrand
         loading={loading}
       />
 
-      <CoverageLedger
+      <section id="data-coverage" className="min-w-0 scroll-mt-28" aria-label="Coverage ledger"><CoverageLedger
         data={data}
         loading={loading}
         error={error}
@@ -110,15 +112,16 @@ export function DataPipelineClient({ activeBrands }: { activeBrands: ActiveBrand
         selection={selection}
         onSelect={setSelection}
         onRetry={load}
-      />
+      /></section>
 
       {/* The upload queue, demoted to one lane. Everything it shipped in the
           last two days still runs here unchanged: content-sniff auto-switch
           chips, duplicate-target warnings, overwrite chips, per-row error logs
           and the 3-wide parallel pool. */}
-      <UploadClient activeBrands={activeBrands} onUploaded={onUploaded} />
-
-      <UploadHistory refreshKey={refreshKey} />
+      <div className={layout.balanced}>
+        <section id="data-upload" className="min-w-0 scroll-mt-28" aria-label="Upload queue"><UploadClient activeBrands={activeBrands} onUploaded={onUploaded} /></section>
+        <section id="data-history" className="min-w-0 scroll-mt-28" aria-label="Recent uploads"><UploadHistory refreshKey={refreshKey} /></section>
+      </div>
 
       {selection && (
         <CellDetailDrawer selection={selection} onClose={() => setSelection(null)} />

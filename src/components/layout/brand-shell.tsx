@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -52,7 +54,7 @@ interface BrandShellProps {
  * `var(--card)` is a string the maths cannot see.
  */
 const CARD_LIGHT = '#FFFFFF';
-const CARD_DARK = '#17182F';
+const CARD_DARK = '#1b212c';
 
 /**
  * Brand accent, resolved for BOTH themes up front.
@@ -90,7 +92,7 @@ function brandInkVars(accent: string): React.CSSProperties {
 export function BrandShell({ context, children }: BrandShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { activeBrand, user } = context;
-  const accentColor = activeBrand.color || 'var(--primary)';
+  const accentColor = activeBrand.color || '#6e4bcc';
 
   // Body-scroll layout (matches admin shell): outer is min-h-screen so the
   // page scrolls naturally; sidebar/header are sticky-pinned. Without this,
@@ -98,9 +100,10 @@ export function BrandShell({ context, children }: BrandShellProps) {
   // is unintuitive (every other website scrolls regardless of cursor position).
   return (
     <div
-      className="brand-scope flex min-h-screen"
+      className={`${portal.theme} brand-scope flex min-h-screen`}
       style={{ backgroundColor: 'var(--background)', ...brandInkVars(activeBrand.color || '#4B45FF') }}
     >
+      <a href="#brand-content" onClick={() => setMobileNavOpen(false)} className={portal.skipLink}>Skip to content</a>
       <BrandSidebar
         className="hidden lg:flex sticky top-0 h-screen"
         accentColor={accentColor}
@@ -139,8 +142,8 @@ export function BrandShell({ context, children }: BrandShellProps) {
           userEmail={user.email}
           brandName={activeBrand.display_name || activeBrand.name}
         />
-        <main className="flex-1 animate-fade-in">
-          <div className="p-3 sm:p-4 md:p-6">{children}</div>
+        <main id="brand-content" tabIndex={-1} className="min-w-0 flex-1">
+          <div className={portal.content}>{children}</div>
         </main>
       </div>
     </div>
@@ -169,15 +172,15 @@ function BrandSidebar({
   return (
     <aside
       className={cn(
-        'flex flex-col w-64 h-screen bg-card border-r border-border',
+        'flex flex-col w-[232px] h-screen bg-card border-r border-border',
         className,
       )}
     >
-      <div className="flex items-center gap-2 px-5 py-5">
+      <div className="flex h-[76px] items-center gap-2 px-5">
         <TempoLogo size="md" animated />
       </div>
 
-      <nav className="flex-1 min-h-0 px-2 py-1 overflow-y-auto space-y-0.5">
+      <nav aria-label="Client portal" className="flex-1 min-h-0 px-2 py-1 overflow-y-auto space-y-0.5">
         {NAV_ITEMS.map((item) => {
           // Reports / Settings: active when path is in their subtree
           // Overview: active for /brand-dashboard and any nested path NOT in another section
@@ -195,6 +198,7 @@ function BrandSidebar({
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? 'page' : undefined}
               onClick={onNavigate}
               className={cn(
                 'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
@@ -417,7 +421,7 @@ function BrandHeader({
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-3 sm:px-5 border-b border-border bg-card">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
           onClick={onMenuClick}
           className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors"
@@ -430,14 +434,14 @@ function BrandHeader({
           <TempoLogo size="sm" animated />
         </div>
 
-        <nav className="flex items-center gap-1.5 text-sm min-w-0">
-          <span className="text-muted-foreground hidden sm:inline text-xs">{brandName}</span>
+        <nav className="hidden min-w-0 items-center gap-1.5 text-sm sm:flex">
+          <span className="text-muted-foreground hidden min-w-0 truncate sm:inline text-xs">{brandName}</span>
           <ChevronRight className="h-3 w-3 text-muted-foreground hidden sm:block" />
           <span className="font-semibold text-foreground text-sm truncate">{pageLabel}</span>
         </nav>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         {/* Same component the admin and creator shells use, so the three
             surfaces can't drift. It was missing here, which is the only
             reason dark mode was unreachable for a client. */}
@@ -455,7 +459,7 @@ function BrandHeader({
                 indigo chip in both themes. The admin header (header.tsx) still
                 carries the token version and has the same problem — not
                 changed here because it is a different surface. */}
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#4B45FF] to-[#9A37EF] flex items-center justify-center text-white text-xs font-bold shadow-sm">
+            <div className="h-8 w-8 rounded-full bg-[#6e4bcc] flex items-center justify-center text-white text-xs font-bold shadow-sm">
               {initials}
             </div>
             {userName && (

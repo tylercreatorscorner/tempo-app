@@ -18,6 +18,7 @@ import { TableCard, Table, THead, TBody, TR, TH, TD, DataAvatar } from '@/compon
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 // Assignable roles. 'analyst' is intentionally NOT here — getWorkspaceScope has no
 // case for it (it resolves to null = no access), so offering it would mint dead
@@ -88,6 +89,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
   const [confirmRole, setConfirmRole] = useState<{ userId: string; role: string } | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [view, setView] = useState('all');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -194,7 +196,8 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
   };
 
   const q = search.trim().toLowerCase();
-  const match = (u: TeamUser) => !q || (u.name ?? '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+  const match = (u: TeamUser) => (!q || (u.name ?? '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+    && (view === 'all' || (view === 'pending' ? u.pending : needsBrandScope(u.role) && (u.brand_access ?? []).length === 0));
   // Most access first, then alphabetical. The rows you most need to audit are
   // the ones you cannot avoid reading.
   const byAccess = (a: TeamUser, b: TeamUser) =>
@@ -443,7 +446,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
   );
 
   return (
-    <div className="space-y-4">
+    <div className={layout.page}>
       {(success || error) && (
         <div className={cn(
           'fixed bottom-6 right-6 z-50 rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-lg',
@@ -454,7 +457,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
       )}
 
       {/* What the table adds up to. */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={layout.cardMetrics}>
         <Stat label="Full tenant access" value={stats.fullTenant} of={users.length}
               note="Owner, Admin and Viewer see every brand" />
         <Stat label="Can see finance" value={stats.finance} of={users.length}
@@ -478,7 +481,12 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <ChoiceMenu compact label="Member directory view" value={view} onChange={setView} options={[
+              { value: 'all', label: 'All members' },
+              { value: 'pending', label: 'Invites not accepted' },
+              { value: 'unassigned', label: 'No brand access' },
+            ]} />
             <div className="relative flex-1 sm:flex-none">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -491,7 +499,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
             </div>
             <button
               onClick={() => { setInviteError(null); setShowInvite(true); }}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-[13.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
             >
               <UserPlus className="h-4 w-4" /> Invite person
             </button>
@@ -517,7 +525,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
               {sectionHead('Team', team.length)}
               {team.length === 0 ? (
                 <TR><TD colSpan={6} className="py-8 text-center text-[13.5px] text-muted-foreground">
-                  {q ? 'No team members match your search.' : 'No team members yet.'}
+                  {q || view !== 'all' ? 'No team members match these filters.' : 'No team members yet.'}
                 </TD></TR>
               ) : team.map(renderRow)}
 

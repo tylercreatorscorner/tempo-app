@@ -149,9 +149,9 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
     <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <Card className="relative w-full max-w-2xl shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <Card role="dialog" aria-modal="true" aria-label="Create invoice" className="relative w-full max-w-2xl shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col max-h-[90dvh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
+        <div className="px-4 py-4 sm:px-5 border-b border-border flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <div className="h-10 w-10 rounded-[10px] bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
               <Receipt className="h-5 w-5" />
@@ -168,7 +168,8 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
         </div>
 
         {/* Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-5 space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {/* Month picker */}
           <div>
             <Label>Period</Label>
@@ -183,6 +184,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
               <ChoiceMenu label="Invoice payee" value={teamMemberId ?? ''} onChange={value => { setTeamMemberId(value || null); setSelectedBrand(null); }} disabled={creating} options={teamMembers.map(tm => ({ value: tm.id, label: tm.name }))} triggerClassName="w-full" />
             </div>
           )}
+          </div>
 
           {/* Brand picker */}
           <div>
@@ -204,7 +206,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                 description="Pick a different period."
               />
             ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1 -mr-1">
+              <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 -mr-1 sm:grid-cols-2">
                 {brands.map((b) => {
                   const active = selectedBrand === b.brand;
                   return (
@@ -213,13 +215,13 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                       onClick={() => { setSelectedBrand(b.brand); setConflict(null); setError(null); }}
                       disabled={creating}
                       className={cn(
-                        'w-full text-left rounded-xl border-2 px-4 py-3 transition-all',
+                        'w-full min-w-0 text-left rounded-lg border px-3 py-2.5 transition-colors',
                         active
                           ? 'border-primary bg-primary/5 shadow-sm'
                           : 'border-border bg-card hover:border-primary/40',
                       )}
                     >
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-[var(--foreground)] truncate">{b.brandLabel}</p>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -285,7 +287,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2 bg-muted/40">
+        <div className="px-4 py-3 sm:px-5 border-t border-border flex items-center justify-end gap-2 bg-muted/40">
           <Button variant="ghost" onClick={onClose} disabled={creating}>
             Cancel
           </Button>

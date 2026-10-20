@@ -1,10 +1,11 @@
 "use client";
 
+import Link from 'next/link';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   blankDraft,
   sundayToday,
@@ -127,20 +128,11 @@ export function CoachingRecords() {
     <div className={styles.workspace}>
       <PageHeader
         title="Coaching"
+        actions={<Link href="/reporting/coaching/elite" className={buttonVariants({variant:"outline",size:"sm"})}>Elite performance</Link>}
         subtitle="Weekly responsibilities, coach submissions and review history."
       />
-      <div className={styles.brief}>
-        <div>
-          <span className={styles.eyebrow}>Weekly accountability</span>
-          <h2>Record the work. Keep the history.</h2>
-          <p>
-            Coaches save their own drafts and submit for review. Each submission
-            is preserved; requested changes create a new version. No messages
-            are sent automatically.
-          </p>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-end gap-3">
+      <div className={styles.recordMetrics} aria-label="Weekly coaching status"><div><span>Assignments</span><strong>{loading?'…':data?data.assignments.length:'—'}</strong></div><div><span>Awaiting review</span><strong>{loading?'…':data?data.reports.filter(r=>r.status==='submitted').length:'—'}</strong></div><div><span>Reviewed</span><strong>{loading?'…':data?data.reports.filter(r=>r.status==='reviewed').length:'—'}</strong></div><div><span>Changes requested</span><strong>{loading?'…':data?data.reports.filter(r=>r.status==='changes_requested').length:'—'}</strong></div></div>
+      <div className={styles.recordToolbar}>
         <div className="min-w-0 max-w-full">
           <ChoiceMenu label="Reporting week" value={week} options={weekOptions}
             disabled={busy} onChange={(value) => {
@@ -166,7 +158,7 @@ export function CoachingRecords() {
           Refresh
         </Button>
         <span className="text-xs text-muted-foreground">
-          Select any prior week to review its submissions.
+          Choose a prior week to review its preserved submissions.
         </span>
       </div>
       {error && (
@@ -369,7 +361,7 @@ function ReportForm({
           <small>{new Date(review.reviewed_at).toLocaleString()}</small>
         </div>
       )}
-      {responsibilities.map((task) => (
+      <div className={styles.reportChecklist}>{responsibilities.map((task) => (
         <div className={styles.checklistItem} key={task.key}>
           <label>
             <input
@@ -417,7 +409,7 @@ function ReportForm({
             placeholder="Creator names, feedback details or Discord / Loom links"
           />
         </div>
-      ))}
+      ))}</div>
       <div className={styles.summaryFields}>
         <div>
           <label htmlFor="summary">Weekly summary</label>
@@ -504,7 +496,7 @@ function AssignmentForm({
   const [coachId, setCoachId] = useState("");
   const [reviewerId, setReviewerId] = useState("");
   return (
-    <details className="rounded-xl border border-border bg-card p-4">
+    <details className={`${styles.assignmentSettings} rounded-xl border border-border bg-card p-4`}>
       <summary className="cursor-pointer text-sm font-semibold">
         Manage coaching assignments
       </summary>
@@ -513,13 +505,13 @@ function AssignmentForm({
         brand and Reporting. A coach cannot review their own submission.
       </p>
       <form
-        className="mt-4 flex flex-wrap gap-3 items-end"
+        className={styles.assignmentFields}
         onSubmit={(e) => {
           e.preventDefault();
           void save({ action: "assign", brandId, coachId, reviewerId });
         }}
       >
-        <label className="text-xs">
+        <label className="text-xs min-w-0">
           Brand
           <select
             required

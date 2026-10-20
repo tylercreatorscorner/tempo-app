@@ -28,7 +28,7 @@ import { formatCurrency, formatPeriod, currentMonth } from '@/lib/utils/format';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { StatCard } from '@/components/ui/stat-card';
+import { FinanceMetricStrip } from '@/components/finance/finance-metric-strip';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { BrandSpendChart } from './components/brand-spend-chart';
@@ -144,7 +144,7 @@ export function PaymentsClient() {
   const monthLabel = formatPeriod(currentMonth());
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4">
       <PageHeader
         eyebrow="Finance"
         title="Payments"
@@ -168,52 +168,16 @@ export function PaymentsClient() {
       )}
 
       {/* KPI row — "—" until the read succeeds; a failed read is never a $0. */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          hero
-          label="Retainer book /mo"
-          value={overview ? formatCurrency(overview.retainerBook) : '—'}
-          subValue={overview ? `${overview.retainerCreatorCount} creator${overview.retainerCreatorCount === 1 ? '' : 's'} on retainer` : undefined}
-        />
-        <StatCard
-          label="Outstanding invoices"
-          value={overview ? formatCurrency(overview.outstandingAmount) : '—'}
-          subValue={overview ? `${overview.outstandingCount} pending + sent` : undefined}
-          accentColor="var(--pulse-warn)"
-        />
-        <StatCard
-          label="Overdue"
-          value={overview ? formatCurrency(overview.overdueAmount) : '—'}
-          subValue={overview ? `${overview.overdueCount} invoice${overview.overdueCount === 1 ? '' : 's'} past due` : undefined}
-          accentColor="var(--pulse-neg)"
-        />
-        <StatCard
-          label="Collected this month"
-          value={overview ? formatCurrency(overview.collectedAmount) : '—'}
-          subValue={overview ? `${overview.collectedCount} paid · ${monthLabel}` : undefined}
-          accentColor="var(--pulse-pos)"
-        />
-      </div>
+      <FinanceMetricStrip label="Commitments and collections summary" metrics={[
+        { label: 'Retainer book /mo', value: overview ? formatCurrency(overview.retainerBook) : '—', detail: overview ? `${overview.retainerCreatorCount} creator${overview.retainerCreatorCount === 1 ? '' : 's'} on retainer` : undefined, tone: 'primary' },
+        { label: 'Outstanding invoices', value: overview ? formatCurrency(overview.outstandingAmount) : '—', detail: overview ? `${overview.outstandingCount} pending + sent` : undefined },
+        { label: 'Overdue', value: overview ? formatCurrency(overview.overdueAmount) : '—', detail: overview ? `${overview.overdueCount} invoice${overview.overdueCount === 1 ? '' : 's'} past due` : undefined, tone: 'negative' },
+        { label: 'Collected this month', value: overview ? formatCurrency(overview.collectedAmount) : '—', detail: overview ? `${overview.collectedCount} paid · ${monthLabel}` : undefined, tone: 'positive' },
+      ]} />
 
-      {/* Retainer book by brand */}
-      {overview && Object.values(overview.brandSpend).some((v) => v > 0) && (
-        <Card className="overflow-hidden">
-          <CardHeader className="items-baseline">
-            <div>
-              <CardTitle className="text-sm">Retainer book by brand</CardTitle>
-              <CardDescription className="mt-0.5 text-xs">
-                Monthly retainer commitments across active brands
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <BrandSpendChart data={overview.brandSpend} />
-          </CardContent>
-        </Card>
-      )}
-
+      <div className="grid min-w-0 items-start gap-4 min-[1440px]:grid-cols-[minmax(0,1fr)_310px]">
       {/* Retainer book table — the load bar covers brand-filter refetches. */}
-      <div className="relative">
+      <div className="relative min-w-0">
         <TableLoadBar active={showBar} />
         <RetainerBook
           creators={creators}
@@ -225,8 +189,21 @@ export function PaymentsClient() {
         />
       </div>
 
-      {/* Audit history */}
-      <AuditFeed logs={logs} loading={loadingHistory} />
+      <aside className="grid min-w-0 grid-cols-1 items-start gap-4 md:max-[1439px]:grid-cols-2" aria-label="Commitment breakdown and payment activity">
+        {overview && Object.values(overview.brandSpend).some((v) => v > 0) && (
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="border-b border-border px-4 py-3">
+              <div>
+                <CardTitle className="text-sm">Commitments by brand</CardTitle>
+                <CardDescription className="mt-0.5 text-xs">Monthly retainers · all active brands</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="max-h-80 overflow-y-auto px-4 py-3"><BrandSpendChart data={overview.brandSpend} /></CardContent>
+          </Card>
+        )}
+        <AuditFeed logs={logs} loading={loadingHistory} />
+      </aside>
+      </div>
 
       <p className="text-xs text-muted-foreground">
         Creator payout tracking arrives with the payouts release.

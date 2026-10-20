@@ -85,19 +85,15 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
             href={brandHref(brand)}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
               isActive
-                ? 'text-white'
+                ? 'bg-primary text-primary-foreground border-primary'
                 : hasData
-                  ? 'bg-card hover:border-border'
-                  : 'bg-card hover:border-border opacity-50'
+                  ? 'bg-card text-foreground border-border hover:bg-muted'
+                  : 'bg-card text-muted-foreground border-border hover:bg-muted'
             )}
-            style={
-              isActive
-                ? { backgroundColor: color, borderColor: color }
-                : { borderColor: `${color}40`, color }
-            }
           >
+            <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
             {brandMeta.label(brand)}
             {!hasData && !isActive && dataKnown && (
               <span className="ml-1 text-[10px] opacity-60">(no data)</span>

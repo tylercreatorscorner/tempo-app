@@ -13,7 +13,7 @@ import { AlertCircle, Download, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
 import { downloadCsv } from '@/lib/utils/csv';
-import { StatCard } from '@/components/ui/stat-card';
+import { FinanceMetricStrip } from '@/components/finance/finance-metric-strip';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
@@ -68,7 +68,7 @@ function monthLabel(ym: string) {
   return new Date(Date.UTC(2000, (m ?? 1) - 1, 1)).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
 }
 
-export function YearView({ initialYear }: { initialYear: number }) {
+export function YearView({ initialYear, viewControl }: { initialYear: number; viewControl?: React.ReactNode }) {
   const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
   const yearOptions = useMemo(() => Array.from({ length: 6 }, (_, i) => currentYear - i), [currentYear]);
 
@@ -148,9 +148,10 @@ export function YearView({ initialYear }: { initialYear: number }) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4">
       {/* Year toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card px-4 py-3">
+        {viewControl}
         <div className="w-28">
           <ChoiceMenu compact triggerClassName="w-full" label="Earnings year" value={String(year)} onChange={value => setYear(Number(value))} options={yearOptions.map(y => ({ value: String(y), label: String(y) }))} />
         </div>
@@ -178,39 +179,28 @@ export function YearView({ initialYear }: { initialYear: number }) {
 
       <div className="relative">
         <TableLoadBar active={showBar} />
-        <div className={cn('space-y-6', showBar && data && 'opacity-60 transition-opacity duration-200')}>
+        <div className={cn('space-y-4', showBar && data && 'opacity-60 transition-opacity duration-200')}>
           {/* Stat cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12">
-            <div className="lg:col-span-5">
-              <StatCard
-                label={`${year} Earnings`}
-                value={data ? formatCurrency(data.totals.earnings) : '—'}
-                hero
-                sparklineData={data && data.months.length > 1 ? data.months.map((m) => m.earnings) : undefined}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3 lg:col-span-7 lg:grid-cols-4">
-              <StatCard label="Total GMV"   value={data ? formatCurrency(data.totals.totalGmv)   : '—'} accentColor="var(--pulse-accent-2)" />
-              <StatCard label="Commission"  value={data ? formatCurrency(data.totals.commission) : '—'} accentColor="var(--primary)" />
-              <StatCard label="Retainers"   value={data ? formatCurrency(data.totals.retainers)  : '—'} accentColor="var(--pulse-pos)" />
-              <StatCard label="Launch Fees" value={data ? formatCurrency(data.totals.launchFees) : '—'} accentColor="var(--pulse-warn)" />
-            </div>
-          </div>
+          <FinanceMetricStrip label="Annual earnings summary" metrics={[
+            { label: `${year} earnings`, value: data ? formatCurrency(data.totals.earnings) : '—', tone: 'primary' },
+            { label: 'Total GMV', value: data ? formatCurrency(data.totals.totalGmv) : '—' },
+            { label: 'Commission', value: data ? formatCurrency(data.totals.commission) : '—' },
+            { label: 'Retainers', value: data ? formatCurrency(data.totals.retainers) : '—' },
+            { label: 'Launch fees', value: data ? formatCurrency(data.totals.launchFees) : '—' },
+          ]} />
 
-          {/* Monthly trend */}
-          <Panel title="Monthly Trend" subtitle="Earnings stacked by component (commission · retainer · fees)">
+          <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(260px,1fr)]">
+          <Panel title="Monthly trend" subtitle="Commission, retainers, and fees across the year">
             {loading && !data ? (
               <div className="h-[300px] w-full animate-pulse rounded-xl bg-muted" />
             ) : data && data.months.length > 0 ? (
-              <EarningsTrendChart data={trendData} height={300} />
+              <EarningsTrendChart data={trendData} height={280} />
             ) : (
               <div className="py-12 text-center text-sm text-muted-foreground">No data for this year yet</div>
             )}
           </Panel>
 
-          {/* Brand contribution + monthly table */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-            <Panel title="Brand Contribution" subtitle="Total earnings by brand for the year" className="lg:col-span-2">
+            <Panel title="Brand contribution" subtitle="Total earnings by brand for the year">
               {loading && !data ? (
                 <div className="h-[320px] w-full animate-pulse rounded-xl bg-muted" />
               ) : data && data.brands.length > 0 ? (
@@ -219,11 +209,11 @@ export function YearView({ initialYear }: { initialYear: number }) {
                 <div className="py-12 text-center text-sm text-muted-foreground">No brand data yet</div>
               )}
             </Panel>
+          </div>
 
             <Panel
-              title="Monthly Breakdown"
+              title="Monthly breakdown"
               subtitle={data ? `${data.months.length} month${data.months.length === 1 ? '' : 's'}` : 'Loading…'}
-              className="lg:col-span-3"
               bodyPadding={false}
             >
               {loading && !data ? (
@@ -232,7 +222,6 @@ export function YearView({ initialYear }: { initialYear: number }) {
                 <MonthlyTable months={data.months} totals={data.totals} year={data.year} />
               ) : null}
             </Panel>
-          </div>
         </div>
       </div>
     </div>
@@ -247,12 +236,12 @@ function Panel({ title, subtitle, children, className, bodyPadding = true }: {
   bodyPadding?: boolean;
 }) {
   return (
-    <Card className={cn('overflow-hidden', className)}>
-      <div className="px-5 pb-3 pt-4">
+    <Card className={cn('min-w-0 overflow-hidden', className)}>
+      <div className="border-b border-border px-4 py-3">
         <CardTitle>{title}</CardTitle>
         {subtitle && <CardDescription className="mt-0.5 text-xs">{subtitle}</CardDescription>}
       </div>
-      {bodyPadding ? <div className="px-5 pb-5">{children}</div> : children}
+      {bodyPadding ? <div className="p-4">{children}</div> : children}
     </Card>
   );
 }

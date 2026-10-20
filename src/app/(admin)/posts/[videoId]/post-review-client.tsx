@@ -35,6 +35,7 @@ import { Label } from '@/components/ui/label';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { Sparkline } from '@/components/charts/sparkline';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 export interface DailyPoint {
   d: string;                  // YYYY-MM-DD
@@ -186,14 +187,14 @@ export function PostReviewClient({
   const hasViewsSeries = meta.daily.some(p => p.views !== null && p.views > 0);
 
   return (
-    <div className="space-y-5">
+    <div className={layout.page}>
       {/* Header */}
-      <div className="flex items-start gap-3">
-        <Link href="/posts" className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground mt-1">
+      <div className="flex flex-wrap items-start gap-3">
+        <Link href="/posts" aria-label="Back to Posts" className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground mt-1">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-1">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
               {meta.brand_name}
@@ -232,11 +233,11 @@ export function PostReviewClient({
       )}
 
       {/* Player + stats */}
-      <div className="grid gap-5 lg:grid-cols-[300px_1fr] items-start">
-        <PlayerRail videoId={meta.video_id} videoUrl={meta.video_url} />
+      <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)] items-start">
+        <aside className="min-w-0 lg:sticky lg:top-28" aria-label="Video player"><PlayerRail videoId={meta.video_id} videoUrl={meta.video_url} /></aside>
 
-        <div className="space-y-5 min-w-0">
-          <Card className="p-5">
+        <div className={layout.page}>
+          <Card className="p-4">
             {/* Money row */}
             <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">Revenue</div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -261,12 +262,12 @@ export function PostReviewClient({
             </div>
 
             {/* Engagement row — tracked days only, honest nulls */}
-            <div className="mt-5 pt-4 border-t border-border">
+            <div className="mt-4 pt-3 border-t border-border">
               <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3 inline-flex items-center gap-1">
                 Engagement · tracked days
                 <InfoTooltip label="Summed from the daily Video Data uploads. Days uploaded before engagement tracking carry no data; a placeholder means no data, not zero." />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
                 <Kpi label="Views"    value={s ? fmtN(s.views) : '—'} />
                 <Kpi label="Likes"    value={s ? fmtN(s.likes) : '—'} accent="primary" />
                 <Kpi label="Comments" value={s ? fmtN(s.comments) : '—'} />
@@ -282,11 +283,11 @@ export function PostReviewClient({
 
           {/* Daily trend — did it spike and die, or is it compounding? */}
           {gmvSeries.length > 1 && (
-            <Card className="p-5">
+            <Card className="p-4">
               <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">
                 Daily trend · {meta.daily.length} tracked days
               </div>
-              <div className="flex flex-wrap gap-8">
+              <div className="flex flex-wrap gap-4 [&>div]:max-w-full [&>div]:overflow-x-auto">
                 <div>
                   <div className="text-[11px] text-muted-foreground mb-1">GMV / day</div>
                   <Sparkline
@@ -313,9 +314,6 @@ export function PostReviewClient({
               </div>
             </Card>
           )}
-        </div>
-      </div>
-
       {/* YOUR review (form) */}
       <Card>
         <CardHeader className="border-b border-border">
@@ -402,6 +400,7 @@ export function PostReviewClient({
           <div>
             <Label>Notes</Label>
             <Textarea
+              aria-label="Your video review notes"
               value={draftNotes}
               onChange={(e) => setDraftNotes(e.target.value)}
               rows={4}
@@ -438,6 +437,8 @@ export function PostReviewClient({
           </ul>
         )}
       </Card>
+        </div>
+      </div>
 
       {/* Delete confirm — themed modal, not window.confirm. ModalOverlay's
           contract: the consumer supplies the centering wrapper, backdrop, and

@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import {
@@ -19,7 +21,6 @@ import { DataAvatar } from '@/components/ui/table';
 import { Badge, Tag } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { NumberTicker } from '@/components/ui/number-ticker';
-import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { formatCurrency } from '@/lib/utils/format';
 import { Sparkline } from '@/components/creator/sparkline';
@@ -102,13 +103,18 @@ export function HomeClient(props: Props) {
 
   const bandLabel = chaseBrandLabel ?? currentBrandDisplay ?? 'your brand';
   const hasMoneyMakers = topProducts.length > 0 || !!untapped;
-  const moneyMakersUp = hasMoneyMakers && !!brandStanding;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-12">
+    <div className={portal.page}>
+      <div className={portal.pageHeader}>
+        <div>
+          <p className={portal.eyebrow}>Creator workspace</p>
+          <h1>{greeting}, {realName.split(' ')[0] || realName}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{currentBrandDisplay || 'All brands'} · {props.rangeLabel}</p>
+        </div>
+        <DateRangePicker defaultPreset="last30" />
+      </div>
       <LedgerHero
-        greeting={greeting}
-        realName={realName}
         currentBrandDisplay={currentBrandDisplay}
         summary={summary}
         lifetimeGmv={lifetimeGmv}
@@ -116,108 +122,53 @@ export function HomeClient(props: Props) {
         handleCount={handles.length}
         series={dailySeries}
       />
-
       <LedgerStrip summary={summary} streak={streak} />
-
-      {/* Network-scale morale beat — streamed so it never blocks Home. */}
       {flexSlot}
-
-      {/* Your next moves — the spine of the hub. */}
-      {actions.length > 0 && (
-        <section>
-          <SectionHead title="Your next moves" />
-          <div className="space-y-2.5">
-            {actions.map((a, i) => (
-              <ActionCard key={a.kind + i} action={a} index={i} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {brandStanding && (
-        <section>
-          <SectionHead
-            title={`${bandLabel} · where you stand`}
-            href="/creator-dashboard/rankings"
-            cta="Full rankings"
-          />
-          <StandingBand standing={brandStanding} variant="share" />
-        </section>
-      )}
-
-      {/* Money-makers + rank ladder */}
-      {(hasMoneyMakers || brandStanding) && (
-        <div className={moneyMakersUp ? 'grid gap-5 lg:grid-cols-2' : ''}>
-          {hasMoneyMakers && <MoneyMakers products={topProducts} untapped={untapped} />}
-          {brandStanding && (
-            <RankLadder standing={brandStanding} brandLabel={bandLabel} avgPerVideo={avgPerVideo} />
+      <div className={portal.homeGrid}>
+        <div className={portal.stack}>
+          {actions.length > 0 && (
+            <section>
+              <SectionHead title="Your next moves" />
+              <div className="space-y-2">
+                {actions.map((action, i) => <ActionCard key={action.kind + i} action={action} index={i} />)}
+              </div>
+            </section>
           )}
-        </div>
-      )}
-
-      {/* Earn & pace — retainer quota for contracted, GMV milestone for everyone.
-          Contracted creators see both side by side; affiliate-only get the milestone. */}
-      {props.hasCustomAgreement && <p className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground">Your agreements use different periods or changed terms. Check My Brands for each requirement; calendar-month activity is not a payment calculation.</p>}
-      {monthlyTarget > 0 ? (
-        <div className={lifetimeGmv && lifetimeGmv > 0 ? 'grid gap-5 lg:grid-cols-2' : ''}>
-          <RetainerPace
-            monthVideos={monthVideos}
-            monthlyTarget={monthlyTarget}
-            daysLeftInMonth={daysLeftInMonth}
-            retainerTotal={retainerTotal}
+          <VideoColumn
+            title="Your top videos"
+            icon={<Trophy className="h-4 w-4" />}
+            videos={topVideos}
+            showCooling
+            empty={<EmptyState icon={<Video className="h-8 w-8" />} title="Your best work will live here" description="No videos in this period yet. Post something today and watch it climb this list." action={<Link href="/creator-dashboard/discover" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">Find inspiration <ArrowRight className="h-3.5 w-3.5" /></Link>} className="border-0 shadow-none" />}
+            ctaHref="/creator-dashboard/stats"
+            ctaLabel="See all my stats"
           />
-          {lifetimeGmv != null && lifetimeGmv > 0 && <MilestoneGoal lifetimeGmv={lifetimeGmv} />}
+          <VideoColumn
+            title="What's winning across the network"
+            icon={<Sparkles className="h-4 w-4" />}
+            videos={inspiration}
+            empty={<EmptyState icon={<Sparkles className="h-8 w-8" />} title="Fresh inspiration incoming" description="No standout videos to show right now. Check back soon to see what's taking off across the network." className="border-0 shadow-none" />}
+            ctaHref="/creator-dashboard/discover"
+            ctaLabel="Browse inspiration"
+            showCreator
+            sellableProducts={sellableProducts}
+          />
         </div>
-      ) : (
-        <MilestoneGoal lifetimeGmv={lifetimeGmv} />
-      )}
-
-      {/* Two-column: Your top videos + What's winning */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <VideoColumn
-          title="Your top videos"
-          icon={<Trophy className="h-4 w-4" />}
-          videos={topVideos}
-          showCooling
-          empty={
-            <EmptyState
-              icon={<Video className="h-8 w-8" />}
-              title="Your best work will live here"
-              description="No videos in this period yet. Post something today and watch it climb this list."
-              action={
-                <Link
-                  href="/creator-dashboard/discover"
-                  className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-                >
-                  Find inspiration <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              }
-              className="border-0 shadow-none"
-            />
-          }
-          ctaHref="/creator-dashboard/stats"
-          ctaLabel="See all my stats"
-        />
-        <VideoColumn
-          title="What's winning across the network"
-          icon={<Sparkles className="h-4 w-4" />}
-          videos={inspiration}
-          empty={
-            <EmptyState
-              icon={<Sparkles className="h-8 w-8" />}
-              title="Fresh inspiration incoming"
-              description="No standout videos to show right now. Check back soon to see what's taking off across the network."
-              className="border-0 shadow-none"
-            />
-          }
-          ctaHref="/creator-dashboard/discover"
-          ctaLabel="Browse inspiration"
-          showCreator
-          sellableProducts={sellableProducts}
-        />
+        <aside className={portal.stack} aria-label="Your brands and goals">
+          {brandStanding && (
+            <section>
+              <SectionHead title={`${bandLabel} · your standing`} href="/creator-dashboard/rankings" cta="Rankings" />
+              <StandingBand standing={brandStanding} variant="share" />
+            </section>
+          )}
+          {hasMoneyMakers && <MoneyMakers products={topProducts} untapped={untapped} />}
+          {brandStanding && <RankLadder standing={brandStanding} brandLabel={bandLabel} avgPerVideo={avgPerVideo} />}
+          {props.hasCustomAgreement && <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">Your agreements use different periods or changed terms. Check My Brands for each requirement; calendar-month activity is not a payment calculation.</p>}
+          {monthlyTarget > 0 && <RetainerPace monthVideos={monthVideos} monthlyTarget={monthlyTarget} daysLeftInMonth={daysLeftInMonth} retainerTotal={retainerTotal} />}
+          {(monthlyTarget <= 0 || (lifetimeGmv != null && lifetimeGmv > 0)) && <MilestoneGoal lifetimeGmv={lifetimeGmv} />}
+          <ManagerHandoff />
+        </aside>
       </div>
-
-      <ManagerHandoff />
     </div>
   );
 }
@@ -226,8 +177,8 @@ export function HomeClient(props: Props) {
 
 function SectionHead({ title, href, cta }: { title: string; href?: string; cta?: string }) {
   return (
-    <div className="mb-3.5 flex items-center gap-3">
-      <h2 className="font-ledger text-lg font-semibold text-foreground">{title}</h2>
+    <div className="mb-2.5 flex items-center gap-3">
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       <span className="h-px flex-1 bg-border" />
       {href && cta && (
         <Link
@@ -244,17 +195,8 @@ function SectionHead({ title, href, cta }: { title: string; href?: string; cta?:
 // ---- Hero ----------------------------------------------------------------
 
 function LedgerHero({
-  greeting,
-  realName,
-  currentBrandDisplay,
-  summary,
-  lifetimeGmv,
-  retainerTotal,
-  handleCount,
-  series,
+  currentBrandDisplay, summary, lifetimeGmv, retainerTotal, handleCount, series,
 }: {
-  greeting: string;
-  realName: string;
   currentBrandDisplay: string | null;
   summary: CreatorSummary | null;
   lifetimeGmv: number | null;
@@ -262,83 +204,35 @@ function LedgerHero({
   handleCount: number;
   series: CreatorDailyPoint[];
 }) {
-  const gmvNumber =
-    summary != null
-      ? Math.round(summary.totalGmv).toLocaleString('en-US')
-      : null;
-  const pct = summary?.gmvChangePct ?? null;
-  const firstName = realName.split(' ')[0] || realName;
   const sparkData = series.map((d) => d.gmv);
-  const hasSpark = sparkData.length >= 2 && sparkData.some((v) => v > 0);
+  const hasSpark = sparkData.length >= 2 && sparkData.some((value) => value > 0);
   const peak = hasSpark ? Math.max(...sparkData) : 0;
-
   return (
-    /* One grid, mockup structure: the greeting lives INSIDE the left column a
-       fixed 14px above the figure (a separate greeting row + items-end used to
-       dump all the slack as dead air between greeting and number). The range
-       picker sits at the top of the right column, above the sparkline card. */
-    <header className="grid gap-x-6 gap-y-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+    <section className={portal.hero} aria-label="Period sales summary">
       <div>
-        <p className="font-ledger mb-3.5 text-2xl font-semibold text-foreground">
-          {greeting}, <span className="text-pulse-grad italic">{firstName}</span>.
-        </p>
-        <p className="font-ledger-num text-[clamp(3.25rem,6vw,4.875rem)] font-bold leading-[0.92] tracking-[-0.03em] text-foreground">
-            {gmvNumber != null ? (
-              <>
-                {/* Mockup treatment: half-size, raised, muted currency mark. */}
-                <span className="mr-[0.04em] align-[0.34em] text-[0.5em] font-semibold text-muted-foreground">
-                  $
-                </span>
-                {gmvNumber}
-              </>
-            ) : (
-              '—'
-            )}
-          </p>
-          <div className="mt-3.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            {pct != null && <DeltaPill pct={pct} />}
-            <p className="text-sm text-muted-foreground">
-              GMV this period ·{' '}
-              <span className="font-semibold text-foreground">
-                {summary ? `${summary.totalOrders.toLocaleString()} orders` : '—'}
-              </span>
-              {handleCount > 1 ? ` across ${handleCount} handles` : ''}
-              {currentBrandDisplay ? '' : ' · all brands'}
-            </p>
-          </div>
-          <p className="mt-3.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--pulse-pos)] ring-2 ring-[var(--pulse-pos-bg)]" />
-            {retainerTotal > 0 && (
-              <>${Math.round(retainerTotal).toLocaleString('en-US')} in recorded agreement fees · </>
-            )}
-            {lifetimeGmv != null ? (
-              <>{formatCurrency(lifetimeGmv)} driven all-time</>
-            ) : (
-              <>building your all-time total</>
-            )}
-          </p>
+        <p className={portal.eyebrow}>GMV this period</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className={portal.heroValue}>{summary ? formatCurrency(summary.totalGmv) : '—'}</p>
+          {summary?.gmvChangePct != null && <DeltaPill pct={summary.gmvChangePct} />}
         </div>
-
-      <div className={cn('flex flex-col items-end gap-3', !hasSpark && 'lg:self-start')}>
-        <DateRangePicker defaultPreset="last30" />
-        {hasSpark && (
-          <div className="w-full rounded-2xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
-            <div className="mb-1 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              <span>Daily GMV</span>
-              <span className="text-muted-foreground/60">peak {formatCurrency(peak)}</span>
-            </div>
-            <div className="h-[118px] w-full text-primary">
-              <Sparkline
-                data={sparkData}
-                labels={series.map((d) => d.date)}
-                className="h-full w-full"
-                idKey="hero"
-              />
-            </div>
-          </div>
-        )}
+        <p className="mt-2 text-sm text-muted-foreground">
+          {summary ? `${summary.totalOrders.toLocaleString()} orders` : 'Orders unavailable'}
+          {handleCount > 1 ? ` across ${handleCount} handles` : ''}
+          {currentBrandDisplay ? ` · ${currentBrandDisplay}` : ' · all brands'}
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {retainerTotal > 0 && <>{formatCurrency(retainerTotal)} in recorded agreement fees · </>}
+          {lifetimeGmv != null ? `${formatCurrency(lifetimeGmv)} driven all-time` : 'Building your all-time total'}
+        </p>
       </div>
-    </header>
+      <div className={portal.heroTrend}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="font-semibold">Daily GMV</span>
+          {hasSpark && <span>Peak {formatCurrency(peak)}</span>}
+        </div>
+        {hasSpark ? <div className="h-[94px] w-full text-primary"><Sparkline data={sparkData} labels={series.map((d) => d.date)} className="h-full w-full" idKey="hero" /></div> : <p className="py-5 text-sm text-muted-foreground">{summary ? 'Daily activity will appear here as sales land.' : 'Daily activity is unavailable.'}</p>}
+      </div>
+    </section>
   );
 }
 
@@ -361,7 +255,7 @@ function DeltaPill({ pct }: { pct: number }) {
 
 function LedgerStrip({ summary, streak }: { summary: CreatorSummary | null; streak: number }) {
   const cells: { k: string; v: string; d: number | null; sub?: string }[] = [
-    { k: 'GMV', v: summary ? formatCurrency(summary.totalGmv) : '—', d: summary?.gmvChangePct ?? null },
+    { k: 'Est. commission', v: summary ? formatCurrency(summary.totalCommission) : '—', d: null, sub: 'from tracked sales' },
     { k: 'Orders', v: summary ? summary.totalOrders.toLocaleString() : '—', d: summary?.orderChangePct ?? null },
     { k: 'Videos with activity', v: summary ? String(summary.videoCount) : '—', d: summary?.videoChangePct ?? null },
     {
@@ -372,9 +266,9 @@ function LedgerStrip({ summary, streak }: { summary: CreatorSummary | null; stre
     },
   ];
   return (
-    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-[var(--pulse-elev-1)] sm:grid-cols-4">
+    <div className={portal.metrics}>
       {cells.map((c) => (
-        <div key={c.k} className="bg-card p-4 sm:p-5">
+        <div key={c.k} className="bg-card">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
           {/* 23px matches the StandingBand values — the two strips must stay twins. */}
           <p className="font-ledger-num mt-1.5 text-xl font-bold text-foreground sm:text-[23px]">{c.v}</p>
@@ -642,42 +536,17 @@ function RetainerPace({
         )}
       </CardHeader>
       <CardContent>
-        <div className="flex flex-wrap items-center gap-6">
-          <Gauge
-            fraction={fraction}
-            size={128}
-            label={<NumberTicker value={monthVideos} className="text-foreground" />}
-            sublabel={onTrack ? 'target reached' : `of ${monthlyTarget}`}
-            color={onTrack ? 'var(--pulse-pos)' : 'var(--primary)'}
-          />
-          <div className="min-w-[220px] flex-1 space-y-3 text-sm">
-            <div className="space-y-2">
-              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}`} />
-              <PaceRow label="Days left" value={String(daysLeftInMonth)} />
-              <PaceRow
-                label="Status"
-                value={onTrack ? 'Recorded target reached' : `${dailyPace}/day needed`}
-                emphasis
-              />
-              {retainerTotal > 0 && (
-                <PaceRow label="Recorded agreement fees" value={formatCurrency(retainerTotal)} />
-              )}
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-              <div
-                className="h-full rounded-full transition-[width] duration-700"
-                style={{
-                  width: `${Math.min(100, Math.max(0, fraction * 100))}%`,
-                  background: onTrack ? 'var(--pulse-pos)' : 'var(--pulse-grad)',
-                }}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {onTrack
-                ? "Recorded publications have reached the target. Accepted deliverables and payment are reviewed separately."
-                : 'Publication counts show activity toward the target. Accepted deliverables and payment are reviewed separately.'}
-            </p>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[28px] font-semibold leading-tight tabular-nums text-foreground">{monthVideos.toLocaleString('en-US')}<span className="ml-1.5 text-sm font-normal text-muted-foreground">/ {monthlyTarget} posts</span></p>
+            <span className="text-xs text-muted-foreground">{daysLeftInMonth} days left</span>
           </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary" aria-label={`${monthVideos} of ${monthlyTarget} recorded posts`}>
+            <div className="h-full rounded-full transition-[width] duration-700" style={{width: `${Math.min(100, Math.max(0, fraction * 100))}%`, background: onTrack ? 'var(--pulse-pos)' : 'var(--pulse-grad)'}} />
+          </div>
+          <PaceRow label="Status" value={onTrack ? 'Recorded target reached' : `${dailyPace}/day needed`} emphasis />
+          {retainerTotal > 0 && <PaceRow label="Recorded agreement fees" value={formatCurrency(retainerTotal)} />}
+          <p className="text-xs text-muted-foreground">{onTrack ? 'Recorded publications have reached the target. Accepted deliverables and payment are reviewed separately.' : 'Publication counts show activity toward the target. Accepted deliverables and payment are reviewed separately.'}</p>
         </div>
       </CardContent>
     </Card>
@@ -686,7 +555,7 @@ function RetainerPace({
 
 function PaceRow({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className={emphasis ? 'font-bold text-primary' : 'font-semibold text-foreground'}>{value}</span>
     </div>

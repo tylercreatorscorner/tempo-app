@@ -90,8 +90,8 @@ export function MarkPaidModal({
     <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-card rounded-xl border border-border shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-        <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
+      <div role="dialog" aria-modal="true" aria-label={`Mark ${invoiceNumber} as paid`} className="relative w-full max-w-md bg-card rounded-[var(--workspace-surface-radius,14px)] border border-border shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col max-h-[90dvh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-4 py-4 border-b border-border flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <div className="h-10 w-10 rounded-[10px] bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
               <CheckCircle2 className="h-5 w-5" />
@@ -114,7 +114,7 @@ export function MarkPaidModal({
           </Button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {/* Method */}
           <Field label="Payment Method">
             <ChoiceMenu label="Payment method" value={method} onChange={setMethod} disabled={saving} options={METHODS} triggerClassName="w-full" />
@@ -172,7 +172,7 @@ export function MarkPaidModal({
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2 bg-muted/40">
+        <div className="px-4 py-3 border-t border-border flex items-center justify-end gap-2 bg-muted/40">
           <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancel
           </Button>

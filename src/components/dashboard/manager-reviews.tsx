@@ -8,6 +8,7 @@ import reviewStyles from "./morning-review.module.css";
 import { ChoiceMenu } from "@/components/ui/choice-menu";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { formatCurrency } from "@/lib/utils/format";
+import layout from '@/components/ui/workspace-layout.module.css';
 import {
   goalProgress,
   goalDeadlines,
@@ -196,7 +197,7 @@ export function ManagerReviews() {
       ? goalProgress(actual, target)
       : null;
   return (
-    <div className={`${reviewStyles.page} space-y-6`}>
+    <div className={`${reviewStyles.page} ${layout.page}`}>
       <Link
         href="/dashboard"
         className="text-sm text-muted-foreground hover:text-foreground"
@@ -252,7 +253,7 @@ export function ManagerReviews() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className={layout.cardMetrics}>
             {[
               [
                 "Recorded managed GMV",
@@ -271,7 +272,7 @@ export function ManagerReviews() {
             ].map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-xl border border-border bg-card p-4 last:col-span-2 sm:last:col-span-1"
+                className="bg-card p-4"
               >
                 <p className="text-xs text-muted-foreground">{label}</p>
                 <strong className="mt-2 block text-2xl">{value}</strong>
@@ -297,7 +298,7 @@ export function ManagerReviews() {
             {rows.map((b) => (
               <article
                 key={b.id}
-                className="rounded-2xl border border-border bg-card p-5"
+                className="rounded-xl border border-border bg-card p-4"
               >
                 <header className="flex items-start justify-between gap-3">
                   <div>

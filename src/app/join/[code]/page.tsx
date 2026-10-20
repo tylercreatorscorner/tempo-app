@@ -1,5 +1,8 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
+
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
@@ -88,19 +91,19 @@ export default function JoinPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]">
-        <div className="animate-pulse text-gray-400">Loading...</div>
+      <div className={`${portal.theme} ${portal.entry}`}>
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   if (error && !brandInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC] px-4">
+      <div className={`${portal.theme} ${portal.entry}`}>
         <div className="text-center space-y-4">
           <TempoLogo size="lg" animated />
-          <p className="text-gray-600 mt-4">{error}</p>
-          <a href="/creator-login" className="text-sm text-[#FF4D8D] hover:underline">
+          <p className="text-muted-foreground mt-4">{error}</p>
+          <a href="/creator-login" className="text-sm text-primary hover:underline">
             Already have an account? Log in
           </a>
         </div>
@@ -109,55 +112,57 @@ export default function JoinPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC] px-4">
-      <div className="w-full max-w-md">
+    <div className={`${portal.theme} ${portal.entry}`}>
+      <div className={portal.entryCard}>
         <div className="flex justify-center mb-6">
           <TempoLogo size="lg" animated />
         </div>
 
         {/* Progress dots */}
-        <div className="flex justify-center gap-2 mb-6">
+        <div role="group" aria-label={`Step ${step} of 3`} className="flex justify-center gap-2 mb-5">
           {[1, 2, 3].map((s) => (
             <div
               key={s}
               className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                s === step ? 'bg-[#FF4D8D]' : s < step ? 'bg-[#7C5CFC]' : 'bg-gray-200'
+                s === step ? 'bg-[#6e4bcc]' : s < step ? 'bg-primary' : 'bg-secondary'
               }`}
             />
           ))}
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
           {brandInfo && (
-            <p className="text-xs text-center text-gray-400 mb-4">
-              Joining <span className="font-semibold text-[#1A1B3A]">{brandInfo.brand_display_name}</span>
+            <p className="text-xs text-center text-muted-foreground mb-4">
+              Joining <span className="font-semibold text-foreground">{brandInfo.brand_display_name}</span>
             </p>
           )}
 
           {step === 1 && (
             <>
-              <h1 className="text-xl font-bold text-[#1A1B3A] text-center mb-2">Welcome to Tempo</h1>
-              <p className="text-sm text-gray-500 text-center mb-6">Tell us about yourself</p>
+              <h1 className="text-xl font-bold text-foreground text-center mb-2">Welcome to Tempo</h1>
+              <p className="text-sm text-muted-foreground text-center mb-6">Tell us about yourself</p>
               <form onSubmit={handleSubmitInfo} className="space-y-4">
                 <input
                   type="text"
+                  aria-label="Full name"
                   placeholder="Your name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+                  className="w-full px-4 py-3 border border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
                 <input
                   type="email"
+                  aria-label="Email"
                   placeholder="your@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+                  className="w-full px-4 py-3 border border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-[#FF4D8D] text-white font-semibold text-sm hover:bg-[#e8447f] transition-colors"
+                  className="w-full py-3 rounded-xl bg-[#6e4bcc] text-white font-semibold text-sm hover:opacity-90 transition-colors"
                 >
                   Continue
                 </button>
@@ -167,29 +172,31 @@ export default function JoinPage() {
 
           {step === 2 && (
             <>
-              <h1 className="text-xl font-bold text-[#1A1B3A] text-center mb-2">Your TikTok Account(s)</h1>
-              <p className="text-sm text-gray-500 text-center mb-6">
+              <h1 className="text-xl font-bold text-foreground text-center mb-2">Your TikTok Account(s)</h1>
+              <p className="text-sm text-muted-foreground text-center mb-6">
                 Add the TikTok username(s) you create content with
               </p>
               <form onSubmit={handleSubmitUsernames} className="space-y-4">
                 {usernames.map((u, i) => (
                   <div key={i} className="flex gap-2">
                     <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
                       <input
                         type="text"
+                        aria-label={`TikTok username ${i + 1}`}
                         placeholder="username"
                         value={u}
                         onChange={(e) => updateUsername(i, e.target.value)}
                         required={i === 0}
-                        className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+                        className="w-full pl-8 pr-4 py-3 border border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                       />
                     </div>
                     {usernames.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeUsername(i)}
-                        className="text-gray-400 hover:text-red-400 px-2"
+                        aria-label={`Remove TikTok account ${i + 1}`}
+                        className="text-muted-foreground hover:text-red-400 px-2"
                       >
                         x
                       </button>
@@ -199,7 +206,7 @@ export default function JoinPage() {
                 <button
                   type="button"
                   onClick={addUsername}
-                  className="text-sm text-[#7C5CFC] hover:underline"
+                  className="text-sm text-primary hover:underline"
                 >
                   + Add another account
                 </button>
@@ -207,14 +214,14 @@ export default function JoinPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3 rounded-xl bg-[#FF4D8D] text-white font-semibold text-sm hover:bg-[#e8447f] transition-colors disabled:opacity-50"
+                  className="w-full py-3 rounded-xl bg-[#6e4bcc] text-white font-semibold text-sm hover:opacity-90 transition-colors disabled:opacity-50"
                 >
                   {submitting ? 'Setting up...' : 'Continue'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="w-full text-sm text-gray-400 hover:text-gray-600"
+                  className="w-full text-sm text-muted-foreground hover:text-muted-foreground"
                 >
                   Back
                 </button>
@@ -225,19 +232,19 @@ export default function JoinPage() {
           {step === 3 && (
             <div className="text-center space-y-4">
               <div className="text-5xl"><InterfaceIcon name="complete" className="size-7 text-primary" /></div>
-              <h1 className="text-xl font-bold text-[#1A1B3A]">You are in!</h1>
+              <h1 className="text-xl font-bold text-foreground">You are in!</h1>
               {verified ? (
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Your account has been verified. Check your email for login instructions.
                 </p>
               ) : (
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   We will verify your account and notify you by email when everything is ready.
                 </p>
               )}
               <a
                 href="/creator-login"
-                className="inline-block mt-4 px-6 py-3 rounded-xl bg-[#FF4D8D] text-white font-semibold text-sm hover:bg-[#e8447f] transition-colors"
+                className="inline-block mt-4 px-6 py-3 rounded-xl bg-[#6e4bcc] text-white font-semibold text-sm hover:opacity-90 transition-colors"
               >
                 Go to Login
               </a>

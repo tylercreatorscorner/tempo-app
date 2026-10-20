@@ -377,9 +377,9 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     <div className="absolute inset-0 flex">
       <button aria-label="Close" className="flex-1 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="w-full max-w-lg bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="w-full max-w-2xl bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
+        <div className="px-4 py-4 sm:px-5 border-b border-border flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Invoice</p>
             <h2 className="text-lg font-semibold text-[var(--foreground)] font-mono truncate">{invoice.invoice_number}</h2>
@@ -397,7 +397,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
         </div>
 
         {/* Status bar with actions */}
-        <div className="px-6 py-4 border-b border-border bg-muted/40 flex items-center gap-2 flex-wrap">
+        <div className="px-4 py-3 sm:px-5 border-b border-border bg-muted/40 flex items-center gap-2 flex-wrap">
           <StatusPill status={invoice.status} />
           <div className="text-[11px] text-muted-foreground ml-auto">
             {invoice.status === 'pending' && <>Generated {formatDate(invoice.generated_at)}</>}
@@ -506,7 +506,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
         </div>
 
         {/* Form body */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-5 space-y-5">
           {/* Lifecycle timeline — created → sent → viewed → nudged → paid */}
           <Section title="Timeline">
             <InvoiceTimeline invoice={invoice} />
@@ -915,7 +915,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div>
       <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">{title}</h3>
-      <div className="space-y-3">{children}</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*:not(label)]:col-span-full [&>label:has(textarea)]:col-span-full">{children}</div>
     </div>
   );
 }
@@ -927,7 +927,7 @@ function Field({ label, hint, prefix, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <div className="flex items-baseline justify-between mb-1">
         <span className="text-xs font-semibold text-foreground">{label}</span>
         {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}

@@ -105,7 +105,7 @@ export function LoginForm() {
           </div>
 
           <div
-            className="auth-settle inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] items-center justify-center mx-auto"
+            className="auth-settle inline-flex h-16 w-16 rounded-full bg-pulse-grad items-center justify-center mx-auto"
             style={{ '--d': '.10s' } as React.CSSProperties}
           >
             <Mail className="h-8 w-8 text-white" />
@@ -206,7 +206,7 @@ export function LoginForm() {
           type="submit"
           disabled={loading || !email.trim()}
           style={{ '--d': '.32s' } as React.CSSProperties}
-          className="auth-rise w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-medium text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[var(--primary)]/20"
+          className="auth-rise w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-pulse-grad text-white font-medium text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm"
         >
           {loading ? (
             <>

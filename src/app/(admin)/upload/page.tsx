@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataPipelineClient } from '@/components/upload/data-pipeline-client';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Data Pipeline — Tempo' };
@@ -31,12 +32,12 @@ export default async function UploadPage() {
     .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug));
 
   return (
-    <div className="space-y-6">
+    <div className={layout.page}>
       <PageHeader
         eyebrow="Data Ops"
         title="Data & Imports"
         actions={<Link href="/upload/recovery" className={buttonVariants({ variant: 'outline', size: 'sm' })}>Source recovery</Link>}
-        subtitle="Every brand, every day, every report — known-complete or explicitly not. Upload is how the gaps get filled, not how coverage is judged."
+        subtitle="Check daily coverage, fill missing data, and review recent uploads."
       />
       <DataPipelineClient activeBrands={activeBrands} />
     </div>

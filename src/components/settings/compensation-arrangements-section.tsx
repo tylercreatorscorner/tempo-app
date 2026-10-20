@@ -11,7 +11,7 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
  */
 
 import { useEffect, useState } from 'react';
-import { DollarSign, Loader2, Check, X } from 'lucide-react';
+import { Loader2, Check, X } from 'lucide-react';
 
 interface TeamMember {
   id: string;
@@ -150,21 +150,18 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="p-6 border-b border-border flex items-center gap-3">
-        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-          <DollarSign className="h-5 w-5 text-primary" />
-        </div>
+    <div className="min-w-0 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-border">
         <div>
-          <h2 className="font-semibold text-lg">Compensation Arrangements</h2>
-          <p className="text-sm text-muted-foreground">Each team member&apos;s per-brand retainer + commission rate. Drives the earnings + invoicing math.</p>
+          <h2 className="font-semibold text-sm">Compensation arrangements</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Select a brand and payee cell to edit its earnings and invoicing terms.</p>
         </div>
       </div>
 
       {error && <p className="mx-6 mt-4 text-xs text-red-600 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[440px] text-sm">
           <thead className="bg-muted/40 border-b border-border">
             <tr>
               <th className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider text-muted-foreground">Brand</th>
@@ -185,7 +182,8 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
                     <td key={m.id} className="px-4 py-3">
                       <button
                         onClick={() => startEdit(b.slug, m.id)}
-                        className="text-left hover:bg-muted/40 rounded-md px-2 py-1 -mx-2 -my-1 transition-colors w-full"
+                        aria-label={`Edit ${b.display_name || b.name} compensation for ${m.name}`}
+                        className="text-left hover:bg-muted/40 rounded-md px-2 py-1 -mx-2 -my-1 transition-colors w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                       >
                         {arr ? (
                           <div>
@@ -252,14 +250,17 @@ function EditModal({
       <div className="absolute inset-0 bg-black/30" />
       <div
         onClick={e => e.stopPropagation()}
-        className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Compensation for ${memberName} at ${brandLabel}`}
+        className="relative max-h-[calc(100dvh-32px)] w-full max-w-md overflow-y-auto bg-card rounded-[var(--workspace-surface-radius,14px)] border border-border shadow-[var(--workspace-surface-raised-shadow)]"
       >
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Compensation</p>
             <h3 className="text-base font-bold">{memberName} · {brandLabel}</h3>
           </div>
-          <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-muted/40">
+          <button onClick={onCancel} aria-label="Close compensation editor" className="p-1.5 rounded-lg hover:bg-muted/40">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>

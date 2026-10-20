@@ -10,6 +10,7 @@ import { getCohortRetention } from '@/lib/data/cohort-retention';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { CohortHeatmap } from '@/components/retention/cohort-heatmap';
 import { PageHeader } from '@/components/ui/page-header';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 interface Props {
   searchParams: Promise<{ brand?: string }>;
@@ -45,7 +46,7 @@ export default async function RetentionPage({ searchParams }: Props) {
   const reengageHref = brandFilter ? `/segments?brand=${brandFilter}` : '/segments';
 
   return (
-    <div className="space-y-6">
+    <div className={layout.page}>
       <PageHeader
         eyebrow="Creators"
         title="Retention"
@@ -76,7 +77,7 @@ export default async function RetentionPage({ searchParams }: Props) {
       ) : (
         <>
           {/* Insight cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
+          <div className={layout.cardMetrics}>
             <StatCard
               label="Drop-off by month 1"
               value={ins.avgM1DropoffPct != null ? `${ins.avgM1DropoffPct.toFixed(0)}%` : '—'}
@@ -105,6 +106,7 @@ export default async function RetentionPage({ searchParams }: Props) {
           </div>
 
           {/* Cohort heatmap */}
+          <div className={layout.columns}>
           <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
               <div>
@@ -128,7 +130,7 @@ export default async function RetentionPage({ searchParams }: Props) {
           </div>
 
           {/* Re-engage hook → the "Going silent" segment */}
-          <div className="rounded-2xl border border-border bg-card shadow-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <aside className={`${layout.panel} ${layout.stack}`}>
             <div className="flex items-start gap-3">
               <span className="h-9 w-9 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
                 <TrendingDown className="h-5 w-5" />
@@ -143,10 +145,11 @@ export default async function RetentionPage({ searchParams }: Props) {
             </div>
             <Link
               href={reengageHref}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1 shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--primary)] text-primary-foreground text-sm font-semibold hover:brightness-[1.07] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1 shrink-0"
             >
               Re-engage silent creators <ArrowRight className="h-4 w-4" />
             </Link>
+          </aside>
           </div>
         </>
       )}

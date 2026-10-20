@@ -17,13 +17,16 @@ export default async function Page() {
     .order("name");
   if (error) throw new Error("Could not load brands.");
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="min-w-0 space-y-4">
       <PageHeader
+        eyebrow="Finance"
         title="Finance setup"
         subtitle="Billing identities and brand compensation arrangements."
       />
-      <TeamMembersSection />
-      <CompensationArrangementsSection brands={data ?? []} />
+      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.5fr)]">
+        <div className="min-w-0"><TeamMembersSection /></div>
+        <div className="min-w-0"><CompensationArrangementsSection brands={data ?? []} /></div>
+      </div>
     </div>
   );
 }

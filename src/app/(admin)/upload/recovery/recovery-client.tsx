@@ -5,6 +5,7 @@ import { Loader2, Database } from 'lucide-react';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { DateField } from '@/components/ui/date-field';
 import { Button, buttonVariants } from '@/components/ui/button';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 const sources = [
   { value:'creator_compass', label:'Creator report API', detail:'Creator-level affiliate metrics from TikTok’s separate Compass report service.' },
@@ -35,7 +36,7 @@ export function RecoveryClient({brands,latest,initialResults}:{brands:{slug:stri
     } catch { setError('The source check did not finish. Captured pages remain separate; no performance data was changed.'); }
     finally { setBusy(null); }
   }
-  return <>
+  return <div className={layout.page}>
     <section className="rounded-xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-center gap-3">
         <ChoiceMenu compact label="Recovery brand" value={brand} onChange={setBrand} disabled={!!busy} options={brands.map(b=>({value:b.slug,label:b.name}))} />
@@ -48,7 +49,8 @@ export function RecoveryClient({brands,latest,initialResults}:{brands:{slug:stri
       </div>
       {!connected && <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm">This brand needs a TikTok Shop connection before API recovery can run. <Link href="/workflows/integrations#tiktok-shop" className={buttonVariants({variant:'outline',size:'sm'})}>Shop connections</Link></div>}
     </section>
-    <div className="grid gap-3 lg:grid-cols-3">{sources.map(s=><section key={s.value} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <div className={layout.sidebarFirst}>
+    <aside className={layout.stack} aria-label="Recovery sources"><div className={layout.stack}>{sources.map(s=><section key={s.value} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-2"><Database size={16} className="text-primary"/><h2 className="text-sm font-semibold">{s.label}</h2></div>
       <p className="flex-1 text-xs leading-relaxed text-muted-foreground">{s.detail}</p>
       {s.value==='video_analytics' && <ChoiceMenu compact label="Video account filter" value={videoAccountType} onChange={setVideoAccountType} disabled={!!busy} options={[
@@ -58,6 +60,7 @@ export function RecoveryClient({brands,latest,initialResults}:{brands:{slug:stri
     </section>)}</div>
     {busy && <p role="status" className="text-sm text-muted-foreground">Requesting and saving source pages. Large days can take several minutes. This does not replace saved performance data.</p>}
     {error && <p role="alert" className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
+    </aside>
     <section className="rounded-xl border border-border bg-card p-4"><div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold">Capture results</h2><Button size="sm" variant="ghost" disabled={!!busy} onClick={()=>window.location.reload()}>Reload saved results</Button></div><p className="mt-1 text-xs text-muted-foreground">Captured means the source was retrieved. It does not mean the figures have been approved for reporting or billing.</p>
       {!results.length && <p className="mt-4 text-sm text-muted-foreground">Choose a source to inspect its available data.</p>}
       <div className="mt-3 space-y-3">{results.map((r,i)=><div key={String(r.runId ?? i)} className="rounded-lg bg-muted/40 p-3">
@@ -70,5 +73,6 @@ export function RecoveryClient({brands,latest,initialResults}:{brands:{slug:stri
         })}>Continue capture</Button>}
       </div>)}</div>
     </section>
-  </>;
+    </div>
+  </div>;
 }

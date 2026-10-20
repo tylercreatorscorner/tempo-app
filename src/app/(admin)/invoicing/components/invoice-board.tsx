@@ -70,6 +70,7 @@ interface Column {
 export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, onRefresh }: Props) {
   const brandMeta = useBrandMeta();
   const [paidMonth, setPaidMonth] = useState(currentMonth());
+  const [columnFilter, setColumnFilter] = useState<ColumnKey | 'all'>('all');
   const monthOptions = useMemo(() => buildMonthOptions(13), []);
 
   const columns = useMemo<Column[]>(() => {
@@ -131,34 +132,37 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
   }
 
   return (
-    <Card className="p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-5">
-        <p className="text-xs text-muted-foreground">
-          Draft, Sent and Overdue always show every open invoice · the Paid column is scoped to the selected month.
-        </p>
+    <div className="min-w-0 space-y-4">
+      <Card className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0 flex-1 basis-64">
+          <h2 className="text-sm font-semibold text-foreground">Collection board</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Open invoices across all periods. Paid invoices use the month below. Void invoices are in List.</p>
+        </div>
+        <ChoiceMenu compact label="Invoice stages shown" value={columnFilter} onChange={value => setColumnFilter(value as ColumnKey | 'all')} options={[{ value: 'all', label: 'All stages' }, ...columns.map(col => ({ value: col.key, label: `${col.title} (${col.rows.length})` }))]} />
         <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
           Paid month
           <span className="w-40">
             <ChoiceMenu compact triggerClassName="w-full" label="Month shown in the Paid column" value={paidMonth} onChange={setPaidMonth} options={monthOptions} />
           </span>
         </label>
-      </div>
+      </Card>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {columns.map((col) => (
-          <div key={col.key} className="flex min-h-[180px] flex-col rounded-[10px] border border-border bg-secondary/50 p-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
-              <span className="text-xs font-medium text-foreground">{col.title}</span>
-              <span className={cn('text-xs font-medium tabular-nums', col.tone)}>
-                {col.rows.length} · {formatCurrency(col.sum)}
-              </span>
+      <div className={cn('grid min-w-0 grid-cols-1 items-start gap-3', columnFilter === 'all' && 'sm:grid-cols-2 xl:grid-cols-4')}>
+        {columns.filter(col => columnFilter === 'all' || col.key === columnFilter).map((col) => (
+          <section key={col.key} aria-label={`${col.title} invoices`} className="min-w-0 overflow-hidden rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card">
+            <div className="border-b border-border bg-muted/35 px-3 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-semibold text-foreground">{col.title}</h3>
+                <span className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">{col.rows.length}</span>
+              </div>
+              <p className={cn('mt-1 text-xl font-semibold tracking-tight tabular-nums', col.tone)}>{formatCurrency(col.sum)}</p>
             </div>
             {col.rows.length === 0 ? (
               <p className="px-1.5 py-8 text-center text-xs text-muted-foreground/70">
                 {col.key === 'paid' ? `Nothing paid in ${formatPeriod(paidMonth, { short: true })}` : 'No invoices'}
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className={cn('space-y-2 p-2', columnFilter !== 'all' && 'grid gap-2 space-y-0 sm:grid-cols-2 xl:grid-cols-3')}>
                 {col.rows.map((inv) => (
                   <BoardCard
                     key={inv.id}
@@ -174,10 +178,10 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
                 ))}
               </div>
             )}
-          </div>
+          </section>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -247,13 +251,14 @@ function BoardCard({
       tabIndex={0}
       onClick={() => onOpen(invoice)}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onOpen(invoice);
         }
       }}
       className={cn(
-        'w-full cursor-pointer rounded-[var(--workspace-control-radius,8px)] border bg-card p-3.5 text-left shadow-[var(--workspace-surface-shadow,var(--pulse-elev-1))] transition-colors',
+        'w-full cursor-pointer rounded-[var(--workspace-control-radius,8px)] border bg-card p-3 text-left transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
         hot ? 'hover:brightness-[1.03]' : 'border-border hover:border-primary/50',
       )}

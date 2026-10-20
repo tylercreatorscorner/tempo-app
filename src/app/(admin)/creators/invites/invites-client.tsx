@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 interface Status {
   toEnqueue: number;
@@ -126,14 +127,14 @@ export function InvitesClient() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className={layout.page}>
       <PageHeader
         eyebrow="Creators"
         title="Portal Invites"
         subtitle="DM every managed creator (with a linked Discord) their personal sign-in link."
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className={layout.cardMetrics}>
         <StatCard label="To enqueue" value={String(status?.toEnqueue ?? '…')} accentColor="var(--primary)" />
         <StatCard label="Queued" value={String(status?.pending ?? '…')} accentColor="var(--pulse-warn)" />
         <StatCard label="Sent" value={String(status?.sent ?? '…')} accentColor="var(--pulse-accent-2)" />
@@ -142,6 +143,7 @@ export function InvitesClient() {
         <StatCard label="Failed" value={String(status?.failed ?? '…')} accentColor="var(--pulse-neg)" />
       </div>
 
+      <div className={layout.balanced}>
       {/* One-off link — for a single creator, no DM (most creators have no
           email on file, so the email login can't reach them; copy this link and
           send it by text/DM yourself). */}
@@ -153,6 +155,7 @@ export function InvitesClient() {
         </p>
         <div className="flex flex-wrap gap-2">
           <Input
+            aria-label="Creator name or handle"
             placeholder="Creator name or @handle…"
             value={mintQuery}
             onChange={(e) => {
@@ -165,7 +168,7 @@ export function InvitesClient() {
                 void findCandidates();
               }
             }}
-            className="w-72"
+            className="w-full sm:w-72"
           />
           <Button
             variant="outline"
@@ -217,6 +220,7 @@ export function InvitesClient() {
         )}
       </div>
 
+      <div className={layout.stack}>
       {/* 1. Test on yourself */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
         <h3 className="font-bold text-foreground">1 · Test on yourself first</h3>
@@ -227,8 +231,8 @@ export function InvitesClient() {
           auto-pick one.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Input placeholder="Your Discord user id (e.g. 144445…)" value={testDiscord} onChange={(e) => setTestDiscord(e.target.value)} className="w-64" />
-          <Input placeholder="Creator id (optional — auto-picks one)" value={testCreator} onChange={(e) => setTestCreator(e.target.value)} className="w-72" />
+          <Input aria-label="Your Discord user ID" placeholder="Your Discord user id (e.g. 144445…)" value={testDiscord} onChange={(e) => setTestDiscord(e.target.value)} className="w-full sm:w-64" />
+          <Input aria-label="Test creator ID (optional)" placeholder="Creator id (optional — auto-picks one)" value={testCreator} onChange={(e) => setTestCreator(e.target.value)} className="w-full sm:w-72" />
           <Button
             variant="outline"
             disabled={!!busy || !testDiscord}
@@ -264,6 +268,8 @@ export function InvitesClient() {
         </p>
       </div>
 
+      </div>
+      </div>
       {log.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
           <h3 className="mb-2 font-bold text-foreground">Log</h3>

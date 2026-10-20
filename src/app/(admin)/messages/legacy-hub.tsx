@@ -20,6 +20,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import styles from '@/components/messages/workspace.module.css';
 import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented';
 import { BroadcastsTab } from '@/components/messages/broadcasts-tab';
@@ -102,14 +103,14 @@ function CommsHub() {
   }, [setTab]);
 
   return (
-    <div className="space-y-4">
+    <div className={styles.workspace}>
       <PageHeader
         eyebrow="Communications"
         title={TAB_META[tab].title}
         subtitle={TAB_META[tab].subtitle}
       />
 
-      <SegmentedControl<Tab>
+      <div className={styles.legacyNav}><SegmentedControl<Tab>
         ariaLabel="Communication views"
         options={[
           { value: 'broadcasts', label: 'Broadcasts' },
@@ -130,7 +131,7 @@ function CommsHub() {
         ]}
         value={tab}
         onValueChange={setTab}
-      />
+      /><p>{convLoading ? 'Loading conversations…' : convFailed ? 'Conversation count unavailable' : `${conversations.length} conversations · ${totalUnread} unread`}</p></div>
 
       {/* Broadcasts stays mounted so compose state survives tab switches;
           its live poll pauses via `visible`. Inbox/Templates mount on demand

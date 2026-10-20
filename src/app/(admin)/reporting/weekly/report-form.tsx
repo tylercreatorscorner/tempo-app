@@ -9,6 +9,7 @@
  * system rests on and the one a manager is most likely to get wrong by hand.
  */
 
+import styles from './workspace.module.css';
 import { DateField } from '@/components/ui/date-field';
 import { useState, useTransition } from 'react';
 import { AlertTriangle, Check, ChevronDown, Lock } from 'lucide-react';
@@ -49,7 +50,7 @@ function Computed({
   foot?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+    <div className={styles.computed}>
       <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </div>
@@ -124,10 +125,12 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <div id={`report-${row.brandSlug}`} className={styles.form}>
       {/* ── Header row: brand, who owns it, whether it is filed ─────────── */}
       <button
         type="button"
+        aria-expanded={open}
+        aria-controls={`report-body-${row.brandSlug}`}
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
       >
@@ -157,14 +160,14 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
       </button>
 
       {open && (
-        <div className="border-t border-border px-4 py-4 space-y-5">
+        <div id={`report-body-${row.brandSlug}`} className={styles.formBody}>
           {/* ── Computed. Read-only by design. ──────────────────────────── */}
-          <div>
+          <div className={styles.calculated}>
             <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
               <Lock className="h-3 w-3" />
               Calculated from Tempo, not editable
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className={styles.computedGrid}>
               <Computed
                 label="Brand GMV"
                 value={money(row.current.brandGmv)}
@@ -223,8 +226,8 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
           </div>
 
           {/* ── Typed. The judgement only a manager has. ────────────────── */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+          <div className={styles.judgement}>
+            <div>
               <Label htmlFor={`win-${row.brandSlug}`}>Biggest win this week</Label>
               <Textarea
                 id={`win-${row.brandSlug}`}
@@ -235,7 +238,7 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
               />
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
               <Label htmlFor={`chal-${row.brandSlug}`}>Biggest challenge</Label>
               <Textarea
                 id={`chal-${row.brandSlug}`}
@@ -312,7 +315,7 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
               </Select>
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
               <Label htmlFor={`healthnote-${row.brandSlug}`}>
                 How the relationship actually feels
               </Label>
@@ -326,7 +329,7 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
             </div>
 
             {renewalRisk !== 'none' && renewalRisk !== '' && (
-              <div className="sm:col-span-2">
+              <div>
                 <Label htmlFor={`renewalnote-${row.brandSlug}`}>What the renewal risk is</Label>
                 <Textarea
                   id={`renewalnote-${row.brandSlug}`}
@@ -340,12 +343,12 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
           </div>
 
           {error && (
-            <div className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
+            <div className={`${styles.error} rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400`}>
               {error}
             </div>
           )}
 
-          <div className="flex items-center gap-3">
+          <div className={styles.footer}>
             <Button onClick={save} disabled={pending}>
               {pending ? 'Saving…' : s ? 'Update report' : 'Submit report'}
             </Button>

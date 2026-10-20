@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -14,8 +16,8 @@ function isValidEmail(email: string) {
 
 export default function OnboardingPage() {
   return (
-    <div className="min-h-screen bg-[#FAFBFE] flex items-center justify-center px-4 py-12">
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+    <div className={portal.entryCard}>
+      <Suspense fallback={<div className="flex items-center justify-center py-12">Loading...</div>}>
         <SignupForm />
       </Suspense>
     </div>
@@ -144,10 +146,10 @@ function SignupForm() {
   // Step 2: OTP verification
   if (step === 'verify') {
     return (
-      <div className="w-full max-w-md text-center space-y-6">
+      <div className={`${portal.panel} space-y-5 p-6 text-center`}>
         <TempoLogo size="lg" animated />
 
-        <div className="inline-flex h-20 w-20 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] items-center justify-center mx-auto">
+        <div className="inline-flex h-20 w-20 rounded-full bg-pulse-grad items-center justify-center mx-auto">
           <Mail className="h-10 w-10 text-white" />
         </div>
 
@@ -163,7 +165,7 @@ function SignupForm() {
 
         <div className="space-y-4">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+            <div className="p-3 rounded-xl bg-[var(--pulse-neg-bg)] text-[var(--pulse-neg)] text-sm">
               {error}
             </div>
           )}
@@ -175,21 +177,21 @@ function SignupForm() {
           />
 
           {verifying && (
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Creating your account...
             </div>
           )}
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
+        <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
           <p className="text-sm text-muted-foreground">Didn&apos;t get the code?</p>
           {cooldown > 0 ? (
-            <p className="text-sm text-gray-400">Resend in {cooldown}s</p>
+            <p className="text-sm text-muted-foreground">Resend in {cooldown}s</p>
           ) : (
             <button
               onClick={handleResendCode}
-              className="text-sm font-medium text-[#FF4D8D] hover:underline"
+              className="text-sm font-medium text-primary hover:underline"
             >
               Resend code
             </button>
@@ -198,7 +200,7 @@ function SignupForm() {
 
         <button
           onClick={() => { setStep('details'); setError(''); setOtpError(false); }}
-          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to details
@@ -209,7 +211,7 @@ function SignupForm() {
 
   // Step 1: Details form
   return (
-    <div className="w-full max-w-md space-y-8">
+    <div className="space-y-5">
       {/* Logo + header */}
       <div className="text-center space-y-3">
         <TempoLogo size="lg" animated />
@@ -223,9 +225,9 @@ function SignupForm() {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-4">
+        <div className="rounded-2xl border border-border bg-card shadow-sm p-6 space-y-4">
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-[var(--pulse-neg-bg)] text-[var(--pulse-neg)] text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>
                 {error}{' '}
@@ -247,7 +249,7 @@ function SignupForm() {
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Tyler Drinkard"
               required
-              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
@@ -262,7 +264,7 @@ function SignupForm() {
               onChange={(e) => { setEmail(e.target.value); setError(''); }}
               placeholder="you@company.com"
               required
-              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
@@ -277,7 +279,7 @@ function SignupForm() {
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="Your brand or agency name"
               required
-              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
         </div>
@@ -285,7 +287,7 @@ function SignupForm() {
         <button
           type="submit"
           disabled={!isValid || loading}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-pulse-grad text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm"
         >
           {loading ? (
             <>
@@ -304,7 +306,7 @@ function SignupForm() {
       <div className="text-center space-y-3">
         <p className="text-sm text-muted-foreground">
           Already have an account?{' '}
-          <Link href="/login" className="text-[#FF4D8D] hover:underline font-medium">
+          <Link href="/login" className="text-primary hover:underline font-medium">
             Sign in
           </Link>
         </p>

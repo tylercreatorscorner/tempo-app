@@ -34,7 +34,7 @@ export default async function IntegrationsPage() {
 
   return (
     <Suspense>
-      <div className="space-y-5"><IntegrationsClient initialIntegrations={integrations} brands={brands} /><section className="rounded-xl border border-border bg-card p-4"><h2 className="font-semibold mb-3">TikTok Shop API</h2><TikTokShopSection /></section></div>
+      <div className="min-w-0 space-y-4"><IntegrationsClient initialIntegrations={integrations} brands={brands} /><section id="tiktok-shop" className="scroll-mt-24 rounded-xl border border-border bg-card p-4"><h2 className="font-semibold mb-3">TikTok Shop API</h2><TikTokShopSection /></section></div>
     </Suspense>
   );
 }

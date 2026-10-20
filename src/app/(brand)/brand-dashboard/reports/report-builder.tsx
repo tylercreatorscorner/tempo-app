@@ -41,7 +41,7 @@ export function ReportBuilder({ accentColor }: Props) {
 
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <div className="p-5 sm:p-6 space-y-5">
+      <div className="p-4 space-y-4">
         {/* Step 1: Report type */}
         <Step number={1} title="What do you want to report on?">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -52,9 +52,10 @@ export function ReportBuilder({ accentColor }: Props) {
                 <button
                   key={opt.value}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => setType(opt.value)}
                   className={cn(
-                    'group relative flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all',
+                    'group relative flex items-start gap-3 p-4 rounded-xl border text-left transition-colors',
                     active
                       ? 'shadow-sm'
                       : 'border-border hover:border-border bg-card',
@@ -73,7 +74,7 @@ export function ReportBuilder({ accentColor }: Props) {
                   >
                     <Icon
                       className="h-4 w-4"
-                      style={{ color: active ? accentColor : 'var(--muted-foreground)' }}
+                      style={{ color: active ? 'var(--brand-ink-18)' : 'var(--muted-foreground)' }}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -97,6 +98,7 @@ export function ReportBuilder({ accentColor }: Props) {
                 <button
                   key={p}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => setPeriod(p)}
                   className={cn(
                     'px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
@@ -139,10 +141,7 @@ export function ReportBuilder({ accentColor }: Props) {
         <a
           href={downloadHref}
           download={filename}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity shrink-0"
-          style={{
-            background: `linear-gradient(90deg, ${accentColor}, var(--pulse-accent-2))`,
-          }}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
         >
           <Download className="h-4 w-4" />
           Download

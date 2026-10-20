@@ -1,3 +1,4 @@
+import portal from '@/components/layout/portal-workspace.module.css';
 import { Mail, User, Image as ImageIcon, Users as UsersIcon, ExternalLink, Lock } from 'lucide-react';
 import { requireBrandPortalContext } from '@/lib/data/brand-portal';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -18,7 +19,7 @@ interface AccountManager {
 
 export default async function BrandSettingsPage() {
   const ctx = await requireBrandPortalContext();
-  const accent = ctx.activeBrand.color || '#FF4D8D';
+  const accent = ctx.activeBrand.color || '#6e4bcc';
 
   // Pull supplementary data via admin client (avoids the brand-scoped RLS for these reads)
   const admin = await createAdminClient();
@@ -54,7 +55,7 @@ export default async function BrandSettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-[900px] mx-auto">
+    <div className={portal.page}>
       <div>
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
@@ -62,6 +63,8 @@ export default async function BrandSettingsPage() {
         </p>
       </div>
 
+      <div className={portal.equalColumns}>
+      <div className={portal.stack}>
       {/* Account manager card */}
       {accountManager && (
         <SectionCard
@@ -136,6 +139,8 @@ export default async function BrandSettingsPage() {
         </div>
       </SectionCard>
 
+      </div>
+      <div className={portal.stack}>
       {/* Profile */}
       <SectionCard
         icon={User}
@@ -144,9 +149,9 @@ export default async function BrandSettingsPage() {
       >
         <dl className="divide-y divide-border/40">
           <EditableName initialName={ctx.user.name ?? ''} />
-          <div className="flex items-center justify-between px-5 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
             <dt className="text-xs text-muted-foreground">Email</dt>
-            <dd className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+            <dd className="flex min-w-0 break-all items-center gap-1.5 text-sm font-medium text-foreground">
               {ctx.user.email}
               <Lock className="h-3 w-3 text-muted-foreground" aria-label="Locked" />
             </dd>
@@ -196,6 +201,8 @@ export default async function BrandSettingsPage() {
           </div>
         )}
       </SectionCard>
+      </div>
+      </div>
     </div>
   );
 }
@@ -231,7 +238,7 @@ function SectionCard({
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between px-5 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="text-sm font-medium text-foreground">{value}</dd>
     </div>

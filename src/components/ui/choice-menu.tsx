@@ -17,7 +17,7 @@ export function ChoiceMenu({ label, value, options, onChange, disabled, placehol
   const hasEmptyOption = options.some(option => option.value === '');
   return <Select.Root value={value === '' && hasEmptyOption ? EMPTY_CHOICE : value} onValueChange={next => onChange(next === EMPTY_CHOICE ? '' : next)} disabled={disabled}>
     <Select.Trigger id={id} className={`${styles.trigger} ${compact ? styles.compact : ''} ${triggerClassName}`} aria-label={label}>
-      {selected?.icon}<Select.Value placeholder={placeholder}>{selected?.label}</Select.Value><Select.Icon className={styles.chevron}><ChevronDown size={15} /></Select.Icon>
+      {selected?.icon}<Select.Value placeholder={placeholder} /><Select.Icon className={styles.chevron}><ChevronDown size={15} /></Select.Icon>
     </Select.Trigger>
     <Select.Portal><Select.Content className={`${styles.content} ${compact ? styles.compactContent : ''}`} position="popper" sideOffset={8} collisionPadding={12} data-lenis-prevent>
       <Select.ScrollUpButton className={styles.scroll}><InterfaceIcon name="increase" /></Select.ScrollUpButton>

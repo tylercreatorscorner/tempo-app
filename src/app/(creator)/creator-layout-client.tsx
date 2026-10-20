@@ -1,5 +1,7 @@
 'use client';
 
+import portal from '@/components/layout/portal-workspace.module.css';
+
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { CreatorProfile } from '@/lib/data/creator-context';
@@ -27,7 +29,8 @@ export function CreatorLayoutClient({
 
   return (
     <NavigationPendingProvider>
-    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
+    <div className={`${portal.theme} flex min-h-screen`} style={{ backgroundColor: 'var(--background)' }}>
+      <a href="#creator-content" onClick={() => setMobileNavOpen(false)} className={portal.skipLink}>Skip to content</a>
       <CreatorSidebar className="sticky top-0 hidden h-screen lg:flex" profile={profile} />
 
       {mobileNavOpen && (
@@ -48,8 +51,8 @@ export function CreatorLayoutClient({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <CreatorHeader profile={profile} onMenuClick={() => setMobileNavOpen(true)} />
-        <main className="flex-1 animate-fade-in">
-          <div className="p-3 sm:p-4 md:p-6">
+        <main id="creator-content" tabIndex={-1} className="min-w-0 flex-1">
+          <div className={portal.content}>
             <NavigationPendingOverlay>{children}</NavigationPendingOverlay>
           </div>
         </main>

@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, UserPlus, Loader2, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Check, X } from 'lucide-react';
 
 interface TeamMember {
   id: string;
@@ -121,17 +121,12 @@ export function TeamMembersSection() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="p-6 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <UserPlus className="h-5 w-5 text-primary" />
-          </div>
+    <section aria-label="Billing identities" className="min-w-0 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-lg">Billing identities</h2>
-            <p className="text-sm text-muted-foreground">People who issue invoices to brands. Each has their own bill-from info + payment details.</p>
+            <h2 className="font-semibold text-sm">Billing identities</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Invoice issuers and their payment details.</p>
           </div>
-        </div>
         {editingId === null && (
           <button
             onClick={startAdd}
@@ -142,7 +137,7 @@ export function TeamMembersSection() {
         )}
       </div>
 
-      <div className="p-6 space-y-3">
+      <div className="p-3 space-y-2">
         {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
         {error && <p className="text-xs text-red-600 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
@@ -158,7 +153,7 @@ export function TeamMembersSection() {
             <div key={m.id} className="flex items-start justify-between p-3 rounded-lg border border-border/50">
               <div className="min-w-0">
                 <p className="font-medium text-sm">{m.name}</p>
-                {m.email && <p className="text-xs text-muted-foreground mt-0.5">{m.email}</p>}
+                {m.email && <p className="break-all text-xs text-muted-foreground mt-0.5">{m.email}</p>}
                 {m.payment_instructions && <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 max-w-md">{m.payment_instructions.replace(/\n/g, ' · ')}</p>}
               </div>
               {editingId === null && (
@@ -179,7 +174,7 @@ export function TeamMembersSection() {
           <EditForm form={form} setForm={setForm} onSave={save} onCancel={cancel} saving={saving} />
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -195,10 +190,11 @@ function EditForm({
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm({ ...form, [k]: v });
   return (
     <div className="p-4 rounded-lg border-2 border-primary/30 bg-primary/5 space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Name *</label>
+          <label htmlFor="billing-identity-name" className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Name *</label>
           <input
+            id="billing-identity-name"
             type="text"
             value={form.name}
             onChange={e => set('name', e.target.value)}
@@ -207,8 +203,9 @@ function EditForm({
           />
         </div>
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Email</label>
+          <label htmlFor="billing-identity-email" className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Email</label>
           <input
+            id="billing-identity-email"
             type="email"
             value={form.email}
             onChange={e => set('email', e.target.value)}
@@ -218,8 +215,9 @@ function EditForm({
         </div>
       </div>
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Address (multi-line)</label>
+        <label htmlFor="billing-identity-address" className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Address (multi-line)</label>
         <textarea
+          id="billing-identity-address"
           rows={2}
           value={form.address}
           onChange={e => set('address', e.target.value)}
@@ -228,8 +226,9 @@ function EditForm({
         />
       </div>
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Payment Instructions</label>
+        <label htmlFor="billing-identity-instructions" className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Payment Instructions</label>
         <textarea
+          id="billing-identity-instructions"
           rows={4}
           value={form.payment_instructions}
           onChange={e => set('payment_instructions', e.target.value)}

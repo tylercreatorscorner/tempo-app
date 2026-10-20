@@ -3,6 +3,7 @@
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { LoadingStatus } from '@/components/ui/loading-status';
+import layout from '@/components/ui/workspace-layout.module.css';
 
 /**
  * Brand-level settings management.
@@ -66,6 +67,7 @@ export function BrandsSettingsClient() {
   const [editing, setEditing] = useState<BrandRow | null>(null);
   const [adding, setAdding] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
@@ -163,7 +165,7 @@ export function BrandsSettingsClient() {
   }, [brands]);
 
   return (
-    <div className="space-y-4">
+    <div className={layout.page}>
       <PageHeader eyebrow="Settings" title="Brands" subtitle="Manage brand details, compensation and invoice defaults."
         actions={<div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={fetchBrands} disabled={loading}><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />Refresh</Button>
@@ -179,10 +181,15 @@ export function BrandsSettingsClient() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:max-w-2xl">
+      <div className={layout.cardMetrics}>
         <Stat label="Active" value={String(stats.active)} />
         <Stat label="Archived" value={String(stats.archived)} />
         <Stat label="Monthly Retainer Commit" value={formatCurrency(stats.monthlyCommit)} />
+      </div>
+
+      <div className={layout.toolbar}>
+        <div><h2 className="text-sm font-semibold">Brand directory</h2><p className="mt-1 text-xs text-muted-foreground">Select a brand to edit its setup and invoice defaults.</p></div>
+        <input type="search" aria-label="Search brand settings" placeholder="Find a brand…" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-64" />
       </div>
 
       {/* Brand list */}
@@ -208,7 +215,7 @@ export function BrandsSettingsClient() {
       ) : (
         <>
           <BrandTable
-            brands={active}
+            brands={active.filter(b => `${b.name} ${b.slug}`.toLowerCase().includes(search.trim().toLowerCase()))}
             heading="Active"
             busyId={busyId}
             menuOpenId={menuOpenId}
@@ -232,7 +239,7 @@ export function BrandsSettingsClient() {
               {showArchived && (
                 <div className="mt-2">
                   <BrandTable
-                    brands={archived}
+                    brands={archived.filter(b => `${b.name} ${b.slug}`.toLowerCase().includes(search.trim().toLowerCase()))}
                     heading="Archived"
                     archived
                     busyId={busyId}
