@@ -116,7 +116,7 @@ export function ReportActions({
           onKeyDown={(e) => { if (e.key === 'Escape') setOpen(null); }}
         >
           <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setOpen(null)} />
-          <div className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
+          <div className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-[var(--workspace-surface-radius,14px)] bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))]">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div className="min-w-0">
                 <h2 className="truncate text-[13.5px] font-bold tracking-tight text-foreground">

@@ -104,7 +104,7 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
 
   if (loading && invoices.length === 0) {
     return (
-      <Card className="p-3">
+      <Card className="p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-[320px] rounded-xl" />
@@ -131,8 +131,8 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
   }
 
   return (
-    <Card className="p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-1.5 pb-3 pt-1">
+    <Card className="p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-5">
         <p className="text-xs text-muted-foreground">
           Draft, Sent and Overdue always show every open invoice · the Paid column is scoped to the selected month.
         </p>
@@ -146,10 +146,10 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {columns.map((col) => (
-          <div key={col.key} className="flex min-h-[180px] flex-col rounded-xl border border-border bg-secondary/50 p-2.5">
-            <div className="flex items-baseline justify-between gap-2 px-1.5 pb-2 pt-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{col.title}</span>
-              <span className={cn('text-[10px] font-bold uppercase tracking-wide tabular-nums', col.tone)}>
+          <div key={col.key} className="flex min-h-[180px] flex-col rounded-[10px] border border-border bg-secondary/50 p-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
+              <span className="text-xs font-medium text-foreground">{col.title}</span>
+              <span className={cn('text-xs font-medium tabular-nums', col.tone)}>
                 {col.rows.length} · {formatCurrency(col.sum)}
               </span>
             </div>
@@ -253,7 +253,7 @@ function BoardCard({
         }
       }}
       className={cn(
-        'w-full cursor-pointer rounded-lg border bg-card p-3 text-left shadow-[var(--pulse-elev-1)] transition-colors',
+        'w-full cursor-pointer rounded-[var(--workspace-control-radius,8px)] border bg-card p-3.5 text-left shadow-[var(--workspace-surface-shadow,var(--pulse-elev-1))] transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
         hot ? 'hover:brightness-[1.03]' : 'border-border hover:border-primary/50',
       )}
@@ -262,13 +262,13 @@ function BoardCard({
     >
       <span className="flex items-center gap-1.5">
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: brandColor }} aria-hidden="true" />
-        <span className="truncate text-[13px] font-bold text-foreground">{brandLabel}</span>
+        <span className="truncate text-[13px] font-semibold text-foreground">{brandLabel}</span>
       </span>
-      <span className="mt-0.5 block truncate font-mono text-[10.5px] text-muted-foreground">{invoice.invoice_number}</span>
-      <span className="mt-1.5 block text-[15px] font-extrabold tabular-nums text-foreground">
+      <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{invoice.invoice_number}</span>
+      <span className="mt-2 block text-lg font-semibold tracking-tight tabular-nums text-foreground">
         {formatCurrency(Number(invoice.total_amount))}
       </span>
-      <span className="mt-0.5 block text-[11px] leading-normal text-muted-foreground">
+      <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
         <MetaLine inv={invoice} kind={metaKind} todayIso={todayIso} />
       </span>
       {metaKind === 'overdue' && (

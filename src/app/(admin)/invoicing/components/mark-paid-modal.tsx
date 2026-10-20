@@ -90,15 +90,15 @@ export function MarkPaidModal({
     <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-card rounded-xl border border-border shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-md bg-card rounded-xl border border-border shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-xl bg-pulse-grad flex items-center justify-center flex-shrink-0 shadow-pulse-primary">
-              <CheckCircle2 className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-[10px] bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Mark as Paid</p>
-              <h2 className="text-lg font-extrabold text-[var(--foreground)] font-mono truncate">{invoiceNumber}</h2>
+              <h2 className="text-lg font-semibold text-[var(--foreground)] font-mono truncate">{invoiceNumber}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">Capture payment detail for reconciliation.</p>
             </div>
           </div>

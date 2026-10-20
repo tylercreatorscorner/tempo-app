@@ -26,6 +26,12 @@ The PDF is an authenticated print view with client billing and agency fee amount
 
 ## Access and integrity
 
+Contract effective date, client signature, agency signature, estimated launch, actual campaign start, and confirmed agreement completion are separate fields. General termination notice is separate from notice before renewal. Imported or reviewed contracts can flag a disagreement that blocks preparing invoices until leadership resolves the fees, entity, and GMV basis. Extraction findings and page quotes remain available beside the original document. Billing CC is stored independently from the AP recipient.
+
+Signed contracts can also reference their original Google Drive files. Tempo stores the canonical file link and reviewed findings; opening the document still requires its existing Drive access. No file is copied or made public. Stored PDFs continue to use the private bucket.
+
+Tiered agency terms retain an ordered set of GMV bands, a marginal or whole-month calculation method, and an explicit GMV basis. Marginal fees sum each band's integer-cent allocation before a single final rounding. Unconfirmed calculation methods and unverified contract-specific affiliate attribution require review; they never silently fall back to managed GMV. A confirmed managed-GMV agreement works with the existing authorized, complete monthly GMV source. Historical invoice snapshots stay fixed when current terms change.
+
 All routes require the existing agency leadership guard (owner/admin, all-brand reach, finance visibility, reporting/earnings permissions, and no impersonation). Writes also require earnings configuration permission and a same-origin request. Every privileged query uses the trusted workspace tenant. Contracts live in a private bucket with no public/authenticated object policy. Download URLs expire after 60 seconds and are issued only after an authorized tenant-scoped lookup.
 
 Finance writes serialize with client agreement saves using the same tenant advisory lock. Settings and invoice state changes use optimistic revisions. Invoice creation checks both source revisions under the lock. A partial unique index prevents two active invoices per client/month. Invoice states are draft, issued, paid, or void; paid invoices cannot be voided, and manager payment cannot precede collection. Every finance write appends an immutable audit snapshot. User-facing errors exclude database and provider internals.

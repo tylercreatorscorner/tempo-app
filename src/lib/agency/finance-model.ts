@@ -8,10 +8,14 @@ const text = (max: number) => z.string().trim().max(max);
 export const financeSettingsSchema = z.object({
   agencyName: text(200), agencyAddress: text(2000), paymentInstructions: text(2000),
   legalName: text(200), billingEmail: z.union([z.literal(''), z.email()]), billingContact: text(200),
+  billingCc: z.union([z.literal(''), z.email()]).default(''),
   billingAddress: text(2000), taxId: text(100), purchaseOrder: text(100), currency: z.literal('USD'),
   invoiceDay: z.number().int().min(1).max(28), netDays: z.number().int().min(0).max(365),
   collectionDelayDays: z.number().int().min(0).max(365),
   signedDate: date.nullable(), campaignStart: date.nullable(), renewalDate: date.nullable(),
+  contractEffectiveDate: date.nullable().default(null), clientSignedDate: date.nullable().default(null), agencySignedDate: date.nullable().default(null),
+  estimatedCampaignStart: date.nullable().default(null), terminationNoticeDays: z.number().int().min(0).max(365).nullable().default(null),
+  termsReviewRequired: z.boolean().default(false), termsReviewNotes: text(4000).default(''),
   noticeDays: z.number().int().min(0).max(365).nullable(), autoRenew: z.enum(['unknown', 'yes', 'no']),
   notes: text(4000),
   managerTerms: z.array(z.object({ effectiveMonth: month, managerId: z.uuid(), fixedMonthly: amount,
@@ -21,7 +25,7 @@ export const financeSettingsSchema = z.object({
     .refine(rows => new Set(rows.map(r => r.month)).size === rows.length, 'Each forecast month must be unique'),
 }).strict();
 export type FinanceSettings = z.infer<typeof financeSettingsSchema>;
-export const emptyFinanceSettings = (): FinanceSettings => ({ agencyName: '', agencyAddress: '', paymentInstructions: '', legalName: '', billingEmail: '', billingContact: '', billingAddress: '', taxId: '', purchaseOrder: '', currency: 'USD', invoiceDay: 1, netDays: 30, collectionDelayDays: 0, signedDate: null, campaignStart: null, renewalDate: null, noticeDays: null, autoRenew: 'unknown', notes: '', managerTerms: [], forecastGmv: [] });
+export const emptyFinanceSettings = (): FinanceSettings => financeSettingsSchema.parse({ agencyName: '', agencyAddress: '', paymentInstructions: '', legalName: '', billingEmail: '', billingContact: '', billingAddress: '', taxId: '', purchaseOrder: '', currency: 'USD', invoiceDay: 1, netDays: 30, collectionDelayDays: 0, signedDate: null, campaignStart: null, renewalDate: null, noticeDays: null, autoRenew: 'unknown', notes: '', managerTerms: [], forecastGmv: [] });
 export type FinanceRecord = { client_id: string; revision: number; settings: FinanceSettings };
 export type InvoiceSnapshot = { clientName: string; billing: FinanceSettings; clientRevision: number; settingsRevision: number;
   agencyTerms: NonNullable<ReturnType<typeof calculateServiceRevenue>['terms']>; manager: FinanceSettings['managerTerms'][number];
@@ -32,6 +36,7 @@ export function shiftMonth(value: string, offset: number) { const [y, m] = value
 export function managerFor(settings: FinanceSettings, month: string) { return settings.managerTerms.filter(t => t.effectiveMonth <= month).sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth))[0] ?? null; }
 export function readiness(settings: FinanceSettings) { return Boolean(settings.legalName && settings.billingEmail && settings.billingAddress); }
 export function buildInvoice(client: ClientRecord, record: FinanceRecord, month: string, gmvCents: number, issuedDate: string): InvoiceSnapshot {
+  if (record.settings.termsReviewRequired) throw new Error('Review the contract differences and confirm the billing agreement before preparing an invoice.');
   if (!readiness(record.settings)) throw new Error('Complete the legal name, billing email, and billing address first.');
   if (!record.settings.agencyName || !record.settings.agencyAddress || !record.settings.paymentInstructions) throw new Error('Add the issuing agency name, address, and payment instructions before invoicing.');
   const bounds = agencyMonthBounds(month);

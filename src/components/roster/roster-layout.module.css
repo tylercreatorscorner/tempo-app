@@ -1,71 +1,63 @@
-/* Workspace colors are inherited from the shared signed-in app shell. */
-.page { composes: surface from "../creators/creator-theme.module.css"; max-width: 1520px; margin-inline: auto; min-width: 0; container-type: inline-size; }
-.page :global(.bg-pulse-grad) { background-image: none; background-color: var(--primary); color: var(--primary-foreground); box-shadow: none; }
-.page h1 { font-size: 30px; font-weight: 600; letter-spacing: -.9px; }
+/* The roster inherits color, typography and control tokens from the app shell. */
+.page { composes: surface from "../creators/creator-theme.module.css"; width: 100%; min-width: 0; margin-inline: auto; container-type: inline-size; }
+.page h1 { font-size: clamp(26px, 2.3vw, 30px); font-weight: 600; letter-spacing: -.035em; }
 .scope { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px 0; padding-block: 8px; }
-.metric { grid-column: span 2; }
+.scope button, .toolbar button, .toolbar select, .toolbar input { min-height: var(--workspace-control-height, 38px); border-radius: var(--workspace-control-radius, 8px); }
+.metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; border: 1px solid var(--border); border-radius: var(--workspace-surface-radius, 14px); background: var(--card); box-shadow: var(--workspace-surface-shadow, none); overflow: hidden; }
+.metric { grid-column: span 2; min-width: 0; padding: 20px; border: 0; border-left: 1px solid var(--border); border-radius: 0; background: var(--card); box-shadow: none; }
 .metric:nth-child(-n+2) { grid-column: span 3; }
-.metric { border: 0; border-left: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; padding: 18px; min-width: 0; }
-.metric:first-child { border-left: 0; padding-left: 0; }
-.metric > div:first-child p { font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; }
-.metric > p { font-size: clamp(22px, 2.4cqw, 28px); font-weight: 600; letter-spacing: -.7px; white-space: nowrap; }
-.featured { background: color-mix(in srgb, var(--primary) 10%, var(--card)); border: 0; border-radius: 14px; }
-.featured > p { color: var(--primary); }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
-.tableCard { position: relative; border: 1px solid var(--border); border-radius: 16px; background: var(--card); overflow: hidden; }
+.metric:first-child { border-left: 0; }
+.metric > div:first-child p { font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.metric > p { font-size: clamp(24px, 2.7cqw, 30px); font-weight: 600; letter-spacing: -.035em; line-height: 1.2; overflow-wrap: anywhere; color: var(--foreground); }
+.featured { background: var(--card); color: var(--foreground); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: var(--workspace-surface-radius, 14px); background: var(--card); }
+.toolbar button, .toolbar select, .toolbar input { font-size: 13px; }
+.tableCard { position: relative; border: 1px solid var(--border); border-radius: var(--workspace-surface-radius, 14px); background: var(--card); box-shadow: var(--workspace-surface-shadow, none); overflow: hidden; }
 .table { width: 100%; font-size: 13px; border-collapse: collapse; }
-.table thead tr { background: var(--card); }
-.table th { padding: 14px 16px; font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; white-space: nowrap; }
-.table td { padding: 18px 16px; font-variant-numeric: tabular-nums; }
-.person { display: flex; align-items: center; gap: 10px; min-width: 240px; max-width: 300px; }
+.table thead tr { background: var(--secondary); }
+.table th { padding: 13px 16px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.table td { padding: 16px; font-variant-numeric: tabular-nums; }
+.table td[data-label="Brand"] { min-width: 150px; }
+.person { display: flex; align-items: center; gap: 12px; min-width: 220px; max-width: 300px; }
 .person :global(.truncate) { white-space: normal; overflow-wrap: anywhere; overflow: visible; }
 .person > div { flex: 1; min-width: 0; }
-.person > div > div:first-child { flex-wrap: wrap; font-size: 15px; }
-.avatar { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; flex-shrink: 0; background: color-mix(in srgb, var(--primary) 12%, var(--card)); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 600; }
-.signal { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 8px; min-width: 96px; }
+.person > div > div:first-child { flex-wrap: wrap; font-size: 14px; }
+.avatar { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex-shrink: 0; object-fit: cover; border: 1px solid var(--border); border-radius: 12px; background: var(--secondary); color: var(--foreground); font-weight: 600; }
+.signal { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 7px; min-width: 96px; }
 .signal > div:last-child { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; text-align: left; }
-.signal > div:last-child > div:first-child { font-size: 16px; font-weight: 600; }
+.signal > div:last-child > div:first-child { font-size: 15px; font-weight: 600; }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-top: 1px solid var(--border); }
-.panel { position: relative; width: min(100%, 620px); height: 100%; overflow-y: auto; display: flex; flex-direction: column; background: var(--card); box-shadow: -12px 0 60px #0002; }
-.panel h2 { font-size: 24px; font-weight: 600; letter-spacing: -.5px; }
+.panel { position: relative; display: flex; flex-direction: column; width: min(100%, 620px); height: 100%; overflow-y: auto; background: var(--card); box-shadow: var(--workspace-surface-raised-shadow, -12px 0 60px #0002); }
+.panel h2 { font-size: 22px; font-weight: 600; letter-spacing: -.025em; }
 .panelHeader { display: flex; align-items: center; gap: 14px; }
-.page button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.page button:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 @container (min-width: 960px) { .metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); } .metric, .metric:nth-child(-n+2) { grid-column: span 1; } }
-@container (max-width: 1000px) { .table th, .table td { padding-inline: 10px; } .avatar { width: 42px; height: 42px; } }
+@container (min-width: 651px) and (max-width: 959px) { .metric:nth-child(n+3) { border-top: 1px solid var(--border); } .metric:nth-child(3) { border-left: 0; } }
+@container (max-width: 1000px) { .table th, .table td { padding-inline: 12px; } }
 @container (max-width: 650px) {
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .metric, .metric:nth-child(-n+2) { padding: 14px 10px; grid-column: span 1; }
-  .metric > p { font-size: clamp(17px, 5cqw, 22px); }
-  .metric:last-child { grid-column: 1 / -1; border-left: 0; }
+  .metric, .metric:nth-child(-n+2) { padding: 16px; grid-column: span 1; }
+  .metric:nth-child(odd) { border-left: 0; }
+  .metric:nth-child(n+3) { border-top: 1px solid var(--border); }
+  .metric > p { font-size: clamp(21px, 5cqw, 26px); }
+  .metric:last-child { grid-column: 1 / -1; }
   .table, .table tbody { display: block; width: 100%; }
   .table thead, .table thead tr { display: flex; flex-wrap: wrap; width: 100%; }
   .table thead { padding: 10px; border-bottom: 1px solid var(--border); }
   .table th { display: block; padding: 0; }
-  .table th button { min-height: 44px; padding: 8px; border-radius: 8px; font-size: 11px; }
+  .table th button { min-height: 44px; padding: 8px; border-radius: var(--workspace-control-radius, 8px); font-size: 12px; }
   .table th:not(:has(button)):not(:has(input)) { display: none; }
   .table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 20px 16px; }
   .table tbody td { display: block; min-width: 0; padding: 0; text-align: left; }
-  .table td[data-label]::before { content: attr(data-label); display: block; color: var(--muted-foreground); font-size: 11px; margin-bottom: 6px; }
+  .table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 6px; color: var(--muted-foreground); font-size: 12px; }
   .table td[data-label="Creator"] { grid-column: 1 / -1; }
   .table td[data-label="Creator"]::before { display: none; }
   .table td[data-label="Brand"] { grid-column: 1 / -1; margin-top: -8px; }
   .table td[data-label="Brand"]::before { display: none; }
   .table td:empty { display: none; }
   .person { max-width: none; min-width: 0; }
-  .person .avatar { width: 54px; height: 54px; }
+  .person .avatar { width: 48px; height: 48px; }
 }
-@container (max-width: 300px) { .metrics { grid-template-columns: 1fr; } .metric, .metric:last-child { border: 0; padding: 14px; grid-column: span 1; } .metric:first-child { padding-left: 14px; } }
-@media (max-width: 600px) {
-  .page h1 { font-size: 26px; }
-  .toolbar { padding: 12px; gap: 8px; }
-  .toolbar input, .toolbar select { font-size: 16px; }
-  .scope button, .toolbar button, .toolbar select, .pagination button { min-height: 44px; }
-}
-
-.featured{background:var(--card);border:1px solid var(--border)}.featured>p{color:var(--foreground)}.avatar{outline:1px solid var(--border);outline-offset:3px;background:var(--secondary);color:var(--foreground)}.scope button{min-height:44px;border-radius:12px}.toolbar button,.toolbar select,.toolbar input{border-radius:10px}.person{gap:14px}.panel h2{font-size:22px}.table td[data-label="Brand"]{min-width:150px}
-
-/* Compact roster controls share the reporting control density. */
-.toolbar {padding:10px;gap:8px;background:var(--secondary);border-radius:12px}
-.toolbar button,.toolbar select {min-height:32px;height:32px;font-size:12px}
-@media(pointer:coarse){.toolbar button,.toolbar select{min-height:44px;height:44px}}
+@container (max-width: 300px) { .metrics { grid-template-columns: 1fr; } .metric, .metric:last-child { border-left: 0; padding: 16px; grid-column: span 1; } .metric:nth-child(2) { border-top: 1px solid var(--border); } }
+@media (max-width: 600px) { .toolbar { padding: 12px; gap: 8px; } .toolbar input, .toolbar select { font-size: 16px; } }
+@media (pointer: coarse) { .scope button, .toolbar button, .toolbar select, .toolbar input, .pagination button { min-height: 44px; } }

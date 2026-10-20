@@ -3,12 +3,13 @@
 import { AccountMenu } from './account-menu';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Menu, ChevronRight } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { createClient } from '@/lib/supabase/client';
 import { useBreadcrumbOverride } from '@/components/layout/breadcrumb-context';
+import styles from './workspace-theme.module.css';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -118,55 +119,51 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
     : '?';
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-3 sm:px-5 border-b border-border bg-card">
+    <header className={styles.header}>
       {/* Left: mobile menu + breadcrumb */}
-      <div className="flex min-w-0 flex-1 items-center gap-2 pr-2 sm:gap-3">
+      <div className={styles.headerLead}>
         <button
           onClick={onMenuClick}
-          className="lg:hidden shrink-0 p-2 rounded-lg hover:bg-muted transition-colors"
-          aria-label="Toggle menu"
+          type="button"
+          className={styles.menuButton}
+          aria-label="Open navigation menu"
         >
           <Menu className="h-5 w-5 text-muted-foreground" />
         </button>
 
-        <div className="shrink-0 lg:hidden">
-          <TempoLogo size="sm" animated />
+        <div className={styles.mobileLogo}>
+          <TempoLogo size="sm" animated={false} />
         </div>
 
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 text-sm min-w-0">
-          <span className="text-muted-foreground hidden sm:inline text-xs">{tenantName ?? 'Tempo'}</span>
-          <ChevronRight className="h-3 w-3 text-muted-foreground hidden sm:block" />
+        <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+          <span className={styles.tenantLabel} title={tenantName}>{tenantName ?? 'Tempo'}</span>
+          <span className={styles.breadcrumbSeparator} aria-hidden="true">/</span>
           {isCreatorDetail && (
             <>
-              <Link href="/roster" className="text-muted-foreground hover:text-foreground text-xs transition-colors hidden sm:inline">Creators</Link>
-              <ChevronRight className="h-3 w-3 text-muted-foreground hidden sm:block" />
+              <Link href="/roster" className={styles.parentLink}>Creators</Link>
+              <span className={styles.breadcrumbSeparator} aria-hidden="true">/</span>
             </>
           )}
           {isBrandDetail && (
             <>
-              <Link href="/brands" className="text-muted-foreground hover:text-foreground text-xs transition-colors hidden sm:inline">Brands</Link>
-              <ChevronRight className="h-3 w-3 text-muted-foreground hidden sm:block" />
+              <Link href="/brands" className={styles.parentLink}>Brands</Link>
+              <span className={styles.breadcrumbSeparator} aria-hidden="true">/</span>
             </>
           )}
-          <span className="font-semibold text-foreground text-sm truncate">{pageLabel}</span>
+          <span className={styles.pageLabel} title={pageLabel} aria-current="page">{pageLabel}</span>
         </nav>
       </div>
 
       {/* Right: tenant switcher + action icons + avatar */}
-      <div className="flex shrink-0 items-center gap-1">
-        {tenantSwitcher && <div className="hidden sm:block mr-2">{tenantSwitcher}</div>}
-
-
-
-        {/* Comms lives in the sidebar (its own destination) — the old
-            /messages header shortcut is gone with the Comms-hub rebuild. */}
+      <div className={styles.headerActions}>
+        {tenantSwitcher && <div className={styles.tenantSwitcher}>{tenantSwitcher}</div>}
 
         {/* Light / dark toggle */}
-        <ThemeToggle />
+        <ThemeToggle size="sm" />
 
         {/* Divider */}
-        <div className="w-px h-6 bg-secondary mx-1" />
+        <div className={styles.headerDivider} />
 
         <AccountMenu name={userName} email={userEmail} initials={initials} isAdmin={isAdmin} canInviteMembers={canInviteMembers} onLogout={handleLogout} />
       </div>

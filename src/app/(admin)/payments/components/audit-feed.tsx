@@ -47,7 +47,7 @@ export function AuditFeed({ logs, loading }: Props) {
   const brandMeta = useBrandMeta();
   if (loading && logs.length === 0) {
     return (
-      <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center">
+      <div className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border shadow-sm p-12 text-center">
         <div className="inline-block h-6 w-6 rounded-full border-2 border-border border-t-[var(--primary)] animate-spin" />
       </div>
     );
@@ -55,8 +55,8 @@ export function AuditFeed({ logs, loading }: Props) {
 
   if (logs.length === 0) {
     return (
-      <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center">
-        <div className="mx-auto h-12 w-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
+      <div className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border shadow-sm p-12 text-center">
+        <div className="mx-auto h-12 w-12 rounded-[var(--workspace-surface-radius,14px)] bg-muted flex items-center justify-center mb-3">
           <History className="h-5 w-5 text-muted-foreground" />
         </div>
         <p className="text-sm font-bold text-[var(--foreground)]">No audit history yet</p>
@@ -68,7 +68,7 @@ export function AuditFeed({ logs, loading }: Props) {
   }
 
   return (
-    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+    <div className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border shadow-sm overflow-hidden">
       <div className="px-5 pt-4 pb-3 flex items-baseline justify-between">
         <div>
           <h3 className="text-sm font-bold text-[var(--foreground)]">Recent Activity</h3>

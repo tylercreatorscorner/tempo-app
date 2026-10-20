@@ -130,3 +130,7 @@
   font-size: inherit;
   font-weight: 400;
 }
+
+/* Date inputs share the same size and focus treatment as other workspace fields. */
+.field > input{min-height:var(--workspace-control-height,38px);border-radius:var(--workspace-control-radius,8px);border-color:var(--input);font-size:13px}
+.panel{border-radius:var(--workspace-surface-radius,14px);box-shadow:var(--workspace-surface-raised-shadow,0 12px 36px #1620331a)}

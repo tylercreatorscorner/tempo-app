@@ -1,16 +1,5 @@
-.workspace {
-  --pulse-elev-2: none;
-  --secondary: #f4f4f5;
-  --muted: #f4f4f5;
-  --border: #dedee5;
-}
-:global(main):has(.workspace) { background: #f0f1f5; }
-:global(.dark) .workspace {
-  --secondary: #22232b;
-  --muted: #22232b;
-  --border: #34353e;
-}
-:global(.dark) :global(main):has(.workspace) { background: #14151b; }
-
+/* Reporting inherits the same surfaces and colors as every workspace page. */
+.workspace { width: 100%; min-width: 0; }
 .workspace table thead { background: var(--secondary); }
-.workspace table th { padding-top: 10px; padding-bottom: 10px; }
+.workspace table th { padding-top: 12px; padding-bottom: 12px; }
+.workspace table td { font-variant-numeric: tabular-nums; }

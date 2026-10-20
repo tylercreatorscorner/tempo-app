@@ -406,7 +406,7 @@ export function PostsClient({
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="Content"
         title="Video performance"
@@ -428,7 +428,7 @@ export function PostsClient({
         <div className="rounded-xl bg-[var(--pulse-neg-bg)] border border-[var(--pulse-neg)]/25 px-4 py-3 text-sm text-[var(--pulse-neg)]">{error}</div>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm" aria-label="Video performance overview">
+      <section className="overflow-hidden rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card shadow-sm" aria-label="Video performance overview">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Sales window</span>
@@ -462,7 +462,7 @@ export function PostsClient({
         </div>
       )}
 
-      <section className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm sm:px-5" aria-label="Find videos">
+      <section className="rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card px-4 py-4 shadow-sm sm:px-5" aria-label="Find videos">
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[180px] flex-1 text-xs font-semibold text-foreground sm:max-w-72">
             Search videos
@@ -645,7 +645,7 @@ function RowCover({
       title="Watch here"
       aria-label="Watch video"
       className="group/cover relative h-11 w-[34px] shrink-0 overflow-hidden rounded-md"
-      style={!thumbnail ? { background: `linear-gradient(135deg, ${brandColor}33 0%, ${brandColor}88 100%)` } : undefined}
+      style={!thumbnail ? { background: 'var(--secondary)', border: `1px solid color-mix(in srgb, ${brandColor} 25%, var(--border))` } : undefined}
     >
       {thumbnail && (
         // eslint-disable-next-line @next/next/no-img-element

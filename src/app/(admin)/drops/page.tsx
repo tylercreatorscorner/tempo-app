@@ -152,7 +152,7 @@ export default function DropsPage() {
         subtitle="Choose the posts you need. Copy each one as soon as it’s ready."
       />
 
-      <Card className="p-4">
+      <Card className="p-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[180px] flex-1">
             <Label htmlFor="dr-brand">Brand</Label>
@@ -190,7 +190,7 @@ export default function DropsPage() {
             </div>
           )}
 
-          <Button size="lg" onClick={run} disabled={loading || !rangeValid || !selected.length || !preferencesReady}>
+          <Button onClick={run} disabled={loading || !rangeValid || !selected.length || !preferencesReady}>
             {loading ? <><Loader2 className="animate-spin" />Building {cards?.length ?? 0}/{selected.length}</> : <><Sparkles />Build selected ({selected.length})</>}
           </Button>
         </div>

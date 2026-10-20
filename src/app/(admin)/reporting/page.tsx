@@ -33,7 +33,7 @@ function ReportingWorkspace({ initialView }: { initialView: 'clients' | 'agency'
   const [visited, setVisited] = useState<Set<string>>(() => new Set([initialView]));
   const [target, setTarget] = useState<{ slug: string; name: string } | null>(null);
   return (
-    <div className={`${styles.workspace} space-y-5`}>
+    <div className={`${styles.workspace} space-y-6`}>
       <PageHeader title="Reporting" subtitle="Clear client updates. Every shared version preserved." />
       {target && (
         <div className="mx-auto max-w-4xl space-y-3">
@@ -41,12 +41,12 @@ function ReportingWorkspace({ initialView }: { initialView: 'clients' | 'agency'
           <CreatePanel key={target.slug} lockedBrand={target.slug} lockedBrandName={target.name} onSent={() => setRefreshKey(k => k + 1)} />
         </div>
       )}
-        <div hidden={Boolean(target)} className="space-y-5">
+        <div hidden={Boolean(target)} className="space-y-6">
           <nav aria-label="Reporting views" className="flex gap-5 overflow-x-auto border-b border-border">
             {([['clients', 'Client reports'], ['agency', 'Agency reports'], ['library', 'Report library']] as const).map(([key, label]) => (
-              <button key={key} type="button" aria-current={view === key ? 'page' : undefined} onClick={() => { setView(key); setVisited(previous => new Set([...previous, key])); }} className={`whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium ${view === key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>
+              <button key={key} type="button" aria-current={view === key ? 'page' : undefined} onClick={() => { setView(key); setVisited(previous => new Set([...previous, key])); }} className={`min-h-11 whitespace-nowrap border-b-2 px-1 py-3 text-[13px] font-medium ${view === key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>
             ))}
-            <Link href="/reporting/coaching" className="whitespace-nowrap px-1 pb-3 text-sm font-medium text-muted-foreground hover:text-foreground">Coaching</Link>
+            <Link href="/reporting/coaching" className="min-h-11 whitespace-nowrap px-1 py-3 text-[13px] font-medium text-muted-foreground hover:text-foreground">Coaching</Link>
           </nav>
           {visited.has('clients') && <div hidden={view !== 'clients'} className="space-y-4"><FreshnessBanner /><BrandTable refreshKey={refreshKey} onGenerate={(slug, name) => setTarget({ slug, name })} /></div>}
           {visited.has('agency') && <div hidden={view !== 'agency'} className="max-w-3xl space-y-4"><AgencyPanel /><NavigationLink href="/reporting/weekly">Open internal weekly review</NavigationLink></div>}

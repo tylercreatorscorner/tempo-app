@@ -339,7 +339,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
   const todayIso = todayIsoUtc();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Controls toolbar (page title lives in the server page wrapper) */}
       <div className="flex flex-wrap items-center gap-2">
         <SegmentedControl<View>
@@ -442,7 +442,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4">
           <div
             className={cn(
-              'flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl',
+              'flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))]',
               // Text tokens, not palette: -900 shades are fixed near-black and
               // never flip, so these toasts were unreadable on the dark ground.
               toast.kind === 'success'

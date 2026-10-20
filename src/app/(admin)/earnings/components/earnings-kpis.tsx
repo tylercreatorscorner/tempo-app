@@ -9,6 +9,7 @@
  * Money renders an em-dash while data is missing — never a fake $0.
  */
 import { InterfaceIcon } from '@/components/ui/interface-icon';
+import { StatCard } from '@/components/ui/stat-card';
 import type { ReactNode } from 'react';
 import { isOverdue } from '@/lib/finance/overdue';
 import { formatCurrency } from '@/lib/utils/format';
@@ -16,13 +17,7 @@ import type { SeriesPoint } from './earnings-trend-chart';
 import type { BrandRow, EarningsResponse } from './types';
 
 function KpiCard({ label, value, detail }: { label: string; value: string; detail?: ReactNode }) {
-  return (
-    <div className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-[0_1px_2px_rgba(0,0,0,0.025)]">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-2 break-words text-xl font-semibold leading-tight tracking-tight tabular-nums text-foreground sm:text-2xl">{value}</p>
-      {detail && <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium">{detail}</div>}
-    </div>
-  );
+  return <StatCard label={label} value={value} detail={detail} />;
 }
 
 /** ▲6% / ▼3% vs-prior-month line, pulse pos/neg. Null when no prior month. */

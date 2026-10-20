@@ -6,3 +6,9 @@
 @media(pointer:coarse){.trigger,.compact,.item,.compactContent .item{min-height:44px}}
 
 .item[data-disabled]{opacity:.45;pointer-events:none}.copy{overflow-wrap:anywhere}.trigger{font-variant-numeric:tabular-nums}
+
+/* Shared measurements keep menus, native fields and page filters aligned. */
+.trigger{min-height:var(--workspace-control-height,38px);padding:8px 12px;border-color:var(--input);border-radius:var(--workspace-control-radius,8px)}
+.content{border-radius:var(--workspace-surface-radius,14px);background:var(--popover);box-shadow:var(--workspace-surface-raised-shadow,0 12px 36px #1620331a)}
+.item{border-radius:6px}.heading{font-size:11px;text-transform:none;letter-spacing:.01em}.compact{min-height:34px}
+@media(pointer:coarse){.trigger,.compact{min-height:44px}}

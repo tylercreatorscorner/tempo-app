@@ -18,7 +18,7 @@
 .heading h2 {
   font-size: 18px;
   letter-spacing: -0.6px;
-  font-weight: 650;
+  font-weight: 600;
   margin: 4px 0;
 }
 .root p {
@@ -30,7 +30,7 @@
 .kicker {
   text-transform: uppercase;
   letter-spacing: 1.2px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--primary);
 }
@@ -43,9 +43,9 @@
   background: var(--card);
   color: var(--foreground);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--workspace-control-radius, 8px);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 .root button:hover {
@@ -59,7 +59,7 @@
 }
 .root button.primary {
   background: var(--primary);
-  color: white;
+  color: var(--primary-foreground);
   border-color: var(--primary);
   font-weight: 600;
 }
@@ -107,17 +107,17 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 550;
   min-width: 0;
 }
 .field input,
 .field textarea {
   width: 100%;
-  min-height: 36px;
+  min-height: var(--workspace-control-height, 38px);
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--workspace-control-radius, 8px);
   background: var(--card);
   color: var(--foreground);
   font: inherit;
@@ -147,7 +147,7 @@
 .summary h3 {
   font-size: 21px;
   letter-spacing: -0.8px;
-  font-weight: 650;
+  font-weight: 600;
   margin: 8px 0;
 }
 .impact {
@@ -159,7 +159,7 @@
   gap: 14px;
   padding: 9px 0;
   border-top: 1px solid var(--border);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
 }
 .impact dt {
@@ -183,7 +183,7 @@
   font-size: 21px;
 }
 .result small {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted-foreground);
   font-weight: 400;
 }
@@ -207,7 +207,7 @@
   align-items: start;
   border-top: 1px solid var(--border);
   padding: 9px 0;
-  font-size: 12px;
+  font-size: 13px;
 }
 .event > span {
   color: var(--primary);
@@ -220,12 +220,12 @@
   white-space: nowrap;
 }
 .event p {
-  font-size: 12px;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 .error {
   padding: 0 24px 16px;
-  color: #b91c1c !important;
+  color: var(--pulse-neg) !important;
 }
 @media (max-width: 650px) {
   .heading,
@@ -277,11 +277,11 @@
 }
 
 /* Keep selectors aligned with inputs without changing shared menu styles. */
-.field button[role="combobox"] { min-height: 36px; padding: 8px 10px; }
+.field button[role="combobox"] { min-height: var(--workspace-control-height, 38px); padding: 8px 10px; }
 @media (max-width: 650px) { .field button[role="combobox"] { min-height: 44px; } }
 /* Layered neutral surfaces keep the compact form readable. */
 .root {
-  box-shadow: 0 2px 8px rgb(0 0 0 / 3%);
+  box-shadow: var(--workspace-surface-shadow, none);
 }
 .editor {
   background: color-mix(in srgb, var(--muted) 65%, var(--card));
@@ -296,7 +296,7 @@
 .field textarea,
 .field button[role="combobox"] {
   background: var(--card);
-  border-color: color-mix(in srgb, var(--foreground) 18%, var(--card));
+  border-color: var(--input);
 }
 .footer {
   background: var(--card);
@@ -307,5 +307,5 @@
   margin-bottom: 12px;
 }
 .impact > div {
-  border-color: color-mix(in srgb, var(--foreground) 12%, var(--card));
+  border-color: var(--border);
 }

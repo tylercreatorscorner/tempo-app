@@ -109,7 +109,7 @@ export function RetainerBook({
           </div>
         ) : total === 0 ? (
           <div className="px-6 py-16 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--workspace-surface-radius,14px)] bg-muted">
               <Users className="h-5 w-5 text-muted-foreground" />
             </div>
             <p className="text-sm font-bold text-foreground">No creators on retainer</p>

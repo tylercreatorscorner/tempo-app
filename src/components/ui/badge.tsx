@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
  * the tint + text stay legible in both themes. Pass `dot` for a leading dot.
  */
 export const badgeVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-md font-bold leading-none whitespace-nowrap',
+  'inline-flex items-center gap-1.5 rounded-md font-medium leading-none whitespace-nowrap',
   {
     variants: {
       variant: {
@@ -18,8 +18,8 @@ export const badgeVariants = cva(
         accent: 'bg-primary/10 text-primary',
       },
       size: {
-        sm: 'text-[10px] px-2 py-0.5',
-        md: 'text-[11.5px] px-2.5 py-1',
+        sm: 'text-[11px] px-2 py-1',
+        md: 'text-xs px-2.5 py-1.5',
       },
     },
     defaultVariants: { variant: 'neutral', size: 'md' },
@@ -46,7 +46,7 @@ export function Tag({ className, children, ...props }: React.HTMLAttributes<HTML
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full bg-pulse-grad text-white text-[9.5px] font-extrabold uppercase tracking-[0.08em] px-2 py-0.5 leading-none',
+        'inline-flex items-center rounded-md bg-accent text-accent-foreground text-[11px] font-medium px-2 py-1 leading-none',
         className,
       )}
       {...props}
