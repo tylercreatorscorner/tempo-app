@@ -66,6 +66,11 @@ export function forecast(clients: ClientRecord[], records: FinanceRecord[], invo
       if (client.serviceStart && (client.serviceStart > bounds.end || (client.serviceEnd && client.serviceEnd < bounds.start))) continue;
       if (invoices.some(i => i.client_id === client.id && i.month === month && i.status !== 'void')) continue;
       const gmv = record?.settings.forecastGmv.find(f => f.month === month);
+      if (record && !gmv) {
+        const scheduledInvoice = `${shiftMonth(month, 1)}-${String(record.settings.invoiceDay).padStart(2, '0')}`;
+        const expectedReceipt = addDays(scheduledInvoice, record.settings.netDays + record.settings.collectionDelayDays + delay);
+        if (expectedReceipt > addDays(today, 90)) continue;
+      }
       if (!record || !gmv) { missing.push(`${client.name} · ${month}: add a GMV estimate`); continue; }
       try {
         const s = buildInvoice(client, record, month, Math.round(gmv.amount * 100), `${shiftMonth(month, 1)}-${String(record.settings.invoiceDay).padStart(2, '0')}`);

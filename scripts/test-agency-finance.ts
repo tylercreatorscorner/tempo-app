@@ -32,4 +32,7 @@ assert.equal(result.events[0].source, 'Estimate');
 assert.equal(result.events.length, 1);
 const changed = buildInvoice(client, { ...record, settings: { ...settings, managerTerms: [...settings.managerTerms, { ...settings.managerTerms[0], effectiveMonth: '2026-10', fixedMonthly: 900 }] } }, '2026-09', 10000000, '2026-10-01');
 assert.equal(changed.managerCents, 150000, 'later arrangement does not change prior service month');
+const allEstimates = { ...record, settings: { ...settings, forecastGmv: ['2026-09', '2026-10', '2026-11'].map(month => ({ month, amount: 100000 })) } };
+assert.equal(forecast([client], [allEstimates], [], '2026-10-19').missing.length, 0, 'missing estimates whose receipts fall after the window do not mark the current forecast incomplete');
+assert.equal(forecast([client], [{ ...allEstimates, settings: { ...allEstimates.settings, forecastGmv: [] } }], [], '2026-10-19').missing.length, 3);
 console.log('PASS agency finance: validated terms, monthly effective pay, integer money, invoice replacement, seven-day payout, overdue and paid handling');
