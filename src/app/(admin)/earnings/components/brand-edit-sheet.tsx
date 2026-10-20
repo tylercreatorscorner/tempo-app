@@ -251,14 +251,14 @@ export function BrandEditSheet({
         />
 
         {/* Drawer */}
-        <div className="flex w-full max-w-md animate-in slide-in-from-right flex-col bg-card shadow-2xl duration-300">
+        <div className="flex w-full max-w-md animate-in slide-in-from-right flex-col bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] duration-300">
           {/* Header — names the payee: this arrangement is per (brand, payee). */}
           <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                 Edit arrangement
               </p>
-              <h2 className="truncate text-lg font-extrabold text-foreground">
+              <h2 className="truncate text-lg font-semibold text-foreground">
                 {brandLabel} arrangement
                 {payeeName && (
                   <span className="font-semibold text-muted-foreground"> · {payeeName}</span>
@@ -449,7 +449,7 @@ export function BrandEditSheet({
                       <Badge variant="accent" size="sm">{modelLabelOf(values.compensation_model)}</Badge>
                     </div>
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span className="text-xl font-extrabold tabular-nums text-foreground">
+                      <span className="text-xl font-semibold tabular-nums text-foreground">
                         {formatCurrency(previewCalc.billed)}
                       </span>
                       <span className="text-[11px] tabular-nums text-muted-foreground">

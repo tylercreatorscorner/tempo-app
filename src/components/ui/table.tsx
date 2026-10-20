@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 export function TableCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('min-w-0 overflow-hidden rounded-xl border border-border bg-card shadow-[var(--pulse-elev-1)]', className)}
+      className={cn('min-w-0 overflow-hidden rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card shadow-[var(--workspace-surface-shadow,var(--pulse-elev-1))]', className)}
       {...props}
     />
   );
@@ -29,14 +29,14 @@ export function TBody({ className, ...props }: React.HTMLAttributes<HTMLTableSec
 }
 
 export function TR({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn('transition-colors', className)} {...props} />;
+  return <tr className={cn('transition-colors hover:bg-muted/45', className)} {...props} />;
 }
 
 export function TH({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       className={cn(
-        'border-b border-border bg-secondary px-4 py-3 text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground text-right first:text-left',
+        'border-b border-border bg-muted/55 px-4 py-3 text-xs font-medium text-muted-foreground text-right first:text-left',
         className,
       )}
       {...props}
@@ -48,7 +48,7 @@ export function TD({ className, ...props }: React.TdHTMLAttributes<HTMLTableCell
   return (
     <td
       className={cn(
-        'border-b border-border px-4 py-3 text-[13.5px] text-muted-foreground text-right first:text-left tabular-nums',
+        'border-b border-border px-4 py-3.5 text-[13px] text-foreground text-right first:text-left tabular-nums',
         className,
       )}
       {...props}

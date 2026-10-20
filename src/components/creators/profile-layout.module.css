@@ -1,6 +1,6 @@
 .page {
   composes: surface from './creator-theme.module.css';
-  max-width: 1240px;
+  width: 100%;
   margin-inline: auto;
   min-width: 0;
   --profile-line: var(--border);
@@ -9,18 +9,18 @@
   padding: 28px;
   background: var(--card);
   border: 1px solid var(--profile-line);
-  border-radius: 18px;
+  border-radius: var(--workspace-surface-radius, 14px);
 }
 .identityRow { display: flex; align-items: flex-start; gap: 28px; }
 .identity { display: flex; align-items: flex-start; gap: 16px; flex: 1; min-width: 0; }
 .name { font-size: 26px; font-weight: 600; letter-spacing: -.7px; line-height: 1.2; overflow-wrap: anywhere; }
 .details { display: flex; flex-direction: column; gap: 16px; align-items: flex-end; max-width: 330px; }
-.handles { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.handles { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .handles a { min-width: 0; overflow-wrap: anywhere; }
-.section { background: var(--card); border: 1px solid var(--profile-line); border-radius: 16px; overflow: hidden; min-width: 0; }
+.section { background: var(--card); border: 1px solid var(--profile-line); border-radius: var(--workspace-surface-radius, 14px); overflow: hidden; min-width: 0; }
 .sectionHeader { padding: 22px 24px 16px; }
 .sectionHeader h3 { font-size: 16px; font-weight: 600; letter-spacing: -.2px; }
-.sectionHeader p { margin-top: 6px; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
+.sectionHeader p { margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--muted-foreground); }
 .tableWrap { overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .table th { padding: 12px 24px; font-size: 11px; font-weight: 500; color: var(--muted-foreground); text-transform: none; letter-spacing: normal; }
@@ -39,7 +39,7 @@
   .name { font-size: 22px; }
   .identity button, .identity a[title] { min-height: 44px; padding-inline: 10px; }
   .details { flex-direction: column; gap: 14px; }
-  .handles { gap: 8px; font-size: 12px; }
+  .handles { gap: 8px; font-size: 13px; }
   .handles a { min-height: 32px; align-items: center; }
   .sectionHeader { padding: 20px 18px 12px; }
   .tableWrap { overflow: visible; }
@@ -56,4 +56,4 @@
 }
 
 .portrait { width: 72px; height: 72px; border-radius: 20px; object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 600; color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, var(--card)); }
-@media (max-width: 600px) { .portrait { width: 56px; height: 56px; border-radius: 16px; font-size: 18px; } }
+@media (max-width: 600px) { .portrait { width: 56px; height: 56px; border-radius: var(--workspace-surface-radius, 14px); font-size: 18px; } }

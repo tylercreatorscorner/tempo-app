@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/layout/brand-switcher';
+import styles from './workspace-theme.module.css';
 
 interface Dest {
   href: string;
@@ -19,30 +20,31 @@ interface Dest {
   exclude?: string[];
   adminOnly?: boolean;
   financeGated?: boolean;
+  group: string;
 }
 
 // Primary destinations. Sub-views live in SectionTabs; settings lives in the account menu.
 // Coaching preserves its existing routes and server-side Reporting permission guards.
 const PRIMARY: Dest[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'], screen: 'dashboard' },
-  { href: '/roster/invitations', label: 'Onboarding', icon: UserRoundPlus, match: ['/roster/invitations'], adminOnly: true, screen: 'roster' },
-  { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/contests', '/creators'], exclude: ['/roster/invitations'], screen: 'roster' },
-  { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts'], screen: 'posts' },
-  { href: '/reporting/coaching', label: 'Coaching', icon: GraduationCap, match: ['/reporting/coaching'], screen: 'coaching' },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'], screen: 'dashboard', group: 'Workspace' },
+  { href: '/roster/invitations', label: 'Onboarding', icon: UserRoundPlus, match: ['/roster/invitations'], adminOnly: true, screen: 'roster', group: 'Workspace' },
+  { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/contests', '/creators'], exclude: ['/roster/invitations'], screen: 'roster', group: 'Workspace' },
+  { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts'], screen: 'posts', group: 'Workspace' },
+  { href: '/reporting/coaching', label: 'Coaching', icon: GraduationCap, match: ['/reporting/coaching'], screen: 'coaching', group: 'Engagement' },
   // Reporting is a generator console, not a content view — owner's call
   // (2026-07-23): its own destination, out of the Content tabs.
-  { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'], exclude: ['/reporting/coaching'], screen: 'reporting' },
-  { href: '/messages',  label: 'Communications',     icon: MessagesSquare,  match: ['/messages'], screen: 'messages' },
-  { href: '/drops',     label: 'Discord',            icon: Hash,            match: ['/drops'], screen: 'messages' },
-  { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true, screen: 'earnings' },
+  { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'], exclude: ['/reporting/coaching'], screen: 'reporting', group: 'Engagement' },
+  { href: '/messages',  label: 'Communications',     icon: MessagesSquare,  match: ['/messages'], screen: 'messages', group: 'Engagement' },
+  { href: '/drops',     label: 'Discord',            icon: Hash,            match: ['/drops'], screen: 'messages', group: 'Engagement' },
+  { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true, screen: 'earnings', group: 'Finance' },
 ];
 
 const AGENCY: Dest[] = [
-  { href: '/agency', label: 'Overview', icon: LayoutDashboard, match: ['/agency'], exclude: ['/agency/clients', '/agency/revenue', '/agency/reports', '/agency/finance'] },
-  { href: '/agency/clients', label: 'Clients', icon: Building2, match: ['/agency/clients'] },
-  { href: '/agency/revenue', label: 'Revenue', icon: Wallet, match: ['/agency/revenue'] },
-  { href: '/agency/finance', label: 'Client finance', icon: Wallet, match: ['/agency/finance'] },
-  { href: '/agency/reports', label: 'Reports', icon: FileBarChart, match: ['/agency/reports'] },
+  { href: '/agency', label: 'Overview', icon: LayoutDashboard, match: ['/agency'], exclude: ['/agency/clients', '/agency/revenue', '/agency/reports', '/agency/finance'], group: 'Agency' },
+  { href: '/agency/clients', label: 'Clients', icon: Building2, match: ['/agency/clients'], group: 'Agency' },
+  { href: '/agency/revenue', label: 'Revenue', icon: Wallet, match: ['/agency/revenue'], group: 'Finance' },
+  { href: '/agency/finance', label: 'Client finance', icon: Wallet, match: ['/agency/finance'], group: 'Finance' },
+  { href: '/agency/reports', label: 'Reports', icon: FileBarChart, match: ['/agency/reports'], group: 'Insights' },
 ];
 
 /**
@@ -59,7 +61,7 @@ const AGENCY: Dest[] = [
  *    remount the subtree and destroy the pending state being tracked.
  *  - useLinkStatus() only reports for the nearest ancestor <Link>, so this must
  *    render INSIDE the Link.
- *  - It SWAPS the icon rather than adding an element — the collapsed 68px rail
+ *  - It SWAPS the icon rather than adding an element — the collapsed icon rail
  *    would shift otherwise. And it's an additive cue, never the active
  *    treatment: `active` stays owned by isActive() alone, or the old row and the
  *    clicked row would both look active for the entire navigation.
@@ -69,7 +71,7 @@ function NavIcon({ icon: Icon, active }: { icon: React.ComponentType<{ className
   // Gated so routes that commit fast (e.g. /posts, which has a loading.tsx)
   // don't flash a spinner on every click. House rule — see useDelayedFlag.
   const spin = useDelayedFlag(pending);
-  const tone = active ? 'text-[var(--primary)]' : 'text-muted-foreground';
+  const tone = active ? 'text-[var(--primary)]' : 'text-current';
   return spin
     ? <Loader2 className={cn('h-4 w-4 flex-shrink-0 animate-spin', tone)} />
     : <Icon className={cn('h-4 w-4 flex-shrink-0', tone)} />;
@@ -107,6 +109,8 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
     (!d.adminOnly || isAdmin) &&
     (!d.financeGated || canViewFinance) &&
     (!navPerms || !d.screen || navPerms[d.screen] !== false);
+  const destinations = agencyMode ? AGENCY : PRIMARY.filter(visible);
+  const groups = [...new Set(destinations.map(destination => destination.group))];
 
   const renderItem = (d: Dest) => {
     const active = isActive(d);
@@ -117,61 +121,53 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
         title={collapsed ? d.label : undefined}
         aria-label={d.label}
         aria-current={active ? 'page' : undefined}
-        className={cn(
-          'group flex items-center rounded-lg text-sm transition-colors duration-150',
-          collapsed ? 'justify-center py-2.5' : 'gap-3 px-3 py-2',
-          active ? 'bg-primary/10 text-[var(--primary)] font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-        )}
+        className={cn(styles.navItem, active && styles.navItemActive)}
       >
         <NavIcon icon={d.icon} active={active} />
         {!collapsed && <span className="truncate">{d.label}</span>}
-        {!collapsed && active && <span className="ml-auto h-4 w-1 rounded-full bg-[var(--primary)]" />}
       </Link>
     );
   };
 
   return (
     <aside
-      className={cn(
-        'sticky top-0 flex h-screen flex-col overflow-hidden bg-card border-r border-border shrink-0 transition-[width] duration-200 ease-in-out',
-        collapsed ? 'w-[68px]' : 'w-[208px]',
-        className,
-      )}
+      data-collapsed={collapsed || undefined}
+      className={cn('flex', styles.sidebar, className)}
     >
       {/* Logo */}
-      <div className={cn('flex items-center py-5', collapsed ? 'justify-center' : 'px-5')}>
-        {collapsed ? <TempoIcon size={26} /> : <TempoLogo size="md" animated />}
+      <div className={styles.sidebarLogo}>
+        {collapsed ? <TempoIcon size={28} /> : <TempoLogo size="md" animated={false} />}
       </div>
 
-      {agencyAllowed && <nav aria-label="Workspace mode" className={cn('mx-2 mb-3 rounded-lg border border-border bg-muted/40 p-1', collapsed ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-1')}>
-        {[{ label: 'Brands', href: withBrand('/dashboard'), icon: Users, active: !agencyMode }, { label: 'Agency', href: '/agency', icon: Building2, active: agencyMode }].map(({ label, href, icon: Icon, active }) => <Link key={label} href={href} title={collapsed ? `${label} workspace` : undefined} aria-label={`${label} workspace`} aria-current={active ? 'true' : undefined} className={cn('flex min-h-8 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors', active ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60' : 'text-muted-foreground hover:bg-card/60 hover:text-foreground')}><NavIcon icon={Icon} active={active} />{!collapsed && label}</Link>)}
+      {agencyAllowed && <nav aria-label="Workspace mode" className={styles.workspaceModes}>
+        {[{ label: 'Brands', href: withBrand('/dashboard'), icon: Users, active: !agencyMode }, { label: 'Agency', href: '/agency', icon: Building2, active: agencyMode }].map(({ label, href, icon: Icon, active }) => <Link key={label} href={href} title={collapsed ? `${label} workspace` : undefined} aria-label={`${label} workspace`} aria-current={active ? 'true' : undefined} className={cn(styles.workspaceMode, active && styles.workspaceModeActive)}><NavIcon icon={Icon} active={active} />{!collapsed && label}</Link>)}
       </nav>}
 
-      {/* Destinations — one flat list. Settings remains in the account menu. */}
-      <nav aria-label={agencyMode ? 'Agency navigation' : 'Brand navigation'} className="flex-1 min-h-0 overflow-y-auto px-2 py-1 space-y-0.5">
-        {(agencyMode ? AGENCY : PRIMARY.filter(visible)).map(renderItem)}
+      {/* Empty permission groups disappear; the same navigation serves mobile. */}
+      <nav aria-label={agencyMode ? 'Agency navigation' : 'Brand navigation'} className={styles.destinations}>
+        {groups.map(group => <div key={group} className={styles.navGroup} role="group" aria-label={group}>
+          <h2 className={cn(styles.navGroupLabel, collapsed && 'sr-only')}>{group}</h2>
+          {destinations.filter(destination => destination.group === group).map(renderItem)}
+        </div>)}
       </nav>
 
       {/* Bottom cluster — brand (expanded only) + collapse toggle. */}
-      <div className="border-t border-border px-2 py-2 space-y-2">
-        {!collapsed && !agencyMode && <BrandSwitcher />}
-        {!collapsed && agencyMode && <p className="px-3 py-1 text-[11px] leading-relaxed text-muted-foreground">Internal agency workspace</p>}
+      <div className={styles.sidebarFooter}>
+        {!collapsed && !agencyMode && <div className={styles.brandContext}><p className={styles.contextLabel}>Selected brand</p><BrandSwitcher /></div>}
+        {!collapsed && agencyMode && <p className={styles.agencyContext}>Internal agency workspace</p>}
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={cn(
-              'flex w-full items-center rounded-lg text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-              collapsed ? 'justify-center py-2.5' : 'gap-3 px-3 py-2',
-            )}
+            className={styles.collapseButton}
           >
             {collapsed ? (
               <PanelLeft className="h-4 w-4" />
             ) : (
               <>
                 <PanelLeftClose className="h-4 w-4" />
-                <span>Collapse</span>
+                <span>Collapse sidebar</span>
               </>
             )}
           </button>

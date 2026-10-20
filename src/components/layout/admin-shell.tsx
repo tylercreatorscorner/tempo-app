@@ -63,11 +63,12 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
           so the scroll wheel works from anywhere on the page (including
           while hovering the sidebar). Sidebar is now `sticky top-0 h-screen`
           internally so it stays pinned while the document scrolls. */}
-      <div className={`${styles.workspace} flex min-h-screen`} style={{ backgroundColor: 'var(--background)' }}>
+      <div className={styles.workspace} data-workspace="tempo">
+        <a className={styles.skipLink} href="#tempo-main">Skip to page content</a>
         <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
         <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} />
 
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className={styles.frame}>
           <Header
             onMenuClick={() => setMobileNavOpen(true)}
             tenantName={tenant?.name}
@@ -78,7 +79,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
             canInviteMembers={canInviteMembers}
           />
           <SectionTabs isAdmin={isAdmin} navPerms={navPerms} />
-          <main className="flex-1 animate-fade-in">
+          <main id="tempo-main" tabIndex={-1} className={styles.main}>
             <div className={`${styles.banners} space-y-3`}>
               {viewAsBanner}
               <SetupBanner />

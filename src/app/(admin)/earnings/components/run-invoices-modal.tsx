@@ -111,13 +111,13 @@ export function RunInvoicesModal({
           role="dialog"
           aria-modal="true"
           aria-label={`Run ${formatPeriod(month)} invoices`}
-          className="relative w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl"
+          className="relative w-full max-w-2xl rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))]"
           onClick={(e) => e.stopPropagation()}
         >
           <TableLoadBar active={showBar} />
           <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-5 sm:px-6">
             <div>
-              <h2 className="text-[15px] font-extrabold text-foreground">Run {formatPeriod(month)} invoices</h2>
+              <h2 className="text-[15px] font-semibold text-foreground">Run {formatPeriod(month)} invoices</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {plan?.teamMemberName ? `Payee: ${plan.teamMemberName} · ` : ''}numbers frozen from this month&apos;s earnings at generation time
               </p>
@@ -180,7 +180,7 @@ export function RunInvoicesModal({
                           onClick={() => toggle(r.brand)}
                           className={cn(
                             'grid h-4 w-4 shrink-0 place-items-center rounded border-2 transition-colors',
-                            isChecked ? 'border-[var(--primary)] bg-[var(--primary)] text-white' : 'border-muted-foreground/50 bg-transparent',
+                            isChecked ? 'border-[var(--primary)] bg-[var(--primary)] text-primary-foreground' : 'border-muted-foreground/50 bg-transparent',
                             phase !== 'ready' && 'opacity-50',
                           )}
                         >
@@ -271,7 +271,7 @@ function RunStat({ label, value, valueClass }: { label: string; value: string; v
   return (
     <div className="rounded-xl border border-border bg-secondary/60 px-3 py-2.5">
       <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{label}</div>
-      <div className={cn('mt-0.5 text-lg font-extrabold tabular-nums text-foreground', valueClass)}>{value}</div>
+      <div className={cn('mt-0.5 text-lg font-semibold tabular-nums text-foreground', valueClass)}>{value}</div>
     </div>
   );
 }

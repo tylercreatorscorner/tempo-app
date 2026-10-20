@@ -10,7 +10,7 @@ export function Eyebrow({
   return (
     <p
       className={cn(
-        'text-[10px] font-semibold uppercase tracking-[0.1em]',
+        'text-[11px] font-medium tracking-[0.06em]',
         gradient ? 'text-pulse-grad' : 'text-muted-foreground',
         className,
       )}
@@ -39,14 +39,14 @@ export function PageHeader({ eyebrow, title, subtitle, actions, className, wide 
     // date-range pill bar) must not compete with the title for width and
     // clip it on mid widths.
     <div className={cn(
-      'flex flex-col gap-3',
-      wide ? 'xl:flex-row xl:items-end xl:justify-between' : 'lg:flex-row lg:items-end lg:justify-between',
+      'flex flex-col gap-4 pb-1',
+      wide ? 'xl:flex-row xl:items-center xl:justify-between' : 'lg:flex-row lg:items-center lg:justify-between',
       className,
     )}>
       <div className="min-w-0">
         {eyebrow && <Eyebrow className="mb-1">{eyebrow}</Eyebrow>}
-        <h1 className="text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-[26px]">{title}</h1>
-        {subtitle && <div className="mt-1 max-w-3xl text-[13px] leading-relaxed text-muted-foreground">{subtitle}</div>}
+        <h1 className="text-[26px] font-semibold leading-[1.2] tracking-[-0.035em] text-foreground sm:text-[30px]">{title}</h1>
+        {subtitle && <div className="mt-2 max-w-3xl text-[13px] leading-relaxed text-muted-foreground">{subtitle}</div>}
       </div>
       {actions && (
         <div className={cn(

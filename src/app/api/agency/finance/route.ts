@@ -25,7 +25,7 @@ export async function GET() {
       db.from('agency_finance_settings').select('client_id,revision,settings', { count: 'exact' }).eq('tenant_id', scope.tenantId).limit(1000),
       db.from('agency_client_invoices').select('id,client_id,month,revision,status,snapshot,collected_on,manager_paid_on', { count: 'exact' }).eq('tenant_id', scope.tenantId).order('created_at', { ascending: false }).limit(1000),
       db.from('user_profiles').select('user_id,name', { count: 'exact' }).eq('tenant_id', scope.tenantId).in('role', ['owner', 'admin', 'manager']).limit(1000),
-      db.from('agency_contracts').select('id,client_id,name,created_at,extraction', { count: 'exact' }).eq('tenant_id', scope.tenantId).order('created_at', { ascending: false }).limit(1000),
+      db.from('agency_contracts').select('id,client_id,name,created_at,source_url,extraction', { count: 'exact' }).eq('tenant_id', scope.tenantId).order('created_at', { ascending: false }).limit(1000),
     ]);
     if (results.some((r, i) => r.error || (i > 0 && r.count !== (r.data ?? []).length))) return reply({ error: 'Could not load the complete finance workspace. Please retry.' }, 503);
     return reply({ clients: results[0].data, settings: results[1].data, invoices: results[2].data, managers: results[3].data, contracts: results[4].data, canEdit: canAccessAgency(scope, true), extractionAvailable: Boolean(process.env.ANTHROPIC_API_KEY) });

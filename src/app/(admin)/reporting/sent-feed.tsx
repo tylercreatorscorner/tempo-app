@@ -401,7 +401,7 @@ function ConfirmRevokeModal({
       <div className="absolute inset-0 flex items-center justify-center p-4" onClick={onCancel}>
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
         <div
-          className="relative w-full max-w-sm space-y-4 rounded-xl bg-card p-6 shadow-2xl"
+          className="relative w-full max-w-sm space-y-4 rounded-xl bg-card p-6 shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))]"
           onClick={(e) => e.stopPropagation()}
         >
           <h3 className="text-base font-bold text-foreground">Revoke link</h3>

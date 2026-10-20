@@ -126,7 +126,7 @@ export function AgingPanel({ invoices, todayIso, active, onPick }: Props) {
                     {b.label}
                   </span>
                 </div>
-                <p className={cn('text-base font-extrabold tabular-nums', isActive ? b.text : 'text-foreground')}>
+                <p className={cn('text-base font-semibold tabular-nums', isActive ? b.text : 'text-foreground')}>
                   {data.amount > 0 ? formatCurrency(data.amount) : '—'}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">

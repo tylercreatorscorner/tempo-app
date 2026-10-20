@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { validateClientSaveInput, selectMonthTerms, calculateServiceRevenue, summarizeClientRetention, summarizeTenureGrowth, type ClientRecord } from "../src/lib/agency/model";
+import { validateClientSaveInput, selectMonthTerms, calculateServiceRevenue, summarizeClientRetention, summarizeTenureGrowth, type AgencyTerms, type ClientRecord } from "../src/lib/agency/model";
 const id = "00000000-0000-4000-8000-000000000001";
 const draft = { expectedRevision: 0, name: " Client ", brandIds: [id], serviceStart: "2026-01-15", serviceEnd: null, exitReason: null, terms: [] };
 const legacyBrand = "b0000000-0000-0000-0000-000000000001";
@@ -31,6 +31,39 @@ assert.equal(revenue({ terms: [{ ...term, feeModel: "share", revSharePercent: 10
 assert.equal(revenue({ terms: [{ ...term, feeModel: "share", revSharePercent: 10 }] }, { gmvCents: -100 }).status, "review_required");
 assert.equal(revenue({ terms: [{ ...term, feeModel: "minimum", monthlyRetainer: 100, revSharePercent: 10 }] }).revenueCents, 10000);
 assert.equal(revenue({ terms: [{ ...term, feeModel: "additive", monthlyRetainer: 100, revSharePercent: 10 }] }).revenueCents, 10010);
+const tiered: AgencyTerms = { ...term, feeModel: "tiered", monthlyRetainer: 10000, tierCalculation: "marginal", gmvBasis: "managed", revShareTiers: [
+  { upToGmv: 500000, percent: 10 }, { upToGmv: 1500000, percent: 7.5 }, { upToGmv: 3500000, percent: 6.5 }, { upToGmv: null, percent: 5.5 },
+] };
+assert.deepEqual(validateClientSaveInput({ ...draft, terms: [tiered] }).terms, [tiered]);
+for (const override of [
+  { revSharePercent: 5 }, { tierCalculation: undefined }, { tierCalculation: "automatic" }, { gmvBasis: "all_affiliates" },
+  { revShareTiers: [] }, { revShareTiers: [{ upToGmv: 1, percent: 10 }] },
+  { revShareTiers: [{ upToGmv: 10, percent: 10 }, { upToGmv: 5, percent: 7 }, { upToGmv: null, percent: 5 }] },
+  { revShareTiers: [{ upToGmv: null, percent: 10 }, { upToGmv: null, percent: 5 }] },
+  { revShareTiers: [{ upToGmv: 0, percent: 10 }, { upToGmv: null, percent: 5 }] },
+  { revShareTiers: [{ upToGmv: null, percent: 100.01 }] }, { revShareTiers: [{ upToGmv: null, percent: 1.001 }] },
+  { revShareTiers: [{ upToGmv: null, percent: 10, unexpected: true }] },
+  { revShareTiers: Array.from({ length: 21 }, (_, index) => ({ upToGmv: index === 20 ? null : index + 1, percent: 5 })) },
+]) assert.throws(() => validateClientSaveInput({ ...draft, terms: [{ ...tiered, ...override }] }));
+assert.throws(() => validateClientSaveInput({ ...draft, terms: [{ ...term, gmvBasis: "managed" }] }));
+for (const [gmv, expectedShare] of [[0, 0], [500000, 50000], [500000.01, 50000], [1500000, 125000], [3500000, 255000], [4000000, 282500]]) {
+  const result = revenue({ terms: [tiered] }, { gmvCents: Math.round(gmv * 100) });
+  assert.equal(result.shareCents, expectedShare * 100);
+  assert.equal(result.revenueCents, (10000 + expectedShare) * 100);
+}
+const whole = { ...tiered, tierCalculation: "whole" as const };
+assert.equal(revenue({ terms: [whole] }, { gmvCents: 50000000 }).shareCents, 5000000);
+assert.equal(revenue({ terms: [whole] }, { gmvCents: 50000001 }).shareCents, 3750000);
+assert.equal(revenue({ terms: [whole] }, { gmvCents: 150000000 }).shareCents, 11250000);
+assert.equal(revenue({ terms: [whole] }, { gmvCents: 150000001 }).shareCents, 9750000);
+assert.equal(revenue({ terms: [{ ...tiered, tierCalculation: "unconfirmed" }] }).status, "review_required");
+assert.equal(revenue({ terms: [tiered] }, { gmvComplete: false }).status, "missing_gmv");
+const affiliate = { ...tiered, gmvBasis: "agency_supported_affiliate" as const };
+assert.equal(revenue({ terms: [affiliate] }).status, "review_required");
+assert.equal(revenue({ terms: [affiliate] }, { agencySupportedAffiliateGmvCents: 100000000, agencySupportedAffiliateGmvComplete: false }).status, "review_required");
+assert.equal(revenue({ terms: [affiliate] }, { agencySupportedAffiliateGmvCents: 100000000, agencySupportedAffiliateGmvComplete: true, gmvComplete: false }).shareCents, 8750000);
+// Round once on the total share, rather than adding rounded sub-cent bands.
+assert.equal(revenue({ terms: [{ ...tiered, monthlyRetainer: 0, revShareTiers: [{ upToGmv: 0.01, percent: 50 }, { upToGmv: null, percent: 50 }] }] }, { gmvCents: 2 }).shareCents, 1);
 const clients = [client, { ...client, id: "exit", serviceEnd: "2026-08-31", exitReason: "End of service" }, { ...client, id: "earlier", serviceEnd: "2026-07-31" }, { ...client, id: "new", serviceStart: "2026-08-01" }, { ...client, id: "unknown", serviceStart: null }];
 const retention = summarizeClientRetention(clients, "2026-08");
 assert.deepEqual([retention.opening, retention.retained, retention.churned, retention.newClients, retention.missingLifecycle, retention.retentionRate], [2, 1, 1, 1, 1, 0.5]);

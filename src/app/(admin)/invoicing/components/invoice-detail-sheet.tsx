@@ -377,12 +377,12 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     <div className="absolute inset-0 flex">
       <button aria-label="Close" className="flex-1 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="w-full max-w-lg bg-card shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="w-full max-w-lg bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
         <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Invoice</p>
-            <h2 className="text-lg font-extrabold text-[var(--foreground)] font-mono truncate">{invoice.invoice_number}</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)] font-mono truncate">{invoice.invoice_number}</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{invoice.brand} · {fmtPeriod(invoice.period_month)}</p>
           </div>
           <Button
@@ -523,7 +523,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               <div className={cn(
                 'mt-2 rounded-xl px-3 py-2 flex items-center gap-2 text-xs',
                 invoice.creator_breakdown.length > 0
-                  ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-500'
+                  ? 'bg-emerald-500/10 border border-emerald-500/25 text-[var(--pulse-pos)]'
                   : 'bg-amber-500/10 border border-amber-500/25 text-amber-500',
               )}>
                 <Users className="h-3.5 w-3.5 flex-shrink-0" />
@@ -538,7 +538,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
 
           {/* Send confirmation (link copied + status stamped) */}
           {sendNotice && (
-            <div className="rounded-xl px-3 py-2.5 text-xs flex items-start gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
+            <div className="rounded-xl px-3 py-2.5 text-xs flex items-start gap-2 bg-[var(--pulse-pos-bg)] border border-[var(--pulse-pos)]/20 text-[var(--pulse-pos)]">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
               <p className="font-bold flex-1 min-w-0">{sendNotice}</p>
             </div>
@@ -549,7 +549,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <div className={cn(
               'rounded-xl px-3 py-2.5 text-xs flex items-start gap-2',
               emailNotice.kind === 'success'
-                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-500'
+                ? 'bg-[var(--pulse-pos-bg)] border border-[var(--pulse-pos)]/20 text-[var(--pulse-pos)]'
                 : 'bg-amber-500/10 border border-amber-500/20 text-foreground',
             )}>
               {emailNotice.kind === 'success'
@@ -579,7 +579,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                     onClick={handleCopy}
                     className={cn(
                       'inline-flex items-center gap-1 px-3 text-xs font-semibold transition-colors flex-shrink-0',
-                      copied ? 'bg-emerald-500 text-white' : 'bg-card text-foreground hover:bg-muted border-l border-border',
+                      copied ? 'bg-[var(--pulse-pos-bg)] text-[var(--pulse-pos)]' : 'bg-card text-foreground hover:bg-muted border-l border-border',
                     )}
                   >
                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -650,7 +650,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             </Field>
             <div className="rounded-xl bg-primary/5 border border-primary/15 px-4 py-3 flex items-center justify-between mt-2">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total</span>
-              <span className="text-xl font-extrabold text-[var(--primary)] tabular-nums">{formatCurrency(computedTotal)}</span>
+              <span className="text-xl font-semibold text-[var(--primary)] tabular-nums">{formatCurrency(computedTotal)}</span>
             </div>
             {lineItemsEdited && (
               <p className="text-[11px] text-muted-foreground">
@@ -662,20 +662,20 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           {/* Payment received detail (only after paid) */}
           {invoice.status === 'paid' && (
             <Section title="Payment Received">
-              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 space-y-2.5">
+              <div className="rounded-xl bg-[var(--pulse-pos-bg)] border border-[var(--pulse-pos)]/20 p-4 space-y-2.5">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Method</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--pulse-pos)]">Method</span>
                   <span className="text-sm font-semibold text-[var(--foreground)]">{labelMethod(invoice.payment_method)}</span>
                 </div>
                 {invoice.payment_reference && (
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Reference</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--pulse-pos)]">Reference</span>
                     <span className="text-xs font-mono text-[var(--foreground)] truncate">{invoice.payment_reference}</span>
                   </div>
                 )}
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Amount Received</span>
-                  <span className="text-base font-extrabold tabular-nums text-emerald-500">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--pulse-pos)]">Amount Received</span>
+                  <span className="text-base font-semibold tabular-nums text-[var(--pulse-pos)]">
                     {formatCurrency(Number(invoice.amount_received ?? invoice.total_amount))}
                   </span>
                 </div>
@@ -690,14 +690,14 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                     </div>
                   )}
                 {invoice.paid_at && (
-                  <div className="flex items-baseline justify-between text-[11px] text-emerald-500/80">
+                  <div className="flex items-baseline justify-between text-[11px] text-[var(--pulse-pos)]/80">
                     <span>Recorded</span>
                     <span>{formatDate(invoice.paid_at)}</span>
                   </div>
                 )}
                 {invoice.payment_received_notes && (
                   <div className="border-t border-emerald-500/25 pt-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-1">Notes</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--pulse-pos)] mb-1">Notes</p>
                     <p className="text-xs text-foreground whitespace-pre-line leading-relaxed">{invoice.payment_received_notes}</p>
                   </div>
                 )}

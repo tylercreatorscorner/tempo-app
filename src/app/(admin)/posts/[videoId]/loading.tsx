@@ -13,7 +13,7 @@ export default function PostReviewLoading() {
         <Skeleton className="h-8 w-36 rounded-lg" />
       </div>
       <div className="grid gap-5 lg:grid-cols-[240px_1fr] items-start">
-        <Skeleton className="aspect-[9/16] w-full rounded-2xl" />
+        <Skeleton className="aspect-[9/16] w-full rounded-[var(--workspace-surface-radius,14px)]" />
         <div className="space-y-5">
           <div className="rounded-xl bg-card border border-border p-5 space-y-5">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

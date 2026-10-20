@@ -338,7 +338,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
           <ListEmptyState onCreate={onCreate} />
         ) : filteredInvoices.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--workspace-surface-radius,14px)] bg-muted">
               <Search className="h-5 w-5 text-muted-foreground" />
             </div>
             <p className="text-sm font-bold text-foreground">No invoices match your filters</p>
@@ -462,7 +462,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
       {/* Bulk action bar (sticky bottom) */}
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 animate-in slide-in-from-bottom-4">
-          <div className="flex items-center gap-3 rounded-2xl border border-border bg-foreground px-5 py-3 text-background shadow-2xl">
+          <div className="flex items-center gap-3 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-foreground px-5 py-3 text-background shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))]">
             <span className="text-sm">
               <span className="font-bold">{selectedIds.size}</span> selected
             </span>
@@ -610,7 +610,7 @@ function TeamMemberFilter({ value, onChange, members }: {
 function ListEmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="px-6 py-16 text-center">
-      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[var(--workspace-surface-radius,14px)] bg-muted">
         <Receipt className="h-7 w-7 text-muted-foreground" />
       </div>
       <h3 className="mb-1 text-base font-bold text-foreground">No invoices yet</h3>

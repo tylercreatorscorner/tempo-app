@@ -90,7 +90,7 @@ export function InvoiceChip({
           className={cn(
             'inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold leading-none text-primary',
             CHIP_CLASS,
-            'transition-colors hover:bg-[var(--primary)] hover:text-white disabled:opacity-50',
+            'transition-colors hover:bg-[var(--primary)] hover:text-primary-foreground disabled:opacity-50',
           )}
         >
           {generating && <Loader2 className="h-2.5 w-2.5 animate-spin" />}

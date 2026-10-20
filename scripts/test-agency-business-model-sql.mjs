@@ -18,6 +18,8 @@ const migration = readdirSync('supabase/migrations').find(name => name.endsWith(
 await db.exec(readFileSync(`supabase/migrations/${migration}`, 'utf8'));
 const legacyFix = readdirSync('supabase/migrations').find(name => name.endsWith('_agency_business_legacy_brand_ids.sql'));
 await db.exec(readFileSync(`supabase/migrations/${legacyFix}`, 'utf8'));
+const tieredTerms = readdirSync('supabase/migrations').find(name => name.endsWith('_agency_business_tiered_terms.sql'));
+await db.exec(readFileSync(`supabase/migrations/${tieredTerms}`, 'utf8'));
 const save = (payload, tenant = id(1), actor = id(20)) => db.query('select agency_business_save_client($1,$2,$3) as value', [tenant, actor, JSON.stringify(payload)]).then(result => result.rows[0].value);
 const list = (tenant = id(1)) => db.query('select agency_business_list_clients($1) as value', [tenant]).then(result => result.rows[0].value);
 const draft = { expectedRevision: 0, name: 'Client A', brandIds: [id(10)], serviceStart: '2026-01-15', serviceEnd: null, exitReason: null, terms: [] };
@@ -73,6 +75,31 @@ const legacyClient = await save({ ...draft, name: 'Legacy brand client', brandId
 assert.deepEqual(legacyClient.brandIds, [legacyBrand]);
 await assert.rejects(save({ ...draft, brandIds: ['b0000000-0000-0000-0000-000000000099'] }), /Invalid agency brands/);
 await assert.rejects(save({ ...draft, brandIds: [legacyBrand] }, id(2), id(21)), /Invalid agency brands/);
+const tiers = [{ upToGmv: 500000, percent: 10 }, { upToGmv: 1500000, percent: 7.5 }, { upToGmv: 3500000, percent: 6.5 }, { upToGmv: null, percent: 5.5 }];
+const tiered = { effectiveMonth: '2026-06', feeModel: 'tiered', monthlyRetainer: 10000, revSharePercent: 0, revShareTiers: tiers, tierCalculation: 'marginal', gmvBasis: 'agency_supported_affiliate' };
+const tieredDraft = { ...draft, name: 'Tiered client', brandIds: [id(12)], terms: [tiered] };
+for (const override of [
+  { revSharePercent: 10 }, { tierCalculation: null }, { tierCalculation: 'automatic' }, { gmvBasis: 'all_affiliates' },
+  { revShareTiers: [] }, { revShareTiers: [{ upToGmv: 10, percent: 5 }] },
+  { revShareTiers: [{ upToGmv: 20, percent: 5 }, { upToGmv: 10, percent: 5 }, { upToGmv: null, percent: 5 }] },
+  { revShareTiers: [{ upToGmv: null, percent: 5 }, { upToGmv: null, percent: 5 }] },
+  { revShareTiers: [{ upToGmv: 0, percent: 5 }, { upToGmv: null, percent: 5 }] },
+  { revShareTiers: [{ upToGmv: null, percent: 100.01 }] }, { revShareTiers: [{ upToGmv: null, percent: 1.001 }] },
+  { revShareTiers: [{ upToGmv: null, percent: 5, extra: true }] },
+  { revShareTiers: [{ upToGmv: null }] }, { revShareTiers: [null] },
+  { revShareTiers: Array.from({ length: 21 }, (_, index) => ({ upToGmv: index === 20 ? null : index + 1, percent: 5 })) },
+]) await assert.rejects(save({ ...tieredDraft, terms: [{ ...tiered, ...override }] }), /Invalid agency/);
+const missingMethod = { ...tiered }; delete missingMethod.tierCalculation;
+await assert.rejects(save({ ...tieredDraft, terms: [missingMethod] }), /Invalid agency tiers/);
+await assert.rejects(save({ ...tieredDraft, terms: [{ effectiveMonth: '2026-06', feeModel: 'fixed', monthlyRetainer: 10000, revSharePercent: 0, gmvBasis: 'managed' }] }), /Invalid agency tiers/);
+const tieredClient = await save(tieredDraft);
+assert.deepEqual(tieredClient.terms, [tiered]);
+await assert.rejects(save({ ...tieredDraft, name: 'Overlapping tier client' }), /already belongs/);
+await assert.rejects(save({ ...tieredDraft, id: tieredClient.id, expectedRevision: 1 }, id(2), id(21)), /changed/);
+assert.deepEqual((await list()).find(row => row.id === tieredClient.id).terms[0].revShareTiers, tiers);
+const pending = await save({ ...tieredDraft, id: tieredClient.id, expectedRevision: 1, terms: [{ ...tiered, tierCalculation: 'unconfirmed' }] });
+assert.equal(pending.revision, 2);
+assert.equal(pending.terms[0].tierCalculation, 'unconfirmed');
 await db.exec('reset role');
 
 await db.close();

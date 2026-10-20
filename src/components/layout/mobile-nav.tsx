@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './sidebar';
@@ -21,17 +22,31 @@ interface MobileNavProps {
  * when closed. Escape closes it.
  */
 export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = true, navPerms }: MobileNavProps) {
+  const drawer = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  useEffect(() => { close.current = onClose; }, [onClose]);
+  useBodyScrollLock(open);
   useEffect(() => {
     if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    drawer.current?.querySelector<HTMLButtonElement>('button')?.focus();
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') close.current();
+      if (e.key !== 'Tab') return;
+      const controls = [...(drawer.current?.querySelectorAll<HTMLElement>('a[href],button:not(:disabled),input:not(:disabled),[tabindex="0"]') ?? [])].filter(node => node.getClientRects().length > 0);
+      const first = controls[0], last = controls.at(-1);
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
     }
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const onResize = () => { if (desktop.matches) close.current(); };
+    desktop.addEventListener('change', onResize);
+    return () => { document.removeEventListener('keydown', onKey); desktop.removeEventListener('change', onResize); opener?.focus(); };
+  }, [open]);
 
   return (
-    <div className={cn('fixed inset-0 z-50 lg:hidden', !open && 'pointer-events-none')} aria-hidden={!open}>
+    <div className={cn('fixed inset-0 z-50 lg:hidden', !open && 'pointer-events-none')} aria-hidden={!open} inert={!open}>
       {/* Backdrop — fades */}
       <div
         onClick={onClose}
@@ -42,6 +57,10 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
       />
       {/* Drawer — slides in from the left, out to the left */}
       <div
+        ref={drawer}
+        role="dialog"
+        aria-modal={open || undefined}
+        aria-label="Workspace navigation"
         onClick={event => { if ((event.target as HTMLElement).closest('a[href]')) onClose(); }}
         className={cn(
           'fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200 ease-out',

@@ -207,7 +207,7 @@ export function PostReviewClient({
               </>
             )}
           </div>
-          <h1 className="text-2xl font-extrabold text-[var(--foreground)] leading-snug">{meta.title}</h1>
+          <h1 className="text-2xl font-semibold text-[var(--foreground)] leading-snug">{meta.title}</h1>
         </div>
         {meta.video_url && (
           <a
@@ -387,7 +387,7 @@ export function PostReviewClient({
                     className={cn(
                       'px-3 py-1 rounded-full text-xs font-medium transition-colors',
                       active
-                        ? 'bg-[var(--primary)] text-white'
+                        ? 'bg-[var(--primary)] text-primary-foreground'
                         : 'bg-muted text-muted-foreground hover:bg-secondary',
                     )}
                   >
@@ -448,7 +448,7 @@ export function PostReviewClient({
           <div className="absolute inset-0 flex items-center justify-center p-4" onClick={() => setConfirmingDelete(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
             <div
-              className="relative w-full max-w-sm rounded-2xl bg-card border border-border shadow-[var(--pulse-elev-2)] p-5"
+              className="relative w-full max-w-sm rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border shadow-[var(--pulse-elev-2)] p-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-sm font-bold text-[var(--foreground)]">Delete your review?</div>
@@ -475,7 +475,7 @@ export function PostReviewClient({
 function PlayerRail({ videoId, videoUrl }: { videoId: string; videoUrl: string | null }) {
   return (
     <div className="space-y-2">
-      <div className="overflow-hidden rounded-2xl border border-border bg-black shadow-[var(--pulse-elev-1)]">
+      <div className="overflow-hidden rounded-[var(--workspace-surface-radius,14px)] border border-border bg-black shadow-[var(--pulse-elev-1)]">
         <TikTokPlayer videoId={videoId} className="block aspect-[9/16] w-full border-0" />
       </div>
       {videoUrl && (
@@ -513,7 +513,7 @@ function Kpi({
         <span className="truncate">{label}</span>
         {info && <InfoTooltip label={info} />}
       </div>
-      <div className={cn('text-xl font-extrabold tabular-nums mt-1', colorMap[accent])}>{value}</div>
+      <div className={cn('text-xl font-semibold tabular-nums mt-1', colorMap[accent])}>{value}</div>
     </div>
   );
 }

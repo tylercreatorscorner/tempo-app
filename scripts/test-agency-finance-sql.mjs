@@ -10,7 +10,7 @@ insert into tenants values('${id(1)}'),('${id(2)}');
 insert into user_profiles values('${id(20)}','${id(1)}','owner'),('${id(21)}','${id(2)}','owner'),('${id(22)}','${id(1)}','manager');
 grant usage on schema public to service_role; grant select on all tables in schema public to service_role;
 create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);`);
-for (const suffix of ['_agency_business_clients.sql', '_agency_finance_onboarding.sql']) {
+for (const suffix of ['_agency_business_clients.sql', '_agency_finance_onboarding.sql', '_agency_contract_drive_references.sql']) {
   const name = readdirSync('supabase/migrations').find(n => n.endsWith(suffix));
   await db.exec(readFileSync(`supabase/migrations/${name}`, 'utf8'));
 }
@@ -42,8 +42,18 @@ assert.equal(invoice.manager_paid_on, '2026-01-12');
 await assert.rejects(write('pay', { id: invoice.id, expectedRevision: 4, date: '2026-01-12' }), /transition/);
 assert.equal((await db.query('select count(*)::int as n from agency_finance_audit')).rows[0].n, 5);
 await assert.rejects(db.exec('delete from agency_finance_audit'), /permission denied/);
+const sourceUrl = 'https://drive.google.com/file/d/original_private_file_123/view';
+const contract = (n, storagePath, source) => db.query('insert into agency_contracts(id,tenant_id,client_id,name,storage_path,source_url,uploaded_by) values($1,$2,$3,$4,$5,$6,$7)', [id(n), id(1), id(10), 'Signed contract', storagePath, source, id(20)]);
+await contract(30, `${id(1)}/${id(10)}/signed.pdf`, null);
+await contract(31, null, sourceUrl);
+await assert.rejects(contract(32, null, null), /agency_contracts_source_exclusive/);
+await assert.rejects(contract(33, 'another.pdf', sourceUrl), /agency_contracts_source_exclusive/);
+for (const badUrl of [sourceUrl.replace('https:', 'http:'), sourceUrl.replace('drive.google.com', 'drive.google.com.evil.invalid'), sourceUrl.replace('drive.google.com', 'user:pass@drive.google.com'), `${sourceUrl}?download=1`, `${sourceUrl}#fragment`, `${sourceUrl}\n`, 'https://docs.google.com/document/d/document_123/edit']) {
+  await assert.rejects(contract(34, null, badUrl), /agency_contracts_drive_source_url/);
+}
+assert.equal((await db.query('select count(*)::int as n from agency_contracts')).rows[0].n, 2);
 await db.exec('reset role');
 await assert.rejects(db.exec('update agency_finance_audit set kind=kind'), /immutable/);
 assert.equal((await db.query("select public from storage.buckets where id='agency-contracts'")).rows[0].public, false);
-console.log('PASS agency finance SQL: tenant/actor scope, manager ownership, optimistic locking, immutable audit, invoice uniqueness and state transitions, private storage');
+console.log('PASS agency finance SQL: tenant/actor scope, manager ownership, optimistic locking, immutable audit, invoice states, private storage and exclusive canonical Drive references');
 await db.close();

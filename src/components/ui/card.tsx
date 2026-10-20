@@ -2,15 +2,14 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Pulse Card — the section container. 16px radius, hairline border, elev-2
- * shadow (per the Pulse design system). Unpadded by default so headers can sit
+ * Shared section container. Unpadded by default so headers can sit
  * flush; compose with CardHeader / CardContent, or pass p-5 for a simple box.
  */
 export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('min-w-0 rounded-xl border border-border bg-card shadow-[var(--pulse-elev-1)]', className)}
+      className={cn('min-w-0 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card shadow-[var(--workspace-surface-shadow,var(--pulse-elev-1))]', className)}
       {...props}
     />
   ),
@@ -33,8 +32,8 @@ export const CardTitle = React.forwardRef<
     className={cn(
       eyebrow
         // Small uppercase section label (the Pulse `.ct` header style).
-        ? 'text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground'
-        : 'text-base font-bold tracking-tight text-foreground',
+        ? 'text-xs font-medium tracking-[0.02em] text-muted-foreground'
+        : 'text-[15px] font-semibold tracking-[-0.02em] text-foreground',
       className,
     )}
     {...props}

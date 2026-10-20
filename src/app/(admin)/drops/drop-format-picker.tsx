@@ -14,7 +14,7 @@ const MINIATURES: Record<DropFormatId, { heading: string; lines: string[] }> = {
   movers: { heading: 'Biggest movers', lines: ['01  @creator  +84%', '02  @creator  +41%'] },
   rookies: { heading: 'Rookie watch', lines: ['First sales this week', '01  @new_creator  $192'] },
   milestones: { heading: 'Milestones', lines: ['@creator reached $10k', '@creator reached $25k'] },
-  mtd: { heading: 'Month to date', lines: ['$42.8k so far  ↑ 16%', '01  @creator  $8.4k'] },
+  mtd: { heading: 'Month to date', lines: ['$42.8k so far · +16%', '01  @creator  $8.4k'] },
   'whats-cooking': { heading: "What's cooking", lines: ['Top videos this week', '01  Video by @creator  $2.1k'] },
   'whos-cooking': { heading: "Who's cooking", lines: ['Creator highlights', '01  @creator  $8.4k'] },
   'daily-drop': { heading: 'Daily drop', lines: ['Yesterday  $3.8k', 'Top creator  @creator'] },
@@ -44,7 +44,7 @@ export function DropFormatPicker({ selected, onChange, disabled }: {
     <Dialog.Trigger asChild><Button variant="outline" size="sm" disabled={disabled}>Customize build</Button></Dialog.Trigger>
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[3px]" />
-      <Dialog.Content data-lenis-prevent className="fixed inset-3 z-50 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-8 lg:inset-x-[max(3rem,calc((100vw-1100px)/2))] lg:inset-y-8">
+      <Dialog.Content data-lenis-prevent className="fixed inset-3 z-50 flex flex-col overflow-hidden rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] sm:inset-8 lg:inset-x-[max(3rem,calc((100vw-1100px)/2))] lg:inset-y-8">
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-7">
           <div><Dialog.Title className="text-lg font-bold tracking-tight text-foreground">Discord post formats</Dialog.Title><Dialog.Description className="mt-1 text-xs text-muted-foreground">Choose the posts to build. {selected.length} of {DROP_FORMATS.length} selected. Your choices are saved in this browser.</Dialog.Description></div>
           <div className="flex items-center gap-2"><Dialog.Close asChild><Button size="sm">Done</Button></Dialog.Close><Dialog.Close aria-label="Close" className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><X size={17}/></Dialog.Close></div>
