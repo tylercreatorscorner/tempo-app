@@ -30,13 +30,13 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { SegmentedControl } from '@/components/ui/segmented';
-import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DROP_FORMATS, type DropFormat, type DropFormatId } from '@/lib/data/drop-formats';
 import { DROP_SELECTION_KEY, loadDropBoard, parseDropSelection } from '@/lib/data/drop-board-client';
 import { useBrandSelect, BrandListWarning } from '../reporting/use-report-brands';
 import { renderDiscordMarkdown } from '../reporting/message-preview';
 import { DropFormatPicker } from './drop-format-picker';
+import styles from './workspace.module.css';
 
 interface DropCard {
   id: string;
@@ -145,128 +145,74 @@ export default function DropsPage() {
   const emptyCount = cards?.filter(c => c.text === null && !c.error).length ?? 0;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Discord"
-        title="Discord Posts"
-        subtitle="Choose the posts you need. Copy each one as soon as it’s ready."
-      />
+    <div className={styles.page}>
+      <PageHeader title="Creator drops" subtitle="Build and copy Discord posts for your brands."
+        actions={<div className={styles.headerActions}><span>{selected.length} formats selected</span><DropFormatPicker selected={selected} onChange={setSelected} disabled={loading}/></div>} />
 
-      <Card className="p-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[180px] flex-1">
+      <div className={styles.workspace}>
+        <aside className={styles.builder} aria-label="Board settings">
+          <div className={styles.builderHeading}><h2>Build board</h2><span className={styles.saved}>Preferences saved</span></div>
+          <div className={styles.field}>
             <Label htmlFor="dr-brand">Brand</Label>
             <ChoiceMenu compact id="dr-brand" label="Discord post brand" value={brand} onChange={setBrand} options={brandOptions} triggerClassName="w-full" />
             <BrandListWarning show={brandsError} />
           </div>
-
-          <div>
-            <Label>Window</Label>
-            <SegmentedControl<Preset>
-              ariaLabel="Window"
-              size="sm"
-              options={[
-                { value: '7d', label: 'Last 7d' },
-                { value: '30d', label: 'Last 30d' },
-                { value: 'custom', label: 'Custom' },
-              ]}
-              value={preset}
-              onValueChange={setPreset}
-            />
+          <div className={styles.field}>
+            <Label>Reporting window</Label>
+            <SegmentedControl<Preset> ariaLabel="Window" size="sm" options={[{ value: '7d', label: 'Last 7d' }, { value: '30d', label: 'Last 30d' }, { value: 'custom', label: 'Custom' }]} value={preset} onValueChange={setPreset} />
           </div>
-
-          {preset === 'custom' && (
-            <div className="flex items-end gap-2">
-              <div>
-                <Label htmlFor="dr-start">From</Label>
-                <DateField id="dr-start" value={startDate} max={endDate}
-                  onValueChange={e => setStartDate(e)} />
-              </div>
-              <div>
-                <Label htmlFor="dr-end">To</Label>
-                <DateField id="dr-end" value={endDate} min={startDate} max={today}
-                  onValueChange={e => setEndDate(e)} />
-              </div>
-            </div>
-          )}
-
-          <Button onClick={run} disabled={loading || !rangeValid || !selected.length || !preferencesReady}>
-            {loading ? <><Loader2 className="animate-spin" />Building {cards?.length ?? 0}/{selected.length}</> : <><Sparkles />Build selected ({selected.length})</>}
+          {preset === 'custom' && <div className={styles.dates}>
+            <div className={styles.field}><Label htmlFor="dr-start">From</Label><DateField id="dr-start" value={startDate} max={endDate} onValueChange={setStartDate}/></div>
+            <div className={styles.field}><Label htmlFor="dr-end">To</Label><DateField id="dr-end" value={endDate} min={startDate} max={today} onValueChange={setEndDate}/></div>
+          </div>}
+          {!rangeValid && <p className={styles.errorText}>Start date must be on or before the end date.</p>}
+          {preset === 'custom' && <p className={styles.hint}>Daily Drop, Month to Date and Milestones use their own windows. Each result shows its dates.</p>}
+          <Button className={styles.buildButton} onClick={run} disabled={loading || !rangeValid || !selected.length || !preferencesReady}>
+            {loading ? <><Loader2 className="animate-spin"/>Building {cards?.length ?? 0}/{selected.length}</> : <><Sparkles/>Build board ({selected.length})</>}
           </Button>
-        </div>
+          {!selected.length && <p className={styles.hint}>Choose at least one format using Customize build.</p>}
+          <details className={styles.formatList}><summary>Included formats ({selected.length})</summary>{selectedFormats.map(format=><div key={format.id}><Check size={13}/><span>{format.label}</span><small>{format.acceptsWindow ? 'Selected window' : format.ownWindowLabel}</small></div>)}</details>
+          <p className={styles.hint}>Copy completed posts while the remaining formats load.</p>
+        </aside>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-          <div><p className="text-sm font-semibold text-foreground">Your post formats</p><p className="text-xs text-muted-foreground">{selected.length} selected · Saved in this browser</p></div>
-          <DropFormatPicker selected={selected} onChange={setSelected} disabled={loading} />
-        </div>
-        {!selected.length && <p className="mt-2 text-xs text-muted-foreground">Add at least one format to build your board.</p>}
+        <section className={styles.results} aria-label="Board results">
+          <div className={styles.resultsHeading}><div><h2>{cards === null ? 'Your board' : loading ? 'Building your board' : 'Board results'}</h2><p>{meta ? meta.brandName+' · '+meta.rangeLabel : 'Selected formats appear here as they finish.'}</p></div>{cards !== null && <span className={styles.resultCount}>{cards.length}/{selected.length} checked</span>}</div>
 
-        {!rangeValid && (
-          <p className="mt-2 text-[11px] text-[var(--pulse-neg)]">Start date must be on or before the end date.</p>
-        )}
+          {cards !== null && <div role="status" aria-live="polite" className={styles.progress}>
+            <div>{loading ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true"/> : <Check className="h-4 w-4" aria-hidden="true"/>}<strong>{loading ? 'Posts are still loading' : 'Board finished'}</strong><span>{readyCount} ready · {emptyCount} with no results · {failedCount} failed</span></div>
+            {loading && <progress aria-label="Board progress" value={cards.length} max={selected.length}/>}
+          </div>}
 
-        {preset === 'custom' && (
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Daily Drop, Month to Date and Milestones ignore this range. Their windows are fixed by what they
-            mean, and each card says which window it used.
-          </p>
-        )}
+          {error && <div role="alert" className={styles.error}><AlertCircle className="h-4 w-4 shrink-0"/><span>{error}</span></div>}
 
-        {meta && <p className="mt-3 text-xs text-muted-foreground">{meta.brandName} · {meta.rangeLabel}</p>}
-      </Card>
+          {cards === null && !error && <div className={styles.previews}>
+            {selectedFormats.map(format=><article key={format.id} className={styles.formatPreview}>
+              <div><h3>{format.label}</h3><Badge variant={format.growthRanked ? 'positive' : 'neutral'} size="sm">{format.growthRanked ? 'Growth' : 'Size'}</Badge></div>
+              <p>{format.what}</p><small>{format.acceptsWindow ? 'Uses your selected reporting window' : format.ownWindowLabel}</small>
+            </article>)}
+            {!selectedFormats.length && <div className={styles.noFormats}><Sparkles size={22}/><h3>Choose your post formats</h3><p>Customize the build to include the boards your team uses.</p></div>}
+          </div>}
 
-      {cards !== null && (
-        <div role="status" aria-live="polite" className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
-            {loading ? `Building your board · ${cards.length} of ${selected.length} checked` : 'Board finished'}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {readyCount} ready to copy · {emptyCount} with no results · {failedCount} failed
-          </p>
-          {loading && <>
-            <progress aria-label="Board progress" className="mt-3 h-1.5 w-full accent-primary" value={cards.length} max={selected.length} />
-            <p className="mt-2 text-xs text-muted-foreground">Some formats take longer. You can copy ready posts while the rest finish.</p>
-          </>}
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-start gap-2 rounded-lg bg-[var(--pulse-neg-bg)] px-3 py-2 text-xs text-[var(--pulse-neg)]">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {!loading && cards === null && !error && (
-        <EmptyState
-          icon={<Sparkles className="h-8 w-8" />}
-          title="Nothing built yet"
-          description="Choose your formats above, then build your board. Only selected formats will load."
-        />
-      )}
-
-      {cards !== null && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {selectedFormats.map(f => {
-            const card = cards.find(c => c.id === f.id);
-            return card ? <DropTile key={f.id} card={card} brand={brand} />
-              : loading ? <PendingDropTile key={f.id} format={f} active={active.includes(f.id)} /> : null;
-          })}
-        </div>
-      )}
+          {cards !== null && <div className={styles.board}>
+            {selectedFormats.map(format=>{
+              const card=cards.find(item=>item.id===format.id);
+              return card ? <DropTile key={format.id} card={card} brand={brand}/> : loading ? <PendingDropTile key={format.id} format={format} active={active.includes(format.id)}/> : null;
+            })}
+          </div>}
+        </section>
+      </div>
     </div>
   );
 }
 
 function PendingDropTile({ format, active }: { format: DropFormat; active: boolean }) {
   return (
-    <Card aria-busy="true" className="flex min-h-[280px] flex-col overflow-hidden">
+    <Card aria-busy="true" className="flex min-h-[200px] flex-col overflow-hidden">
       <div className="space-y-1 border-b border-border px-4 py-3">
         <h3 className="text-sm font-bold text-foreground">{format.label}</h3>
         <p className="text-xs text-muted-foreground">{format.what}</p>
       </div>
-      <div className="flex flex-1 flex-col justify-center gap-3 p-5">
+      <div className="flex flex-1 flex-col justify-center gap-2 p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
           {active ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Clock3 aria-hidden="true" className="h-4 w-4" />}
           {active ? 'Building this post…' : 'Waiting to start'}

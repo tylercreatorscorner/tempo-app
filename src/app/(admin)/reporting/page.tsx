@@ -33,21 +33,20 @@ function ReportingWorkspace({ initialView }: { initialView: 'clients' | 'agency'
   const [visited, setVisited] = useState<Set<string>>(() => new Set([initialView]));
   const [target, setTarget] = useState<{ slug: string; name: string } | null>(null);
   return (
-    <div className={`${styles.workspace} space-y-6`}>
-      <PageHeader title="Reporting" subtitle="Clear client updates. Every shared version preserved." />
+    <div className={styles.workspace}>
+      <PageHeader title="Reporting" subtitle="Prepare updates and track what clients have seen." actions={!target && <nav aria-label="Reporting views" className={styles.viewNavigation}>
+        {([['clients', 'Client reports'], ['agency', 'Agency reports'], ['library', 'Report library']] as const).map(([key, label]) => (
+          <button key={key} type="button" aria-current={view === key ? 'page' : undefined} onClick={() => { setView(key); setVisited(previous => new Set([...previous, key])); }}>{label}</button>
+        ))}
+        <Link href="/reporting/coaching">Coaching</Link>
+      </nav>} />
       {target && (
-        <div className="mx-auto max-w-4xl space-y-3">
+        <div className={styles.composeWorkspace}>
           <Button variant="ghost" size="sm" onClick={() => setTarget(null)}><ArrowLeft />Back to client reports</Button>
           <CreatePanel key={target.slug} lockedBrand={target.slug} lockedBrandName={target.name} onSent={() => setRefreshKey(k => k + 1)} />
         </div>
       )}
-        <div hidden={Boolean(target)} className="space-y-6">
-          <nav aria-label="Reporting views" className="flex gap-5 overflow-x-auto border-b border-border">
-            {([['clients', 'Client reports'], ['agency', 'Agency reports'], ['library', 'Report library']] as const).map(([key, label]) => (
-              <button key={key} type="button" aria-current={view === key ? 'page' : undefined} onClick={() => { setView(key); setVisited(previous => new Set([...previous, key])); }} className={`min-h-11 whitespace-nowrap border-b-2 px-1 py-3 text-[13px] font-medium ${view === key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>
-            ))}
-            <Link href="/reporting/coaching" className="min-h-11 whitespace-nowrap px-1 py-3 text-[13px] font-medium text-muted-foreground hover:text-foreground">Coaching</Link>
-          </nav>
+        <div hidden={Boolean(target)}>
           {visited.has('clients') && <div hidden={view !== 'clients'} className="space-y-4"><FreshnessBanner /><BrandTable refreshKey={refreshKey} onGenerate={(slug, name) => setTarget({ slug, name })} /></div>}
           {visited.has('agency') && <div hidden={view !== 'agency'} className="max-w-3xl space-y-4"><AgencyPanel /><NavigationLink href="/reporting/weekly">Open internal weekly review</NavigationLink></div>}
           {visited.has('library') && <div hidden={view !== 'library'}><SentFeed refreshKey={refreshKey} /></div>}

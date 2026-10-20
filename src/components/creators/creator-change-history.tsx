@@ -142,7 +142,7 @@ export function CreatorChangeHistory({
                       <li key={f.field} className="text-[13px] leading-snug text-muted-foreground">
                         <span className="font-medium text-foreground">{label(f.field)}</span>{' '}
                         <span className="tabular-nums">{value(f.field, f.from)}</span>
-                        <span className="mx-1.5 text-muted-foreground/70">&rarr;</span>
+                        <span className="mx-1.5 text-muted-foreground">to</span>
                         <span className="font-semibold tabular-nums text-foreground">
                           {value(f.field, f.to)}
                         </span>

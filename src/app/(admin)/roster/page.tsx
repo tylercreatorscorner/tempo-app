@@ -12,7 +12,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
 import { RosterSegmentControls } from '@/components/segments/roster-segment-controls';
 import rosterLayout from '@/components/roster/roster-layout.module.css';
-import { StatCard } from '@/components/dashboard/stat-card';
 import { NewVideoGmvCard } from '@/components/dashboard/new-video-gmv';
 import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
@@ -139,6 +138,18 @@ interface BrandChild {
 /** Primary handle — first in the canonical list, falls back to legacy account_1. */
 function primaryHandle(c: Creator): string | null {
   return c.handles?.[0] ?? c.account_1 ?? null;
+}
+
+function RosterMetric({ label, value, trend, detail, featured = false }: {
+  label: string; value: string; trend?: number; detail?: string; featured?: boolean;
+}) {
+  return <div className={`${rosterLayout.metric} ${featured ? rosterLayout.featured : ''}`}>
+    <dt>{label}</dt><dd>{value}</dd>
+    {(trend !== undefined || detail) && <p>
+      {trend !== undefined && <span className={trend >= 0 ? rosterLayout.positive : rosterLayout.negative}><InterfaceIcon name={trend >= 0 ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{trend >= 0 ? 'Up ' : 'Down '}</span>{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%</span>}
+      {detail && <span>{detail}</span>}
+    </p>}
+  </div>;
 }
 
 /** Handles beyond the primary, for the "+N" badge. */
@@ -1792,10 +1803,9 @@ function RosterContent() {
   const kpiFailed = loadError && !hasLoadedOnce;
 
   return (
-    <div className={`${rosterLayout.page} space-y-5`}>
+    <div className={rosterLayout.page}>
       {/* Header */}
       <PageHeader
-        eyebrow="Creators"
         title={
           <span className="flex items-center gap-2">
             Roster
@@ -1804,84 +1814,41 @@ function RosterContent() {
             )}
           </span>
         }
-        subtitle="Your creators, their performance, and the partnerships you are building."
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => { setBulkInitialRows(null); setBulkOpen(true); }}>
+          <div className={rosterLayout.scope}>
+            <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
+            <PeriodSelector preset={preset} customStart={customStart} customEnd={customEnd}
+              onPreset={(p) => { setPreset(p); setCustomStart(null); setCustomEnd(null); }}
+              onCustom={(s, e) => { setPreset('custom'); setCustomStart(s); setCustomEnd(e); }} />
+            <Button variant="outline" size="sm" onClick={() => { setBulkInitialRows(null); setBulkOpen(true); }}>
               <Upload className="h-4 w-4" />
               Bulk add
             </Button>
-            <Button variant="primary" onClick={() => setAddModalPrefill({ brand: brand !== 'all' ? brand : '' })}>
+            <Button variant="primary" size="sm" onClick={() => setAddModalPrefill({ brand: brand !== 'all' ? brand : '' })}>
               <UserPlus className="h-4 w-4" />
-              Add Creator
+              Add creator
             </Button>
           </div>
         }
       />
 
-      {/* Scope bar — Brand + Period dropdowns, grouped left. These scope the KPIs
-          and the table; the table-drill filters (View/Health/Product/…) live in
-          the toolbar just above the table. */}
-      <div className={rosterLayout.scope}>
-        <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
-        <PeriodSelector
-          preset={preset}
-          customStart={customStart}
-          customEnd={customEnd}
-          onPreset={(p) => { setPreset(p); setCustomStart(null); setCustomEnd(null); }}
-          onCustom={(s, e) => { setPreset('custom'); setCustomStart(s); setCustomEnd(e); }}
-        />
+      <div className={rosterLayout.overview}>
+        <dl className={rosterLayout.metrics} aria-label="Roster performance">
+          <RosterMetric label="Affiliate GMV" value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(affiliateGmv)} trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined} detail={periodLabel}/>
+          <RosterMetric label="Managed GMV" featured value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(totalGmvPeriod)} trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined} detail={periodLabel}/>
+          <RosterMetric label="Managed share" value={kpiFailed ? '—' : affiliateGmv > 0 ? `${((totalGmvPeriod / affiliateGmv) * 100).toFixed(0)}%` : '—'} detail={affiliateGmv > 0 ? `${fmt(totalGmvPeriod)} of ${fmt(affiliateGmv)}` : undefined}/>
+          <RosterMetric label="Monthly retainers" value={kpiFailed ? '—' : loading && !summary ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)} detail={totalRetainer != null ? 'Current commitments' : undefined}/>
+          <RosterMetric label="GMV / retainer · 30d" value={kpiFailed ? '—' : totalRetainer == null ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'} detail={totalRetainer != null && totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}/>
+        </dl>
+        <div className={rosterLayout.videoSummary}><NewVideoGmvCard compact brand={brand} range={preset} start={customStart} end={customEnd} showCreators /></div>
       </div>
 
-      {/* KPI strip — hero-led (Managed GMV: what this roster actually drove).
-          Affiliate GMV is the whole-market context number, so it sits beside the
-          hero as a plain readout rather than leading. Mirrors the dashboard, where
-          Managed GMV is the hero. */}
-      <div className={rosterLayout.metrics}>
-        <StatCard
-          className={rosterLayout.metric}
-          label="Total Affiliate GMV"
-          value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(affiliateGmv)}
-          trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
-          trendLabel={periodLabel}
-
-        />
-        <StatCard
-          className={`${rosterLayout.metric} ${rosterLayout.featured}`}
-          label="Managed GMV"
-          value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(totalGmvPeriod)}
-          trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined}
-          trendLabel={periodLabel}
-        />
-        <StatCard
-          className={rosterLayout.metric}
-          label="Managed Share"
-          value={kpiFailed ? '—' : affiliateGmv > 0 ? `${((totalGmvPeriod / affiliateGmv) * 100).toFixed(0)}%` : '—'}
-          subValue={affiliateGmv > 0 ? `${fmt(totalGmvPeriod)} of ${fmt(affiliateGmv)}` : undefined}
-
-        />
-        <StatCard
-          className={rosterLayout.metric}
-          label="Total Retainers"
-          value={kpiFailed ? '—' : loading && !summary ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)}
-          subValue={totalRetainer != null ? 'per month' : undefined}
-
-        />
-        <StatCard
-          className={rosterLayout.metric}
-          label="GMV / retainer · 30d"
-          value={kpiFailed ? '—' : totalRetainer == null ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
-          subValue={totalRetainer != null && totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}
-
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
+      <section className={rosterLayout.directory} aria-label="Creator directory">
+      <div className={rosterLayout.directoryTabs}>
         <SegmentedControl ariaLabel="Creator views" value={creatorView} options={[{value:'creators',label:'Creators'},{value:'top',label:'Top Creators'},{value:'elite',label:'Elite'}]} onValueChange={next=>{setCreatorView(next);setPage(1);setSearchInput('');setSearch('');setHealth('all');setProductFilter('');setSegFilters(null);setView('managed');setGroupFilter({brand,tags:[],mode:'any'});setSortBy(next==='creators'?'real_name':'gmv_period');setSortDir(next==='creators'?'asc':'desc');}}/>
         {creatorView==='top'&&<span className="text-xs text-muted-foreground">Managed creators ranked by GMV for the selected period.</span>}
         {creatorView==='elite'&&<span className="text-xs text-muted-foreground">{brand==='all'?'Select a brand to see its Elite creators.':'Creators tagged Elite for this brand.'}</span>}
       </div>
-      <NewVideoGmvCard brand={brand} range={preset} start={customStart} end={customEnd} showCreators />
       {/* Table toolbar — all DROPDOWNS (Tyler prefers them to pills). Search leads
           (the primary tool, grows to fill), then the filter dropdowns (View +
           Health replace the old segmented control + triage chip row; the Health
@@ -1895,7 +1862,6 @@ function RosterContent() {
         )}
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
       {brand !== 'all' && <CreatorGroupControls key={brand} brand={brand} rows={roster} loading={loading} selected={creatorView==='elite'?['elite']:groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onFilter={(tags,mode)=>{setCreatorView('creators');setGroupFilter({brand,tags,mode});setPage(1);}} onSaved={()=>{void fetchRoster();}} />}
-        {brand === 'all' && <span className="text-xs text-muted-foreground">Select a brand to filter or edit tags</span>}
         <details className="relative ml-auto"><summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-medium">More</summary><div className="absolute right-0 top-full z-30 mt-2 flex min-w-56 flex-wrap gap-2 rounded-xl border border-border bg-card p-3 shadow-lg"><RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
         <div className="flex items-center gap-2">
           <Button
@@ -2296,6 +2262,8 @@ function RosterContent() {
           </div>
         </div>
       )}
+
+      </section>
 
       {/* Creator detail / edit panel */}
       {selectedCreator && (

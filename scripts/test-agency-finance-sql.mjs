@@ -10,7 +10,7 @@ insert into tenants values('${id(1)}'),('${id(2)}');
 insert into user_profiles values('${id(20)}','${id(1)}','owner'),('${id(21)}','${id(2)}','owner'),('${id(22)}','${id(1)}','manager');
 grant usage on schema public to service_role; grant select on all tables in schema public to service_role;
 create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);`);
-for (const suffix of ['_agency_business_clients.sql', '_agency_finance_onboarding.sql', '_agency_contract_drive_references.sql']) {
+for (const suffix of ['_agency_business_clients.sql', '_agency_finance_onboarding.sql', '_agency_contract_drive_references.sql', '_agency_finance_historical_issue_guard.sql']) {
   const name = readdirSync('supabase/migrations').find(n => n.endsWith(suffix));
   await db.exec(readFileSync(`supabase/migrations/${name}`, 'utf8'));
 }
@@ -56,4 +56,39 @@ await db.exec('reset role');
 await assert.rejects(db.exec('update agency_finance_audit set kind=kind'), /immutable/);
 assert.equal((await db.query("select public from storage.buckets where id='agency-contracts'")).rows[0].public, false);
 console.log('PASS agency finance SQL: tenant/actor scope, manager ownership, optimistic locking, immutable audit, invoice states, private storage and exclusive canonical Drive references');
+
+const clientRevision = async (clientId, revision, historical, tenant = id(1)) => {
+  await db.exec('reset role');
+  await db.query('insert into agency_business_client_revisions(tenant_id,client_id,revision,actor_id,snapshot) values($1,$2,$3,$4,$5)', [tenant, clientId, revision, tenant === id(1) ? id(20) : id(21), JSON.stringify({ historical })]);
+  await db.exec('set role service_role');
+};
+await clientRevision(id(14), 1, false);
+await write('settings', { clientId: id(14), expectedRevision: 0, settings });
+let oldDraft = await write('draft', { clientId: id(14), month: '2025-12', snapshot });
+await clientRevision(id(14), 2, true);
+const auditBeforeRejectedIssue = (await db.query('select count(*)::int as n from agency_finance_audit')).rows[0].n;
+await assert.rejects(write('draft', { clientId: id(14), month: '2025-11', snapshot: { ...snapshot, clientRevision: 2 } }), /Invalid historical finance client/, 'the RPC also blocks a direct historical draft command');
+await assert.rejects(write('issue', { id: oldDraft.id, expectedRevision: 1 }), /Invalid historical finance client/, 'a draft created before archiving cannot be issued afterward');
+await assert.rejects(write('issue', { id: oldDraft.id, expectedRevision: 0 }), /revision conflict/, 'invoice CAS remains enforced');
+await assert.rejects(write('issue', { id: oldDraft.id, expectedRevision: 1 }, id(2), id(21)), /Unknown finance invoice/);
+await assert.rejects(write('issue', { id: oldDraft.id, expectedRevision: 1 }, id(1), id(22)), /access denied/);
+assert.equal((await db.query('select count(*)::int as n from agency_finance_audit')).rows[0].n, auditBeforeRejectedIssue, 'rejected transitions write no audit event');
+const stillDraft = (await db.query('select status,revision from agency_client_invoices where id=$1', [oldDraft.id])).rows[0];
+assert.equal(stillDraft.status, 'draft');
+assert.equal(stillDraft.revision, 1, 'rejection never mutates the draft');
+await clientRevision(id(14), 3, false);
+oldDraft = await write('issue', { id: oldDraft.id, expectedRevision: 1 });
+assert.equal(oldDraft.status, 'issued', 'explicit reactivation uses the latest client revision');
+await clientRevision(id(14), 4, true);
+oldDraft = await write('collect', { id: oldDraft.id, expectedRevision: 2, date: '2026-01-05' });
+assert.equal(oldDraft.status, 'paid', 'issued historical obligations remain collectible');
+oldDraft = await write('pay', { id: oldDraft.id, expectedRevision: 3, date: '2026-01-12' });
+assert.equal(oldDraft.manager_paid_on, '2026-01-12', 'collected historical obligations remain payable to the manager');
+await clientRevision(id(10), 1, true, id(2));
+const legacyDraft = await write('draft', { clientId: id(10), month: '2025-10', snapshot });
+assert.equal((await write('issue', { id: legacyDraft.id, expectedRevision: 1 })).status, 'issued', 'a different tenant archive and a legacy missing flag do not block this client');
+await db.exec('reset role');
+assert.equal((await db.query("select prosecdef from pg_proc where oid='agency_finance_write(uuid,uuid,text,jsonb)'::regprocedure")).rows[0].prosecdef, false);
+for (const role of ['anon', 'authenticated']) { await db.exec(`set role ${role}`); await assert.rejects(write('issue', { id: oldDraft.id, expectedRevision: 4 }), /permission denied/); await db.exec('reset role'); }
+console.log('PASS historical invoice SQL: latest client archive guard, no rejected mutations, CAS/tenant/role protections, explicit reactivation, collectible issued history and manager payments');
 await db.close();

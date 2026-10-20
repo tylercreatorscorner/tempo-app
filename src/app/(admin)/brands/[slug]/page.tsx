@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { BrandTabs } from './brand-tabs';
 import { AmNoteEditor } from './am-note-editor';
+import styles from '../brands.module.css';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -116,10 +117,11 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
   const trendLabel = 'vs prior period';
 
   return (
-    <div className="space-y-4">
+    <div className={styles.page}>
       <PageHeader eyebrow="Brands" title={<BrandIdentity brand={slug} label={displayName} />} subtitle="Brand performance details" actions={<div className="flex flex-wrap items-center gap-2"><Link href="/brands" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs"><ArrowLeft size={14} />All brands</Link><Suspense fallback={null}><DateRangePicker staleThrough={staleThrough} /></Suspense></div>} />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className={styles.context}><strong>{startDate} – {endDate}</strong><span>{periodLength} days</span><span>Compared with {prevStartDate} – {prevEndDate}</span></div>
+      <div className={`${styles.metrics} ${styles.detailMetrics}`}>
         <StatCard label="GMV" value={formatCurrency(summary?.total_gmv ?? 0)} trend={gmvTrend} trendLabel={trendLabel} />
         <StatCard label="Orders" value={formatNumber(summary?.total_orders ?? 0)} trend={ordersTrend} trendLabel={trendLabel} />
         <StatCard label="Items Sold" value={formatNumber(summary?.total_items_sold ?? 0)} trend={itemsTrend} trendLabel={trendLabel} />
@@ -132,17 +134,23 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
           inside each brand's drill-down where it has the most context. */}
       <BrandTabs
         overview={
-          <div className="space-y-4">
-            <AmNoteEditor
+          <div className={styles.overview}>
+            <section className={`${styles.panel} ${styles.trend}`} aria-label="Brand GMV trend">
+              <header className={styles.panelHeader}><h2>GMV by day</h2><p>{startDate} – {endDate}</p></header>
+              <div className={styles.trendBody}><GmvTrendChart data={chartData} brands={[slug]} /></div>
+            </section>
+            <aside className={styles.contextColumn} aria-label="Brand context and client note">
+              <AmNoteEditor
               brandSlug={slug}
               initialNote={noteRow?.brand_overview_note ?? ''}
               initialUpdatedAt={noteRow?.brand_overview_note_updated_at ?? null}
               initialAuthorName={noteAuthor}
-            />
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h3 className="text-lg font-semibold mb-4">GMV Trend</h3>
-              <GmvTrendChart data={chartData} brands={[slug]} />
-            </div>
+              />
+              <section className={styles.panel}>
+                <header className={styles.panelHeader}><h2>Period context</h2></header>
+                <dl className="grid gap-3 px-4 py-3 text-xs"><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Selected dates</dt><dd className="text-right tabular-nums">{startDate}<br/>{endDate}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Comparison</dt><dd className="text-right tabular-nums">{prevStartDate}<br/>{prevEndDate}</dd></div><div className="border-t border-border pt-3 text-muted-foreground"><dt className="sr-only">Breakdowns</dt><dd>Use Creators and Products for the ranked breakdown of this period.</dd></div></dl>
+              </section>
+            </aside>
           </div>
         }
         creators={<CreatorTable creators={await aggregateCreatorsByRealName(creators)} />}

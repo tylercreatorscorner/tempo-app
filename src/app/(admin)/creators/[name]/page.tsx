@@ -101,9 +101,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   </section>;
   const performance = <div className={styles.grid}>
     <div className={styles.stack}>
-      {priorities}
       <Suspense fallback={<div className={styles.empty} role="status">Loading selected-period performance…</div>}><ProfilePerformanceHistory creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} /></Suspense>
       {topVideoPreview}
+      {priorities}
       {!selectedBrand && <section className={styles.section}>
         <div className={styles.sectionHead}><div><h2>Authorized brand comparison</h2><p>Brands you are authorized to manage · {startDate}–{endDate}</p></div></div>
         <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Brand</th><th>GMV</th><th>Active videos</th>{canViewCost && <th>Current monthly fee</th>}</tr></thead><tbody>
@@ -180,7 +180,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     <div className={styles.scope}><div><span className={styles.eyebrow}>Brand view</span><Suspense fallback={null}><BrandFilter appearance="creator" brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} /></Suspense></div><div><span className={styles.eyebrow}>Reporting period</span><Suspense fallback={null}><DateRangePicker staleThrough={lagDays>0 ? anchorDate : null} /></Suspense></div></div>
     <p className={styles.freshness}>Sales through {historyEnd} · {startDate}–{endDate}</p>
     <Suspense fallback={<div className={styles.empty}>Loading period metrics…</div>}><ProfileHeadlineMetrics creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} summary={summary} /></Suspense>
-    {selectedBrand && brands.length > 1 && <Link className={styles.compareLink} href={`?${new URLSearchParams({...sp,brand:'all'})}`}>Compare authorized brands &rarr;</Link>}
+    {selectedBrand && brands.length > 1 && <Link className={styles.compareLink} href={`?${new URLSearchParams({...sp,brand:'all'})}`}>Compare authorized brands</Link>}
     <ProfileSections sections={[
       {id:'performance',label:'Overview',content:performance},
       {id:'history',label:'History',content:<Suspense fallback={<div className={styles.empty}>Loading relationship history…</div>}><RelationshipHistory creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>},

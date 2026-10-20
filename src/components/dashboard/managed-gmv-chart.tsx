@@ -37,6 +37,7 @@ export function ManagedGmvChart({
   controls,
   numeric = false,
   coverageUnit = 'brands',
+  embedded = false,
 }: {
   data: { date: string; gmv: number | null; recordedBrands?: number }[];
   trend?: number;
@@ -46,6 +47,7 @@ export function ManagedGmvChart({
   controls?: ReactNode;
   numeric?: boolean;
   coverageUnit?: 'brands' | 'stores';
+  embedded?: boolean;
 }) {
   const compact = numeric ? (value: number) => Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(value) : fmtCompactCurrency;
   const detail = numeric ? (value: number) => value.toLocaleString('en-US') : formatCurrency;
@@ -92,8 +94,8 @@ export function ManagedGmvChart({
     // Health, whose content is taller. Grid cells stretch, but a Card that isn't
     // h-full doesn't fill its cell — so this one bottom-aligned ~38px short of
     // its neighbours. The plot region grows to take up the slack.
-    <Card className="flex h-full flex-col">
-      <CardHeader>
+    <Card className={cn('flex h-full flex-col', embedded && 'rounded-none border-0 bg-transparent shadow-none')}>
+      <CardHeader className={embedded ? 'px-0 py-3' : undefined}>
         {/* Trend card — the canonical Managed GMV number lives in the KPI hero
             above; this card shows only the shape + period-over-period delta, so
             it never displays a second (source-divergent) managed total. */}
@@ -105,7 +107,7 @@ export function ManagedGmvChart({
         )}
       </CardHeader>
       {coverageNote && <p className="px-6 pb-3 text-xs text-muted-foreground">{coverageNote}</p>}
-      <CardContent className="flex flex-1 flex-col">
+      <CardContent className={cn('flex flex-1 flex-col', embedded && 'min-h-[240px] px-0 pb-0')}>
         {hasChart ? (
           <div className="flex flex-1 gap-1.5">
             {/* Y axis — three ticks (max / mid / min), aligned to the plot's own

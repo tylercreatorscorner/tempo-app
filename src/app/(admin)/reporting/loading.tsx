@@ -5,24 +5,9 @@ export default function Loading() {
   return (
     <div className="space-y-4">
       <PageHeaderSkeleton />
-      <div className="space-y-8">
-        {/* Client reporting table — the primary surface. Full width, because
-            the Create panel only appears once a brand is chosen. */}
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-36" />
-            <Skeleton className="h-4 w-80" />
-          </div>
-          <TableSkeleton rows={7} cols={6} title={false} />
-        </div>
-        {/* Recent activity */}
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-28" />
-            <Skeleton className="h-4 w-72" />
-          </div>
-          <TableSkeleton rows={5} cols={6} title={false} />
-        </div>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-3"><Skeleton className="h-9 w-72 max-w-full"/><Skeleton className="h-9 w-56 max-w-full"/></div>
+        <TableSkeleton rows={7} cols={4} title={false} />
       </div>
     </div>
   );

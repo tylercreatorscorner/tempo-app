@@ -28,6 +28,7 @@ import { buildContributors } from '@/lib/data/dashboard-contributors';
 import { GmvContributors } from '@/components/dashboard/gmv-contributors';
 import { buildDashboardTrend } from '@/lib/data/dashboard-trend';
 import { ManagerPortfolios } from '@/components/dashboard/manager-portfolios';
+import { MorningReview } from '@/components/dashboard/morning-review';
 import { getDashboardManagers } from '@/lib/data/dashboard-managers';
 import { buildDashboardSignals } from '@/lib/data/dashboard-signals';
 import reviewStyles from '@/components/dashboard/morning-review.module.css';
@@ -511,7 +512,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const managers = await managersPromise;
 
   return (
-    <div className={`${reviewStyles.page} space-y-6`}>
+    <div className={reviewStyles.page}>
       {/* Stale-data warning — shows when the freshest data point is >3 days old */}
       {isStale && latestDate && daysStale != null && (
         <StaleDataBanner latestDate={latestDate} daysStale={daysStale} />
@@ -544,8 +545,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{format(new Date(`${startDate}T12:00:00`), 'MMM d, yyyy')} – {format(new Date(`${endDate}T12:00:00`), 'MMM d, yyyy')}</span>
+      <div className={reviewStyles.scopeBar}>
+        <strong>{format(new Date(`${startDate}T12:00:00`), 'MMM d, yyyy')} – {format(new Date(`${endDate}T12:00:00`), 'MMM d, yyyy')}</strong>
         <span>vs {format(new Date(`${prevStartDate}T12:00:00`), 'MMM d, yyyy')} – {format(new Date(`${prevEndDate}T12:00:00`), 'MMM d, yyyy')}</span>
         <span>{brandFilter ? activeBrandName : `${ALL_BRANDS.length} authorized brands`}</span>
       </div>
@@ -577,10 +578,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
           trend={canCompare && comparison.current.orders > 0 && comparison.previous.orders > 0 ? pctChange(comparison.current.gmv / comparison.current.orders, comparison.previous.gmv / comparison.previous.orders) : undefined}
           trendLabel={comparisonLabel} info="Affiliate GMV divided by affiliate orders. The comparison uses the same fully recorded brands in both periods; this is a weighted average, not an average of brand averages." />
       </div>
-      <NewVideoGmvCard brand={brandFilter} start={startDate} end={endDate} />
-      {canViewCost && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Card><CardContent className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-medium text-muted-foreground">Current creator commitments <InfoTooltip label="Current recorded creator fees for the selected brands. Agreement periods may differ; this is not historical payment or spend in the selected date range."/></p><p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalRetainerSpend)}</p></div><span className="text-xs text-muted-foreground">{retainerBrandCount} {retainerBrandCount===1?'brand':'brands'}</span></CardContent></Card>
-        <Card><CardContent className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-medium text-muted-foreground">GMV / retainer return <InfoTooltip label={`Managed GMV from ${roiStart} through ${roiEnd}, divided by current monthly commitments. Revenue multiple, not profit ROI; excludes commissions and other costs.`}/></p><p className="mt-1 text-xl font-semibold tabular-nums">{roi > 0 ? `${roi.toFixed(1)}×` : '—'}</p></div><span className="text-xs text-muted-foreground">Trailing 30 days</span></CardContent></Card>
+      {canViewCost && <div className={reviewStyles.commitments}>
+        <div>Current creator commitments <InfoTooltip label="Current recorded creator fees for the selected brands. Agreement periods may differ; this is not historical payment or spend in the selected date range."/><strong>{formatCurrency(totalRetainerSpend)}</strong><span>{retainerBrandCount} {retainerBrandCount===1?'brand':'brands'}</span></div>
+        <div>GMV / retainer return <InfoTooltip label={`Managed GMV from ${roiStart} through ${roiEnd}, divided by current monthly commitments. Revenue multiple, not profit ROI; excludes commissions and other costs.`}/><strong>{roi > 0 ? `${roi.toFixed(1)}×` : '—'}</strong><span>Trailing 30 days</span></div>
       </div>}
 
       {/* Empty-state for a brand-filtered view with no activity */}
@@ -597,11 +597,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
         />
       )}
 
-      {!isEmptyBrand && <DashboardCharts key={`${brandFilter}|${startDate}|${endDate}`} start={startDate} end={endDate} brand={brandFilter} initial={totalDaily} share={<Card><CardHeader><CardTitle>Managed share</CardTitle></CardHeader><CardContent>
-        {totalsFailed ? <p className="py-10 text-sm text-muted-foreground">Split unavailable.</p> : <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} prevManaged={comparisonRecorded ? prevManagedGmv : undefined} prevTotal={comparisonRecorded ? prevTotals.gmv : undefined}/>}
-      </CardContent></Card>}/>}
-
-      {managers !== undefined && <ManagerPortfolios managers={managers} brands={activeBrandRows} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} signals={signals} start={startDate} end={endDate} totalsAvailable={!totalsFailed} />}
+      <div className={reviewStyles.workspace}>
+      <div className={reviewStyles.primary}>
+      {!isEmptyBrand && <DashboardCharts key={`${brandFilter}|${startDate}|${endDate}`} start={startDate} end={endDate} brand={brandFilter} initial={totalDaily}/>}
 
       {/* Row 3 — Brand Performance, full width. Deliberately shows EVERY brand,
           including those with $0 managed GMV: a brand you have no managed
@@ -610,15 +608,26 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <BrandPerformance brands={activeBrandRows.map(row => !signals.available || signals.attention.some(signal => signal.slug === row.slug && signal.kind === 'coverage') ? { ...row, trend: undefined, managedTrend: undefined, series: undefined } : row)} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
       )}
 
-      <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} start={startDate} end={endDate} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} ${activeRosterBrands.length === 1 ? 'brand' : 'brands'} with comparable coverage`} />
+      {managers !== undefined && <ManagerPortfolios managers={managers} brands={activeBrandRows} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} signals={signals} start={startDate} end={endDate} totalsAvailable={!totalsFailed} />}
 
       {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}
       {!isEmptyBrand && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className={reviewStyles.leaderboards}>
           <TopCreators brand={brandFilter} creators={topCreators} label={`${periodLength}d`} />
           <TopVideos brand={brandFilter} videos={topVideos} label={`${periodLength}d`} failed={topVideosFailed} />
         </div>
       )}
+      </div>
+      <aside className={reviewStyles.aside} aria-label="Period insights and video performance">
+        <h2 className={reviewStyles.asideHeading}>Review this period</h2>
+        <MorningReview attention={signals.attention} opportunities={signals.opportunities} available={signals.available} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} start={startDate} end={endDate} singleBrand={Boolean(brandFilter)} compact />
+        <Card><CardHeader className="px-4 py-3"><CardTitle>Managed share</CardTitle></CardHeader><CardContent className="px-4 pb-4">
+          {totalsFailed ? <p className="text-sm text-muted-foreground">Split unavailable.</p> : <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} prevManaged={comparisonRecorded ? prevManagedGmv : undefined} prevTotal={comparisonRecorded ? prevTotals.gmv : undefined}/>}
+        </CardContent></Card>
+        <NewVideoGmvCard brand={brandFilter} start={startDate} end={endDate} compact />
+        <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} start={startDate} end={endDate} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} ${activeRosterBrands.length === 1 ? 'brand' : 'brands'} with comparable coverage`} />
+      </aside>
+      </div>
     </div>
   );
 }

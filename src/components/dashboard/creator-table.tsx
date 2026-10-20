@@ -28,10 +28,7 @@ interface Props {
 }
 
 function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 text-white text-xs font-bold shadow-sm">1</span>;
-  if (rank === 2) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 text-white text-xs font-bold">2</span>;
-  if (rank === 3) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white text-xs font-bold">3</span>;
-  return <span className="text-muted-foreground text-sm tabular-nums">{rank}</span>;
+  return <span className="text-xs font-medium tabular-nums text-muted-foreground">{rank}</span>;
 }
 
 function StatusDot({ status }: { status?: CreatorStatus }) {
@@ -52,8 +49,7 @@ function BrandPill({ brand }: { brand: string }) {
   const name = brandMeta.label(brand);
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-      style={{ backgroundColor: `${color}15`, color }}
+      className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
       {name}
@@ -83,12 +79,12 @@ export function CreatorTable({ creators, csvButton }: Props) {
   const hasStatuses = creators.some((c) => c.status);
 
   return (
-    <div className="rounded-2xl overflow-hidden bg-card border border-border shadow-sm">
-      <div className="px-6 py-4 border-b border-border flex flex-col gap-3">
+    <div className="rounded-xl overflow-hidden bg-card border border-border">
+      <div className="px-4 py-3 border-b border-border flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold tracking-tight text-[var(--foreground)]">Top Creators</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Ranked by GMV</p>
+            <h3 className="text-sm font-semibold text-foreground">Creator performance</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Ranked by GMV in the selected period</p>
           </div>
           {csvButton}
         </div>
@@ -104,7 +100,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
                   key={s}
                   onClick={() => setFilter(s)}
                   className={cn(
-                    'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border',
+                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 border',
                     active
                       ? isAll
                         ? 'border-[var(--primary)] bg-primary/10 text-[var(--primary)]'
@@ -129,15 +125,15 @@ export function CreatorTable({ creators, csvButton }: Props) {
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr className="border-b border-border text-muted-foreground">
-              <th className="px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
-              <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Creator</th>
-              <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brand</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Videos</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Retainer</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">ROI</th>
+              <th className="px-4 py-3 text-left font-medium text-[11px] w-12">#</th>
+              <th className="px-4 py-3 text-left font-medium text-[11px]">Creator</th>
+              <th className="px-4 py-3 text-left font-medium text-[11px]">Brand</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px]">GMV</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px]">Orders</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px]">Items</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px]">Videos</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px]">Retainer</th>
+              <th className="px-4 py-3 text-right font-medium text-[11px] pr-6">ROI</th>
             </tr>
           </thead>
           <tbody>
@@ -146,8 +142,8 @@ export function CreatorTable({ creators, csvButton }: Props) {
                 'border-b border-border transition-all duration-200',
                 'hover:bg-muted',
               )}>
-                <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
-                <td className="px-4 py-3.5 font-medium text-[var(--foreground)]">
+                <td className="px-4 py-2.5"><RankBadge rank={i + 1} /></td>
+                <td className="px-4 py-2.5 font-medium text-[var(--foreground)]">
                   <div className="flex items-center gap-2">
                     <StatusDot status={c.status} />
                     <div>
@@ -162,17 +158,17 @@ export function CreatorTable({ creators, csvButton }: Props) {
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3.5">
+                <td className="px-4 py-2.5">
                   {c.brand ? <BrandPill brand={c.brand} /> : <span className="text-muted-foreground">-</span>}
                 </td>
-                <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(c.total_gmv)}</td>
-                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_orders)}</td>
-                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_items_sold)}</td>
-                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_videos)}</td>
-                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">
+                <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(c.total_gmv)}</td>
+                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_orders)}</td>
+                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_items_sold)}</td>
+                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_videos)}</td>
+                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
                   {c.retainer && c.retainer > 0 ? `$${c.retainer.toLocaleString()}` : ''}
                 </td>
-                <td className="px-4 py-3.5 text-right tabular-nums pr-6">
+                <td className="px-4 py-2.5 text-right tabular-nums pr-6">
                   {c.retainer && c.retainer > 0 ? (
                     <span className={c.total_gmv / c.retainer >= 1 ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
                       {(c.total_gmv / c.retainer).toFixed(1)}x

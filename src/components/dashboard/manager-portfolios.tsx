@@ -41,7 +41,7 @@ export function ManagerPortfolios({
           <div>
             <h2>Manager portfolios</h2>
             <p>
-              {start} – {end} · Current assignments · Authorized brands only
+              Current assignments · GMV {start} – {end} · Goals use the full calendar month
             </p>
           </div>
           <Link
@@ -51,10 +51,6 @@ export function ManagerPortfolios({
             Goals & reviews <InterfaceIcon name="external" />
           </Link>
         </header>
-        <p className={styles.hint}>
-          Open a manager for their brand breakdown. GMV uses the selected dates;
-          goals use the full calendar month.
-        </p>
         <div className={styles.columns} aria-hidden="true">
           <span>Manager / brands</span>
           <span>Total GMV / change</span>

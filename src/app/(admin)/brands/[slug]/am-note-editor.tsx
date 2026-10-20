@@ -56,7 +56,7 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
     : null;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-3">
+    <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label="Client portal note">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -65,7 +65,7 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
           <div>
             <h3 className="text-sm font-semibold text-[var(--foreground)]">Client portal note</h3>
             <p className="text-xs text-muted-foreground">
-              Surfaces on the brand&apos;s /brand-dashboard. Plain text — no markdown.
+              Published to the client&apos;s brand dashboard.
             </p>
           </div>
         </div>
@@ -89,10 +89,10 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
               setDraft(e.target.value);
               setErr(null);
             }}
-            rows={4}
+            rows={3}
             maxLength={MAX_LEN}
             disabled={pending}
-            placeholder="e.g. This week we onboarded 3 new creators — expect lift starting May 8. Top performer @vanessafoundit hit 12× ROI."
+            placeholder="Share a brief client-facing update."
             className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 resize-none"
           />
           <div className="flex items-center justify-between gap-2">
@@ -139,6 +139,6 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }

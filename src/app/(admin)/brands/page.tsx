@@ -11,8 +11,9 @@ import { resolveDateRange } from '@/lib/data/date-utils';
 import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { DollarSign, ShoppingCart, Users, Package } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { BrandsActions } from './brands-actions';
+import styles from './brands.module.css';
 
 interface Props {
   searchParams: Promise<{ range?: string; start?: string; end?: string }>;
@@ -74,44 +75,40 @@ export default async function BrandsPage({ searchParams }: Props) {
   );
 
   return (
-    <div className="space-y-4">
+    <div className={styles.page}>
       <PageHeader eyebrow="Portfolio" title="Brands" subtitle={`${brands.length} brands in your portfolio.`} actions={<div className="flex flex-wrap items-center gap-2"><BrandsActions /><Suspense fallback={null}><DateRangePicker staleThrough={staleThrough} /></Suspense></div>} />
 
       {/* Portfolio totals */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <dl className={styles.metrics}>
         {[
-          { label: 'Total GMV', value: formatCurrency(portfolioTotals.gmv), icon: DollarSign },
-          { label: 'Total Orders', value: formatNumber(portfolioTotals.orders), icon: ShoppingCart },
-          { label: 'Active Creators', value: formatNumber(portfolioTotals.creators), icon: Users },
-          { label: 'Items Sold', value: formatNumber(portfolioTotals.items), icon: Package },
+          { label: 'Total GMV', value: formatCurrency(portfolioTotals.gmv) },
+          { label: 'Total orders', value: formatNumber(portfolioTotals.orders) },
+          { label: 'Active creators', value: formatNumber(portfolioTotals.creators) },
+          { label: 'Items sold', value: formatNumber(portfolioTotals.items) },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-xl border border-border bg-card p-5 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <stat.icon className="h-4 w-4 text-primary" />
-              </div>
-            </div>
-            <p className="text-2xl font-extrabold tracking-tight">{stat.value}</p>
-          </div>
+          <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>
         ))}
-      </div>
+      </dl>
+      <div className={styles.context}><strong>{startDate} – {endDate}</strong><span>Recorded portfolio totals</span>{summaries.some(row=>!row.data) && <span>{summaries.filter(row=>!row.data).length} brand summaries unavailable; totals reflect available records.</span>}</div>
 
       {/* Empty state */}
       {brands.length === 0 && (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden">
-          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-            <div className="text-5xl mb-4"><InterfaceIcon name="brand" className="size-7 text-primary" /></div>
-            <h3 className="text-lg font-bold">No brands yet</h3>
-            <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+        <div className={styles.panel}>
+          <div className={styles.empty}>
+            <InterfaceIcon name="brand" className="size-7 text-primary" />
+            <h2>No brands yet</h2>
+            <p>
               Add your first brand to start tracking creator performance, GMV, and product analytics.
             </p>
           </div>
         </div>
       )}
 
-      {/* Brand Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Every brand can be compared in one compact portfolio list. */}
+      {brands.length > 0 && <section className={styles.panel} aria-label="Brand portfolio performance">
+      <header className={styles.panelHeader}><h2>Portfolio performance</h2><p>{brands.length} brands · select a brand for details</p></header>
+      <div className={styles.tableScroll} role="region" aria-label="Brand performance list" tabIndex={0}>
+      <div className={`${styles.columns} ${styles.tableHead}`} aria-hidden="true"><span>Brand</span><span>GMV</span><span>Portfolio share</span><span>Orders</span><span>Creators</span><span>Items</span><span /></div>
         {summaries.map(({ brand: slug, data }) => {
           const brandInfo = brands.find(b => b.slug === slug);
           const displayName = brandInfo?.name ?? slug;
@@ -122,45 +119,21 @@ export default async function BrandsPage({ searchParams }: Props) {
           return (
             <Link
               key={slug}
-              href={`/brands/${slug}`}
-              className="group rounded-xl border border-border bg-card p-4 hover:border-primary/30 hover:bg-secondary/30 transition-colors duration-150"
+              href={`/brands/${slug}?${new URLSearchParams({range:'custom',start:startDate,end:endDate})}`}
+              className={`${styles.columns} ${styles.brandRow}`}
             >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="min-w-0"><h3 className="font-semibold text-sm"><BrandIdentity brand={slug} label={displayName} /></h3><p className="mt-2 text-xs text-muted-foreground">{gmvShare.toFixed(1)}% of portfolio</p></div>
-              </div>
-
-              {/* GMV bar */}
-              <div className="mb-4">
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(gmvShare, 100)}%`, backgroundColor: color }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">GMV</p>
-                  <p className="text-lg font-bold">{formatCurrency(gmv)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Orders</p>
-                  <p className="text-lg font-bold">{formatNumber(data?.total_orders ?? 0)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Active Creators</p>
-                  <p className="text-lg font-bold">{formatNumber(data?.unique_creators ?? 0)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Items Sold</p>
-                  <p className="text-lg font-bold">{formatNumber(data?.total_items_sold ?? 0)}</p>
-                </div>
-              </div>
+              <span className={styles.brandName}><BrandIdentity brand={slug} label={displayName} /></span>
+              <span className={styles.amount}><span className="sr-only">GMV </span>{data ? formatCurrency(gmv) : '—'}</span>
+              <span className={styles.share}><span className={styles.shareTrack} aria-hidden="true"><span style={{width:`${Math.min(gmvShare,100)}%`,backgroundColor:color}} /></span><span>{data ? `${gmvShare.toFixed(1)}%` : 'Unavailable'}</span></span>
+              <span><span className="sr-only">Orders </span>{data ? formatNumber(data.total_orders ?? 0) : '—'}</span>
+              <span><span className="sr-only">Active creators </span>{data ? formatNumber(data.unique_creators ?? 0) : '—'}</span>
+              <span><span className="sr-only">Items sold </span>{data ? formatNumber(data.total_items_sold ?? 0) : '—'}</span>
+              <ChevronRight size={15} className="text-muted-foreground" aria-hidden="true" />
             </Link>
           );
         })}
       </div>
+      </section>}
     </div>
   );
 }

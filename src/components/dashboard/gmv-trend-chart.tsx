@@ -15,6 +15,7 @@ interface Props {
 }
 
 function fmtLabel(dateStr: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
   const [, m, d] = dateStr.split('-');
   return `${parseInt(m)}/${parseInt(d)}`;
 }
@@ -23,7 +24,7 @@ export function GmvTrendChart({ data, brands }: Props) {
   const brandMeta = useBrandMeta();
   if (!data || data.length === 0) {
     return (
-      <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
+      <div className="h-60 flex items-center justify-center text-muted-foreground text-sm">
         No trend data available for selected period
       </div>
     );
@@ -42,7 +43,7 @@ export function GmvTrendChart({ data, brands }: Props) {
       labels={categories}
       series={series}
       area={false}
-      height={340}
+      height={260}
       showAxis
       format={fmtCompactCurrency}
     />
