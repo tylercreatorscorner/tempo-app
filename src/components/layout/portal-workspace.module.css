@@ -137,7 +137,13 @@
 .entryCard > :global(.bg-card) { padding: 24px; }
 .entry input:not([type="checkbox"]):not([type="radio"]), .entry select { min-height: 40px; border-radius: 8px; background: var(--card); color: var(--foreground); }
 .entry h1 { letter-spacing: -.02em; }
-.entry :global(.auth-rise), .entry :global(.auth-settle) { animation: none; }
+/* Cancelling an entrance animation must also reveal its final state. These
+   shared auth classes start transparent; animation:none alone hid the form. */
+.entry :global(.auth-rise), .entry :global(.auth-settle) {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
 .managerCards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 
 @media (min-width: 1650px) { .videoGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
