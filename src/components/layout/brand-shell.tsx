@@ -2,7 +2,8 @@
 
 import portal from '@/components/layout/portal-workspace.module.css';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type RefObject } from 'react';
+import { PortalMobileDrawer } from './portal-mobile-drawer';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -13,7 +14,6 @@ import {
   Settings as SettingsIcon,
   LogOut,
   Menu,
-  X,
   ChevronRight,
   ChevronDown,
   Check,
@@ -91,6 +91,7 @@ function brandInkVars(accent: string): React.CSSProperties {
 
 export function BrandShell({ context, children }: BrandShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const { activeBrand, user } = context;
   const accentColor = activeBrand.color || '#6e4bcc';
 
@@ -100,44 +101,26 @@ export function BrandShell({ context, children }: BrandShellProps) {
   // is unintuitive (every other website scrolls regardless of cursor position).
   return (
     <div
-      className={`${portal.theme} brand-scope flex min-h-screen`}
+      className={`${portal.theme} brand-scope flex min-h-dvh`}
       style={{ backgroundColor: 'var(--background)', ...brandInkVars(activeBrand.color || '#4B45FF') }}
     >
       <a href="#brand-content" onClick={() => setMobileNavOpen(false)} className={portal.skipLink}>Skip to content</a>
       <BrandSidebar
-        className="hidden lg:flex sticky top-0 h-screen"
+        className="hidden lg:flex sticky top-0 h-dvh"
         accentColor={accentColor}
         activeBrand={activeBrand}
         brands={context.brands}
       />
 
-      {mobileNavOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div
-            className="fixed inset-0 bg-black/40"
-            onClick={() => setMobileNavOpen(false)}
-          />
-          <div className="relative">
-            <BrandSidebar
-              accentColor={accentColor}
-              activeBrand={activeBrand}
-              brands={context.brands}
-              onNavigate={() => setMobileNavOpen(false)}
-            />
-            <button
-              onClick={() => setMobileNavOpen(false)}
-              className="absolute -right-10 top-4 p-2 rounded-lg bg-card shadow"
-              aria-label="Close menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      )}
+      <PortalMobileDrawer open={mobileNavOpen} onOpenChange={setMobileNavOpen} triggerRef={menuTriggerRef} id="brand-mobile-navigation" title="Client navigation" className="brand-scope" style={brandInkVars(activeBrand.color || '#6e4bcc')}>
+        <BrandSidebar className={portal.drawerSidebar} accentColor={accentColor} activeBrand={activeBrand} brands={context.brands} onNavigate={() => setMobileNavOpen(false)} />
+      </PortalMobileDrawer>
 
       <div className="flex-1 flex flex-col min-w-0">
         <BrandHeader
           onMenuClick={() => setMobileNavOpen(true)}
+          menuButtonRef={menuTriggerRef}
+          mobileNavOpen={mobileNavOpen}
           userName={user.name}
           userEmail={user.email}
           brandName={activeBrand.display_name || activeBrand.name}
@@ -172,7 +155,8 @@ function BrandSidebar({
   return (
     <aside
       className={cn(
-        'flex flex-col w-[232px] h-screen bg-card border-r border-border',
+        portal.sidebar,
+        'flex flex-col w-[232px] h-dvh bg-card border-r border-border',
         className,
       )}
     >
@@ -374,6 +358,8 @@ function BrandSwitcher({
 
 interface BrandHeaderProps {
   onMenuClick?: () => void;
+  menuButtonRef?: RefObject<HTMLButtonElement | null>;
+  mobileNavOpen?: boolean;
   userName: string | null;
   userEmail: string;
   brandName: string;
@@ -381,6 +367,8 @@ interface BrandHeaderProps {
 
 function BrandHeader({
   onMenuClick,
+  menuButtonRef,
+  mobileNavOpen = false,
   userName,
   userEmail,
   brandName,
@@ -420,18 +408,22 @@ function BrandHeader({
     : '?';
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-3 sm:px-5 border-b border-border bg-card">
+    <header className={`${portal.portalHeader} sticky top-0 z-30 flex items-center justify-between px-3 sm:px-5 border-b border-border bg-card`}>
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
+          ref={menuButtonRef}
+          aria-haspopup="dialog"
+          aria-controls="brand-mobile-navigation"
+          aria-expanded={mobileNavOpen}
           onClick={onMenuClick}
-          className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+          className="lg:hidden min-h-11 min-w-11 p-2 rounded-lg hover:bg-muted transition-colors"
           aria-label="Toggle menu"
         >
           <Menu className="h-5 w-5 text-muted-foreground" />
         </button>
 
         <div className="lg:hidden">
-          <TempoLogo size="sm" animated />
+          <TempoLogo size="sm" animated={false} />
         </div>
 
         <nav className="hidden min-w-0 items-center gap-1.5 text-sm sm:flex">
@@ -450,6 +442,8 @@ function BrandHeader({
 
         <div className="relative" ref={menuRef}>
           <button
+            aria-label="Open your account menu"
+            aria-expanded={menuOpen}
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-1.5 py-1.5 rounded-lg hover:bg-muted transition-colors"
           >

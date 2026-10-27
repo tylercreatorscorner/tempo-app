@@ -1,0 +1,36 @@
+.mobileTools { display: none; }
+.phoneHeaders { display: none; }
+.ledger { min-width: 0; overflow-x: auto; }
+.bulkBar { position: fixed; z-index: 40; bottom: 24px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); }
+.bulkActions { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: var(--workspace-surface-radius,14px); background: var(--card); color: var(--foreground); padding: 10px 14px; box-shadow: var(--workspace-surface-raised-shadow); }
+
+@media (max-width: 640px) {
+  .mobileTools { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .desktopTools { display: none; }
+  .phoneHeaders { display: table-header-group; }
+  .ledger { overflow: visible; }
+  .ledger > table { display: block; width: 100%; min-width: 0; }
+  .ledger > table > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .ledger > table > tbody { display: grid; gap: 12px; padding: 12px; background: var(--muted); }
+  .ledger > table > tbody > tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+  .ledger > table > tbody > tr > td, .ledger > table > tbody > tr > th { min-width: 0; padding: 10px 12px; border: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+  .ledger > table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--muted-foreground); font-size: 10px; font-weight: 500; line-height: 1.4; }
+  .ledger > table > tbody > tr > td[data-mobile-title],
+  .ledger > table > tbody > tr > th[data-mobile-title],
+  .ledger > table > tbody > tr > td[data-mobile-full],
+  .ledger > table > tbody > tr > td[colspan] { grid-column: 1 / -1; }
+  .ledger > table > tbody > tr > td[data-mobile-title] { border-bottom: 1px solid var(--border); font-size: 14px; }
+  .ledger > table > tbody > tr > td[data-mobile-actions] { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; grid-column: 1 / -1; border-top: 1px solid var(--border); }
+  .ledger > table > tbody > tr > td[data-mobile-actions] > div { justify-content: flex-start; flex-wrap: wrap; }
+  .ledger > table > tbody > tr > td[data-mobile-actions] button,
+  .ledger > table > tbody > tr > td[data-mobile-actions] a { min-height: 44px; }
+  .ledger > table > tfoot { display: block; padding: 12px; border-top: 1px solid var(--border); background: var(--secondary); }
+  .ledger > table > tfoot > tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .ledger > table > tfoot > tr > td { padding: 0; text-align: left; overflow-wrap: anywhere; }
+  .ledger > table > tfoot > tr > td:empty { display: none; }
+  .ledger > table > tfoot > tr > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; color: var(--muted-foreground); font-size: 10px; font-weight: 500; }
+  .bulkBar { bottom: max(8px,env(safe-area-inset-bottom)); width: calc(100vw - 24px); }
+  .bulkActions { flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 10px; }
+  .bulkActions > button { min-height: 44px; }
+  .bulkActions > span:empty { display: none; }
+}

@@ -254,7 +254,10 @@ function BrandSelect({
     if (!open) return;
     const updateRect = () => {
       const r = buttonRef.current?.getBoundingClientRect();
-      if (r) setAnchorRect({ left: r.left, top: r.bottom + 4, width: r.width });
+      if (r) {
+        const width = Math.min(Math.max(288, r.width), window.innerWidth - 24);
+        setAnchorRect({ left: Math.max(12, Math.min(r.left, window.innerWidth - width - 12)), top: r.bottom + 4, width });
+      }
     };
     updateRect();
     window.addEventListener('resize', updateRect);
@@ -321,6 +324,8 @@ function BrandSelect({
         ref={buttonRef}
         type="button"
         onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        aria-label="Filter creators by brand"
         className="inline-flex items-center gap-2 px-3.5 py-[9px] rounded-md border border-border bg-card text-[13.5px] font-medium text-[var(--foreground)] transition-colors hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25 min-w-[180px]"
       >
         {current.slug !== 'all' && (
@@ -351,7 +356,8 @@ function BrandSelect({
             position: 'fixed',
             left: anchorRect.left,
             top: anchorRect.top,
-            minWidth: Math.max(288, anchorRect.width),
+            width: anchorRect.width,
+            maxHeight: `min(384px, calc(100dvh - ${anchorRect.top + 12}px))`,
           }}
           className="z-[60] rounded-xl border border-border bg-card shadow-lg flex flex-col max-h-96"
         >
@@ -362,9 +368,10 @@ function BrandSelect({
                 ref={inputRef}
                 type="text"
                 placeholder="Search brands…"
+                aria-label="Search brands"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
+                className="min-h-11 w-full pl-8 pr-3 py-1.5 text-base sm:text-sm rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
               />
             </div>
           </div>
@@ -372,7 +379,7 @@ function BrandSelect({
             <button
               type="button"
               onClick={() => { onChange('all'); setOpen(false); setQuery(''); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
+              className={`min-h-11 w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
                 value === 'all' ? 'bg-primary/10 text-[var(--primary)] font-semibold' : 'text-foreground'
               }`}
             >
@@ -388,7 +395,7 @@ function BrandSelect({
                 type="button"
                 key={b.slug}
                 onClick={() => { onChange(b.slug); setOpen(false); setQuery(''); }}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
+                className={`min-h-11 w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
                   value === b.slug ? 'bg-primary/10 text-[var(--primary)] font-semibold' : 'text-foreground'
                 }`}
               >
@@ -825,7 +832,7 @@ function CreatorPanel({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
+        <div className={`${rosterLayout.panelTop} sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10`}>
           <div>
             <div className={rosterLayout.panelHeader}><CreatorAvatar creator={creator} /><h2>{displayName}</h2></div>
             {creator.brand && !editing && (
@@ -834,7 +841,7 @@ function CreatorPanel({
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!editing ? (
               <>
                 <button
@@ -2047,6 +2054,7 @@ function RosterContent() {
                       className={`transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/50 ${c.is_managed ? 'hover:bg-secondary' : 'bg-muted/30 hover:bg-muted/50'} ${isOpen ? 'bg-secondary' : ''}`}
                       onClick={activateRow}
                       onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
                         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateRow(); }
                       }}
                     >
@@ -2120,6 +2128,10 @@ function RosterContent() {
                                 )}
                               </div>
                             )}
+                            <button type="button" className={rosterLayout.mobileAction} aria-expanded={isGroup ? isOpen : undefined} onClick={event => { event.stopPropagation(); activateRow(); }}>
+                              {isGroup ? isOpen ? 'Hide brands' : 'View brands' : c.is_managed ? 'View details' : 'Add to roster'}
+                              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
                           </div>
                         </div>
                       </td>
@@ -2133,7 +2145,7 @@ function RosterContent() {
                         </td>
                       )}
                       {showManagedTag && (
-                        <td className="px-5 py-3.5 text-center">
+                        <td data-label="Status" className="px-5 py-3.5 text-center">
                           {c.is_managed ? (
                             <Badge variant="positive"><UserCheck className="h-3 w-3" /> Managed</Badge>
                           ) : (
@@ -2192,7 +2204,7 @@ function RosterContent() {
                           aria-label={`Open ${childLabel} details`}
                           className="bg-muted/60 hover:bg-muted/70 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/50"
                           onClick={(e) => { e.stopPropagation(); openChild(c, child); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChild(c, child); } }}
+                          onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openChild(c, child); } }}
                         >
                           {showAddAction && <td />}
                           <td data-label="Creator" className="px-5 py-2.5">

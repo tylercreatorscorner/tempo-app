@@ -21,6 +21,7 @@ import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { HorizontalBars } from '@/components/charts/bar-chart';
 import { EarningsTrendChart } from './earnings-trend-chart';
+import mobile from '@/components/finance/finance-mobile.module.css';
 
 interface MonthPoint {
   month: string;
@@ -249,8 +250,8 @@ function Panel({ title, subtitle, children, className, bodyPadding = true }: {
 function MonthlyTable({ months, totals, year }: { months: MonthPoint[]; totals: YtdResponse['totals']; year: number }) {
   const th = 'px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground';
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className={mobile.ledger}>
+      <table role="table" className="w-full text-sm">
         <thead>
           <tr className="border-y border-border bg-secondary">
             <th className={cn(th, 'text-left')}>Month</th>
@@ -264,25 +265,25 @@ function MonthlyTable({ months, totals, year }: { months: MonthPoint[]; totals: 
         <tbody>
           {months.map((m) => (
             <tr key={m.month} className="border-b border-border transition-colors hover:bg-muted/60">
-              <td className="px-4 py-2.5 font-semibold text-foreground">{monthLabel(m.month)}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(m.totalGmv)}</td>
-              <td className="px-4 py-2.5 text-right font-semibold tabular-nums" style={{ color: 'var(--pulse-pos)' }}>{formatCurrency(m.commission)}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{formatCurrency(m.retainers)}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums text-foreground">
+              <td data-mobile-title className="px-4 py-2.5 font-semibold text-foreground">{monthLabel(m.month)}</td>
+              <td data-label="GMV" className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(m.totalGmv)}</td>
+              <td data-label="Commission" className="px-4 py-2.5 text-right font-semibold tabular-nums" style={{ color: 'var(--pulse-pos)' }}>{formatCurrency(m.commission)}</td>
+              <td data-label="Retainers" className="px-4 py-2.5 text-right tabular-nums text-foreground">{formatCurrency(m.retainers)}</td>
+              <td data-label="Fees" className="px-4 py-2.5 text-right tabular-nums text-foreground">
                 {m.launchFees > 0 ? formatCurrency(m.launchFees) : <span className="text-muted-foreground">—</span>}
               </td>
-              <td className="px-4 py-2.5 text-right font-bold tabular-nums text-foreground">{formatCurrency(m.earnings)}</td>
+              <td data-label="Earnings" className="px-4 py-2.5 text-right font-bold tabular-nums text-foreground">{formatCurrency(m.earnings)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-border bg-secondary font-bold text-foreground">
             <td className="px-4 py-3">{year} Total</td>
-            <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.totalGmv)}</td>
-            <td className="px-4 py-3 text-right tabular-nums" style={{ color: 'var(--pulse-pos)' }}>{formatCurrency(totals.commission)}</td>
-            <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.retainers)}</td>
-            <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.launchFees)}</td>
-            <td className="px-4 py-3 text-right tabular-nums text-[var(--primary)]">{formatCurrency(totals.earnings)}</td>
+            <td data-label="GMV" className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.totalGmv)}</td>
+            <td data-label="Commission" className="px-4 py-3 text-right tabular-nums" style={{ color: 'var(--pulse-pos)' }}>{formatCurrency(totals.commission)}</td>
+            <td data-label="Retainers" className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.retainers)}</td>
+            <td data-label="Fees" className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.launchFees)}</td>
+            <td data-label="Earnings" className="px-4 py-3 text-right tabular-nums text-[var(--primary)]">{formatCurrency(totals.earnings)}</td>
           </tr>
         </tfoot>
       </table>

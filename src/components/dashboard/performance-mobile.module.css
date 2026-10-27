@@ -1,0 +1,41 @@
+.tableRegion { container-type: inline-size; min-width: 0; }
+.brandRegion { container-type: inline-size; min-width: 0; }
+.metricLabel { display: none; }
+.statusLabel { display: none; }
+.monthlyRegion { min-width: 0; container-type: inline-size; }
+
+/* Keep a single set of metric cells and links at both sizes. No second data
+   view or separately fetched mobile summary can drift from the desktop. */
+@container (max-width: 650px) {
+  .brandTable { min-width: 0; }
+  .brandHead { display: none; }
+  .brandRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; padding: 16px; }
+  .brandRow > span { min-width: 0; text-align: left; }
+  .brandRow > span:first-child { grid-column: 1 / -1; }
+  .brandRow > span:nth-child(2) { order: 1; }
+  .brandRow > span:nth-child(4) { order: 2; }
+  .brandRow > span:nth-child(5) { order: 3; }
+  .brandRow > span:nth-child(6) { order: 4; }
+  .brandRow > span:nth-child(3) { order: 5; grid-column: 1 / -1; justify-content: flex-start; }
+  .metricLabel { display: block; margin-bottom: 4px; color: var(--muted-foreground); font-size: 10px; font-weight: 500; line-height: 1.4; }
+  .metricLabel + span { text-align: left; }
+  .table, .table tbody { display: block; width: 100%; }
+  .statusLabel { display: block; margin-top: 4px; color: var(--muted-foreground); font-size: 11px; }
+  .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .table tbody tr { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px 16px; padding: 16px; }
+  .table td { display: block; grid-column: span 3; min-width: 0; max-width: none; padding: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+  .table td:first-child { grid-column: 1; grid-row: 1; color: var(--muted-foreground); font-size: 11px; }
+  .table td:first-child::before { content: "Rank "; }
+  .table td[data-label="Brand"] { grid-column: 1 / -1; }
+  .table td:nth-child(2) { grid-column: 2 / -1; grid-row: 1; font-size: 14px; }
+  .table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--muted-foreground); font-size: 10px; font-weight: 500; }
+  .table td[data-label="Creator"]::before, .table td[data-label="Product"]::before, .table td[data-label="Brand"]::before { display: none; }
+  .table td[colspan] { grid-column: 1 / -1; padding-block: 16px; }
+  .table td[colspan]::before { content: none; }
+  .monthlyTable, .monthlyTable tbody { display: block; width: 100%; min-width: 0; }
+  .monthlyTable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .monthlyTable tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }
+  .monthlyTable tbody th, .monthlyTable td { display: block; min-width: 0; padding: 0; text-align: left; }
+  .monthlyTable tbody th { grid-column: 1 / -1; }
+  .monthlyTable td::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--muted-foreground); font-size: 10px; font-weight: 500; }
+}

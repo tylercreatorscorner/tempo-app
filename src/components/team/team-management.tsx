@@ -19,6 +19,7 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import layout from '@/components/ui/workspace-layout.module.css';
+import mobile from './team-mobile.module.css';
 
 // Assignable roles. 'analyst' is intentionally NOT here — getWorkspaceScope has no
 // case for it (it resolves to null = no access), so offering it would mint dead
@@ -236,9 +237,9 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
     // to .map() and not on the first <TR> inside it.
     return (
       <Fragment key={u.user_id}>
-        <TR className={cn('hover:bg-secondary/60', expanded && 'bg-secondary/60')}>
+        <TR className={cn(mobile.member, 'hover:bg-secondary/60', expanded && 'bg-secondary/60')}>
           {/* Identity */}
-          <TD className="py-2.5">
+          <TD className={cn(mobile.identity, 'py-2.5')}>
             <div className="flex items-center gap-2.5">
               <DataAvatar>{(u.name || u.email)[0]?.toUpperCase()}</DataAvatar>
               <div className="min-w-0">
@@ -254,7 +255,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
           </TD>
 
           {/* Role. A select that looks like a select. */}
-          <TD className="text-left">
+          <TD data-label="Role" className="text-left">
             {isOwner ? (
               <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-foreground">
                 <Shield className="h-3.5 w-3.5 text-muted-foreground" /> Owner
@@ -265,13 +266,15 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
           </TD>
 
           {/* Brand access */}
-          <TD className="text-left">
+          <TD data-label="Brand access" className="text-left">
             {FULL_TENANT.has(u.role) ? (
               <span className="text-[13px] text-muted-foreground">All brands</span>
             ) : scoped ? (
               <button
                 type="button"
                 onClick={() => setExpandedUser(expanded ? null : u.user_id)}
+                aria-expanded={expanded}
+                aria-label={`Brand access for ${u.email}`}
                 className={cn(
                   'inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors',
                   noAccess
@@ -304,7 +307,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
           </TD>
 
           {/* Finance. A switch only where there is a real choice. */}
-          <TD className="text-left">
+          <TD data-label="Finance" className="text-left">
             {isManager(u.role) ? (
               <div className="flex items-center gap-2">
                 <Switch
@@ -325,7 +328,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
           </TD>
 
           {/* Invite state. Its own column so it cannot shove the name around. */}
-          <TD className="text-left">
+          <TD data-label="Invite" className="text-left">
             {u.pending ? (
               <span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">
                 Not accepted
@@ -336,8 +339,8 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
           </TD>
 
           {/* Actions */}
-          <TD>
-            <div className="flex items-center justify-end gap-1">
+          <TD className={mobile.actions}>
+            <div className="flex flex-wrap items-center justify-end gap-1">
               <button type="button" disabled={isPending} onClick={() => setEditingMember(u)}
                 aria-label={`Edit profile for ${u.email}`}
                 className="whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50">
@@ -435,7 +438,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
   };
 
   const sectionHead = (label: string, count: number) => (
-    <TR>
+    <TR className={mobile.section}>
       <TD colSpan={6} className="border-b border-border bg-secondary px-4 py-2 text-left">
         <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
           {label}
@@ -449,7 +452,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
     <div className={layout.page}>
       {(success || error) && (
         <div className={cn(
-          'fixed bottom-6 right-6 z-50 rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-lg',
+          'fixed bottom-[max(24px,env(safe-area-inset-bottom))] right-4 z-50 max-w-[calc(100vw-32px)] rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-lg',
           success ? 'bg-emerald-600' : 'bg-red-500',
         )}>
           {success || error}
@@ -506,11 +509,9 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
           </div>
         </div>
 
-        {/* ⚠️ The table scrolls inside its own container. Six columns of
-            controls do not compress below roughly 900px, and letting the page
-            body scroll sideways instead would move the whole layout. */}
-        <div className="overflow-x-auto">
-          <Table className="min-w-[900px]">
+        {/* One set of permission controls reflows into labeled phone records. */}
+        <div className={mobile.directory}>
+          <Table role="table" aria-label="Member directory">
             <THead>
               <TR>
                 <TH className="w-[30%]">Member</TH>
@@ -624,7 +625,7 @@ function BrandPicker({
 
   return (
     <div>
-      <div className="mb-2 flex items-center gap-3">
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
           Brand access
         </span>
@@ -655,7 +656,7 @@ function BrandPicker({
       </div>
       <div className={cn(
         'grid gap-x-4 gap-y-1',
-        columns === 'narrow' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4',
+        columns === 'narrow' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-3 xl:grid-cols-4',
       )}>
         {visible.map((b) => {
           const on = selected.includes(b.id);
@@ -663,7 +664,7 @@ function BrandPicker({
             <label
               key={b.id}
               className={cn(
-                'flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-card',
+                'flex min-h-11 min-w-0 cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-card focus-within:ring-2 focus-within:ring-primary',
                 disabled && 'cursor-not-allowed opacity-60',
               )}
             >
@@ -683,7 +684,7 @@ function BrandPicker({
                 className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
                 style={{ backgroundColor: b.color || 'var(--muted-foreground)' }}
               />
-              <span className="truncate text-[13px] text-foreground">{b.display_name || b.name}</span>
+              <span className="min-w-0 break-words text-[13px] text-foreground">{b.display_name || b.name}</span>
               {b.is_archived && (
                 <span className="shrink-0 text-[11px] text-muted-foreground">archived</span>
               )}
@@ -735,7 +736,7 @@ function InviteModal(props: {
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
       {/* Capped and scrollable: the brand picker grows with the brand list, and
           a modal that outgrows the viewport strands its own Send button. */}
-      <div ref={panelRef} className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
+      <div ref={panelRef} className="relative flex max-h-[calc(100dvh-32px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-primary/10 text-primary">
@@ -745,7 +746,7 @@ function InviteModal(props: {
               {client ? 'Invite a client' : 'Invite a team member'}
             </h2>
           </div>
-          <button onClick={onClose} aria-label="Close" className="rounded-md p-1.5 transition-colors hover:bg-secondary">
+          <button onClick={onClose} aria-label="Close" className="grid size-11 place-items-center rounded-md transition-colors hover:bg-secondary">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>

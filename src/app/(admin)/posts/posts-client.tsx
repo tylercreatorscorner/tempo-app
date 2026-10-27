@@ -496,12 +496,23 @@ export function PostsClient({
 
       <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5 lg:flex-row lg:items-center lg:justify-between">
         <p className="text-xs text-muted-foreground">{metricsView === 'sales' ? 'Sales earned in the selected window' : 'Audience activity in the selected window'}</p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="mr-auto text-xs tabular-nums text-muted-foreground lg:mr-1">{formatNumber(visiblePosts.length)} results</span>
           <SegmentedControl ariaLabel="Table metrics" size="sm" value={metricsView} onValueChange={v => setMetricsView(v as MetricsView)}
             options={[{ value: 'sales', label: 'Sales' }, { value: 'engagement', label: 'Engagement' }]} />
           <Button variant="outline" size="sm" onClick={downloadCsv} disabled={!visiblePosts.length}><Download className="h-3.5 w-3.5" /> CSV</Button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 py-3 md:hidden">
+        <label className="min-w-0 flex-1 text-xs font-medium text-muted-foreground">Sort videos
+          <select value={sortKey} onChange={event => { const key = event.target.value as SortKey; setSortKey(key); setSortDir(key === 'post_age' ? 'asc' : 'desc'); }} className="mt-1 block min-h-11 w-full rounded-lg border border-border bg-card px-2 text-base text-foreground">
+            <option value="gmv">Video GMV</option><option value="orders">Orders</option><option value="items_sold">Units sold</option><option value="views">Views</option><option value="likes">Likes</option><option value="comments">Comments</option><option value="shares">Shares</option><option value="engagement_rate">Engagement</option><option value="post_date">Posting date</option><option value="post_age">Video age</option>
+          </select>
+        </label>
+        <Button size="sm" variant="outline" className="min-h-11" onClick={() => setSortDir(value => value === 'asc' ? 'desc' : 'asc')} aria-label={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}>
+          {sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}{sortDir === 'asc' ? 'Ascending' : 'Descending'}
+        </Button>
       </div>
 
         <div className="space-y-0 md:hidden">
@@ -555,7 +566,7 @@ export function PostsClient({
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
           <span>
             {hasMore
               ? `Showing ${renderedPosts.length.toLocaleString()} of ${visiblePosts.length.toLocaleString()}. Scroll to load more.`
@@ -639,14 +650,14 @@ function RowCover({
       onClick={(e) => { e.stopPropagation(); onWatch(); }}
       title="Watch here"
       aria-label="Watch video"
-      className="group/cover relative h-11 w-[34px] shrink-0 overflow-hidden rounded-md"
+      className="group/cover relative h-14 w-11 shrink-0 overflow-hidden rounded-md sm:h-11 sm:w-[34px]"
       style={!thumbnail ? { background: 'var(--secondary)', border: `1px solid color-mix(in srgb, ${brandColor} 25%, var(--border))` } : undefined}
     >
       {thumbnail && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
       )}
-      <span className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity group-hover/cover:opacity-100">
+      <span className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-100 transition-opacity sm:opacity-0 group-hover/cover:opacity-100 group-focus-visible/cover:opacity-100">
         <Play className="h-3.5 w-3.5 text-white drop-shadow" />
       </span>
     </button>
@@ -663,7 +674,7 @@ function PostMobileCard({ post: p, windowEnd, metricsView, reviewHref, onWatch }
   const brandMeta = useBrandMeta();
   const age = postAgeDays(p.post_date, windowEnd);
   return <article className="border-b border-border px-4 py-3 last:border-b-0">
-    <div className="flex items-start gap-3">
+    <div className="grid grid-cols-[44px_minmax(0,1fr)] items-start gap-3">
       <RowCover videoUrl={p.video_url} creatorHandle={p.creator_handle} videoId={p.video_id}
         brandColor={brandMeta.color(p.brand_slug)} onWatch={onWatch} />
       <div className="min-w-0 flex-1">
@@ -671,18 +682,21 @@ function PostMobileCard({ post: p, windowEnd, metricsView, reviewHref, onWatch }
         <p className="mt-1 truncate text-xs text-muted-foreground">@{p.creator_handle} · {p.brand_name}</p>
         <p className="mt-1 text-[11px] text-muted-foreground">{p.post_date ? new Date(`${p.post_date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : 'No publish date'}{age === null ? '' : ` · ${age} days old`}</p>
       </div>
-      <div className="shrink-0 text-right"><p className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(p.gmv)}</p><p className="text-[10px] text-muted-foreground">Video GMV</p></div>
+      <div className="col-start-2 flex flex-wrap items-baseline gap-2"><p className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(p.gmv)}</p><p className="text-[10px] text-muted-foreground">Video GMV</p></div>
     </div>
-    <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/70 pt-2.5 text-xs">
-      {metricsView === 'sales' ? <div className="flex gap-4 text-muted-foreground">
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-2.5 text-xs">
+      {metricsView === 'sales' ? <div className="flex flex-wrap gap-4 text-muted-foreground">
         <span><strong className="tabular-nums text-foreground">{formatNumber(p.orders)}</strong> orders</span>
         <span><strong className="tabular-nums text-foreground">{formatNumber(p.items_sold)}</strong> units</span>
-      </div> : <div className="flex gap-4 text-muted-foreground">
+      </div> : <div className="flex flex-wrap gap-4 text-muted-foreground">
         <span><strong className="tabular-nums text-foreground">{fmtN(p.views)}</strong> views</span>
         <span><strong className="tabular-nums text-foreground">{p.engagement_rate === null ? '—' : `${p.engagement_rate.toFixed(2)}%`}</strong> engagement</span>
       </div>}
       <ReviewCell post={p} />
     </div>
+    {metricsView === 'engagement' && <dl className="mt-3 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+      <div><dt>Likes</dt><dd className="mt-1 tabular-nums text-foreground">{fmtN(p.likes)}</dd></div><div><dt>Comments</dt><dd className="mt-1 tabular-nums text-foreground">{fmtN(p.comments)}</dd></div><div><dt>Shares</dt><dd className="mt-1 tabular-nums text-foreground">{fmtN(p.shares)}</dd></div>
+    </dl>}
   </article>;
 }
 

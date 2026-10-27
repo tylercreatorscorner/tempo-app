@@ -15,7 +15,7 @@ import { AreaLineChart } from '@/components/charts/area-line-chart';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { formatCurrency } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
-import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
+import { useVisibleThumbnail } from '@/components/creator/use-visible-thumbnail';
 import { cn } from '@/lib/utils';
 import type {
   CreatorDailyPoint,
@@ -126,14 +126,14 @@ export function PerformanceClient({
             </span>
           </CardHeader>
           <div className="overflow-x-auto">
-            <Table>
+            <Table role="table" className={portal.recordTable} aria-label="Videos in this period">
               <THead>
                 <TR>
-                  <TH>Video</TH>
-                  <TH className="hidden sm:table-cell text-left">Top product</TH>
-                  <TH>GMV</TH>
-                  <TH className="hidden md:table-cell">Orders</TH>
-                  <TH className="hidden md:table-cell">Days</TH>
+                  <TH scope="col">Video</TH>
+                  <TH scope="col" className="hidden sm:table-cell text-left">Top product</TH>
+                  <TH scope="col">GMV</TH>
+                  <TH scope="col" className="hidden md:table-cell">Orders</TH>
+                  <TH scope="col" className="hidden md:table-cell">Days</TH>
                 </TR>
               </THead>
               <TBody>
@@ -195,16 +195,16 @@ function LedgerStrip({ summary }: { summary: CreatorSummary | null }) {
 
 function VideoTableRow({ video: v, cooling }: { video: CreatorVideoRow; cooling: boolean }) {
   const brandMeta = useBrandMeta();
-  const { thumbnail, loading } = useTikTokThumbnail(v.videoUrl, {
+  const { coverRef, thumbnail, loading } = useVisibleThumbnail<HTMLSpanElement>(v.videoUrl, {
     creatorName: v.tiktokUsername,
     videoId: v.videoId,
   });
 
   const thumb = (
-    <span className="relative block h-[46px] w-9 shrink-0 overflow-hidden rounded-md border border-border bg-secondary">
+    <span ref={coverRef} className="relative block h-[46px] w-9 shrink-0 overflow-hidden rounded-md border border-border bg-secondary">
       {thumbnail ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <img src={thumbnail} alt="" decoding="async" loading="lazy" className="h-full w-full object-cover" />
       ) : (
         <span
           className={cn(
@@ -220,7 +220,7 @@ function VideoTableRow({ video: v, cooling }: { video: CreatorVideoRow; cooling:
 
   return (
     <TR className="hover:bg-secondary/50">
-      <TD className="max-w-[300px] align-top">
+      <TD data-label="Video" className="max-w-[300px] align-top">
         <div className="flex items-center gap-2.5">
           {v.videoUrl ? (
             <a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
@@ -259,12 +259,12 @@ function VideoTableRow({ video: v, cooling }: { video: CreatorVideoRow; cooling:
           </div>
         </div>
       </TD>
-      <TD className="hidden max-w-[200px] text-left sm:table-cell">
+      <TD data-label="Top product" className="hidden max-w-[200px] text-left sm:table-cell">
         <span className="block truncate">{v.topProduct ?? '—'}</span>
       </TD>
-      <TD className="font-bold tabular-nums text-[var(--pulse-pos)]">{formatCurrency(v.gmv)}</TD>
-      <TD className="hidden tabular-nums text-foreground md:table-cell">{v.orders.toLocaleString()}</TD>
-      <TD className="hidden md:table-cell">{v.daysActive}d</TD>
+      <TD data-label="GMV" className="font-bold tabular-nums text-[var(--pulse-pos)]">{formatCurrency(v.gmv)}</TD>
+      <TD data-label="Orders" className="hidden tabular-nums text-foreground md:table-cell">{v.orders.toLocaleString()}</TD>
+      <TD data-label="Days active" className="hidden md:table-cell">{v.daysActive}d</TD>
     </TR>
   );
 }

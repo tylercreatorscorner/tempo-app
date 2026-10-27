@@ -11,7 +11,7 @@ export const buttonVariants = cva(
     'transition-[filter,background-color,border-color,color,box-shadow] duration-150 ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background ' +
     'disabled:opacity-45 disabled:cursor-not-allowed disabled:pointer-events-none ' +
-    '[@media(pointer:coarse)]:min-h-11 [&_svg]:shrink-0 [&_svg]:pointer-events-none',
+    'max-md:min-h-11 [@media(pointer:coarse)]:min-h-11 [&_svg]:shrink-0 [&_svg]:pointer-events-none',
   {
     variants: {
       variant: {
@@ -25,7 +25,7 @@ export const buttonVariants = cva(
         sm: 'min-h-8 text-xs px-3 py-1.5 [&_svg]:size-3.5',
         md: 'min-h-[var(--workspace-control-height,38px)] text-[13px] px-3.5 py-2 [&_svg]:size-4',
         lg: 'min-h-10 text-sm px-4 py-2.5 [&_svg]:size-4',
-        icon: 'size-[var(--workspace-control-height,38px)] p-2 [&_svg]:size-[18px]',
+        icon: 'size-[var(--workspace-control-height,38px)] max-md:min-w-11 [@media(pointer:coarse)]:min-w-11 p-2 [&_svg]:size-[18px]',
       },
     },
     defaultVariants: { variant: 'primary', size: 'md' },

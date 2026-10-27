@@ -272,19 +272,19 @@ function ProductEditor({
           className="relative w-full max-w-lg bg-card rounded-2xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
-            <div className="flex items-center gap-2">
+          <div className="flex items-start justify-between gap-2 px-4 sm:px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
+            <div className="flex min-w-0 flex-1 items-start gap-2">
               <Package className="h-5 w-5 text-[var(--primary)]" />
-              <h2 className="text-base font-bold text-[var(--foreground)]">
+              <h2 className="min-w-0 break-words text-base font-bold text-[var(--foreground)]">
                 {product ? 'Edit product' : 'New product'}{brandName ? ` · ${brandName}` : ''}
               </h2>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close product editor">
               <X className="h-5 w-5" />
             </Button>
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-4">
             {error && (
               <div className="text-sm text-[var(--pulse-neg)] bg-[var(--pulse-neg-bg)] rounded-lg px-4 py-2">{error}</div>
             )}
@@ -295,6 +295,7 @@ function ProductEditor({
               </Label>
               <Input
                 value={name}
+                aria-label="Product name"
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Whitening Strips"
               />
@@ -302,17 +303,18 @@ function ProductEditor({
 
             {/* SKU picker */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                 <Label className="mb-0">
                   TikTok SKUs ({selected.size} selected)
                 </Label>
-                <div className="relative">
+                <div className="relative min-w-0 w-full sm:w-40">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Filter SKUs…"
-                    className="pl-7 pr-2 py-1 text-xs border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/30 w-40"
+                    aria-label="Filter TikTok SKUs"
+                    className="min-h-11 w-full pl-7 pr-2 py-1 text-base sm:text-sm border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/30"
                   />
                 </div>
               </div>
@@ -328,13 +330,14 @@ function ProductEditor({
                   return (
                     <button
                       key={s.product_id}
+                      aria-pressed={on}
                       onClick={() => toggle(s.product_id)}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted transition-colors"
+                      className="min-h-11 w-full flex items-start gap-3 px-3 py-2 text-left hover:bg-muted transition-colors"
                     >
                       <span className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${on ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-border'}`}>
                         {on && <Check className="h-3 w-3 text-white" />}
                       </span>
-                      <span className="min-w-0 flex-1 text-xs text-[var(--foreground)] truncate">{s.product_name || s.product_id}</span>
+                      <span className="min-w-0 flex-1 break-words text-xs text-[var(--foreground)]">{s.product_name || s.product_id}</span>
                       <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">{fmt(s.gmv)}</span>
                     </button>
                   );
@@ -348,13 +351,14 @@ function ProductEditor({
               </Label>
               <Input
                 value={keywords}
+                aria-label="Product name keywords"
                 onChange={(e) => setKeywords(e.target.value)}
                 placeholder="e.g. whitening strips, purple strips"
               />
               <p className="text-xs text-muted-foreground mt-1">Comma-separated. A fallback for matching products by name.</p>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button
                 variant="primary"
                 onClick={save}

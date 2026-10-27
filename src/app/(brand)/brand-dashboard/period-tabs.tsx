@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import portal from '@/components/layout/portal-workspace.module.css';
 import { cn } from '@/lib/utils';
 import { PERIOD_LABELS, type BrandPortalPeriod } from '@/lib/data/brand-portal-periods';
 
@@ -19,11 +20,14 @@ export function PeriodTabs({ current, accentColor }: Props) {
   function setPeriod(period: BrandPortalPeriod) {
     const params = new URLSearchParams(searchParams.toString());
     params.set('period', period);
+    params.delete('page');
     router.push(`${pathname}?${params.toString()}`);
   }
 
   return (
-    <div className="inline-flex bg-card border border-border rounded-lg p-0.5 shadow-sm flex-wrap">
+    <>
+      <label className={portal.phonePeriod}><span className="sr-only">Reporting period</span><select value={current} onChange={(event) => setPeriod(event.target.value as BrandPortalPeriod)} className={portal.phoneSelect}>{PERIOD_ORDER.map((period) => <option key={period} value={period}>{PERIOD_LABELS[period]}</option>)}</select></label>
+    <div className={`${portal.desktopPeriod} bg-card border border-border rounded-lg p-0.5 shadow-sm flex-wrap`}>
       {PERIOD_ORDER.map((p) => {
         const active = current === p;
         return (
@@ -46,5 +50,6 @@ export function PeriodTabs({ current, accentColor }: Props) {
         );
       })}
     </div>
+    </>
   );
 }

@@ -1,0 +1,28 @@
+.region { min-width: 0; container-type: inline-size; }
+.sortControls { display: none; }
+.phoneColumns { display: none; }
+.creatorRow { display: grid; grid-template-columns: 24px minmax(0, 1fr) repeat(3, 88px) 44px; align-items: center; gap: 12px; }
+.creatorRow > span { min-width: 0; }
+.creatorMetric { text-align: right; font-variant-numeric: tabular-nums; }
+.creatorMetric small { display: none; }
+
+@container (max-width: 680px) {
+  .sortControls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .sortControls label { display: grid; flex: 1; gap: 4px; color: var(--muted-foreground); font-size: 11px; }
+  .sortControls select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--border); border-radius: var(--workspace-control-radius, 8px); background: var(--card); color: var(--foreground); font-size: 16px; }
+  .table, .table tbody { display: block; width: 100%; }
+  .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .table .desktopColumns { display: none; }
+  .table .phoneColumns { display: table-row; }
+  .table tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; padding: 16px; }
+  .table td { display: block; min-width: 0; padding: 0; text-align: left; }
+  .table td:first-child, .table td:nth-child(2), .table td[colspan] { grid-column: 1 / -1; }
+  .table td:first-child button { min-height: 44px; }
+  .table td:first-child button > span > span:first-child { white-space: normal; overflow-wrap: anywhere; }
+  .table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--muted-foreground); font-size: 10px; font-weight: 500; }
+  .creatorRow { grid-template-columns: 20px repeat(2, minmax(0, 1fr)); gap: 6px 10px; padding-block: 10px; border-top: 1px solid var(--border); }
+  .creatorRow > span:nth-child(2) { grid-column: 2 / -1; white-space: normal; overflow-wrap: anywhere; }
+  .creatorRow > span:nth-child(3), .creatorRow > span:nth-child(5) { grid-column: 2; }
+  .creatorMetric { text-align: left; }
+  .creatorMetric small { display: block; color: var(--muted-foreground); font-size: 10px; font-weight: 400; }
+}

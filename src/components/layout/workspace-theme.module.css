@@ -179,8 +179,14 @@
   .tenantLabel, .tenantLabel + .breadcrumbSeparator { display: none; }
 }
 @media (max-width: 767px) {
-  :global(body):has(.workspace) { --workspace-page-padding: 14px; --workspace-page-gap: 16px; }
-  .content { padding-bottom: 28px; }
+  :global(body):has(.workspace) { --workspace-page-padding: 14px; --workspace-page-gap: 16px; --workspace-control-height: 44px; }
+  :global(body):has(.workspace) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), textarea, select) { font-size: 16px; }
+  :global(body):has(.workspace) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=file]), select) { min-height: 44px; }
+  .content { padding-bottom: max(28px, env(safe-area-inset-bottom)); }
+  .sidebar { padding-top: env(safe-area-inset-top); }
+  .sidebarFooter { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .navItem, .workspaceMode, .collapseButton, .menuButton { min-height: 44px; }
+  .menuButton { width: 44px; }
   .header { gap: 8px; padding-inline: 12px; }
   .headerLead { gap: 8px; }
   .headerActions { gap: 6px; }

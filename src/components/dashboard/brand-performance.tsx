@@ -8,6 +8,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 // Via the client wrapper, not Sparkline directly: this is a server component and
 // Sparkline's `format` prop is a function, which can't cross the boundary.
 import { BrandSparkline } from '@/components/dashboard/brand-sparkline';
+import mobile from './performance-mobile.module.css';
 
 export interface BrandRowData {
   slug: string;
@@ -118,10 +119,10 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
         </span>
       </CardHeader>
 
-      <div className="overflow-x-auto" role="region" aria-label="Brand performance metrics" tabIndex={0}>
-      <div className="min-w-[760px]">
+      <div className={`${mobile.brandRegion} overflow-x-auto`} role="region" aria-label="Brand performance metrics" tabIndex={0}>
+      <div className={`${mobile.brandTable} min-w-[760px]`}>
       {/* Column headers — each metric header hover-explains itself */}
-      <div className={`${COLS} border-b border-border px-5 py-2`}>
+      <div className={`${COLS} ${mobile.brandHead} border-b border-border px-5 py-2`}>
         <span className={TH}>Brand</span>
         <HeadCell label="GMV"      tip="Total affiliate GMV for this brand in the selected period." />
         <span className={`${TH} text-right`}>{sparkLabel}</span>
@@ -141,7 +142,7 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
             <Link
               key={b.slug}
               href={hrefFor(b.slug)}
-              className={`${COLS} group px-5 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset`}
+              className={`${COLS} ${mobile.brandRow} group px-5 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset`}
             >
               {/* Brand logo and name */}
               <span className="flex min-w-0 items-center gap-2.5">
@@ -152,6 +153,7 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
 
               {/* Total GMV + its delta */}
               <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+                <span className={mobile.metricLabel}>Total GMV</span>
                 {formatCurrency(b.currentGmv)}<span className="mt-1 block text-[11px]"><Delta value={b.trend} /></span>
               </span>
 
@@ -163,17 +165,20 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
 
               {/* Managed GMV + its delta */}
               <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+                <span className={mobile.metricLabel}>Managed GMV</span>
                 {formatCurrency(b.managedGmv)}<span className="mt-1 block text-[11px]"><Delta value={b.managedTrend} /></span>
               </span>
 
               {/* Managed share of the brand's total GMV */}
               <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
+                <span className={mobile.metricLabel}>Managed share</span>
                 {b.currentGmv > 0 ? `${managedPct.toFixed(0)}%` : '—'}
               </span>
 
               {/* Monthly retainer spend — ROI's denominator, shown.
                   Null (finance-hidden viewer) renders "—" like a $0 does. */}
               <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
+                <span className={mobile.metricLabel}>Monthly creator retainer</span>
                 {b.retainer != null && b.retainer > 0 ? formatCurrency(b.retainer) : '—'}<span className="mt-1 block text-[11px] font-normal">{b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}× GMV / fee` : ''}</span>
               </span>
 

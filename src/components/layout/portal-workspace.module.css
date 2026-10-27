@@ -145,6 +145,20 @@
   transform: none;
 }
 .managerCards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.sidebar { height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+.portalHeader { height: calc(56px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
+.drawerOverlay { position: fixed; inset: 0; z-index: 60; background: rgb(8 13 23 / 55%); }
+.drawer { position: fixed; left: 0; top: 0; z-index: 61; width: min(300px, calc(100vw - 36px)); height: 100dvh; overflow-y: auto; border-right: 1px solid var(--border); background: var(--card); color: var(--foreground); outline: none; overscroll-behavior: contain; }
+.drawerSidebar { width: 100%; padding-top: env(safe-area-inset-top); }
+.drawerClose { position: absolute; top: calc(16px + env(safe-area-inset-top)); right: 12px; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 8px; background: var(--card); color: var(--muted-foreground); }
+.drawer :is(a, button):focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.drawer nav a, .drawer button, .sidebar nav a { min-height: 44px; }
+.drawer :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) { min-height: 44px; font-size: 16px; }
+.phoneOnly, .mobileSort, .phonePeriod { display: none; }
+.phoneSelect { display: block; width: 100%; min-height: 44px; margin-top: 4px; border: 1px solid var(--input); border-radius: 8px; padding: 8px 10px; background: var(--card); color: var(--foreground); font-size: 16px; }
+.sortDirection { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--foreground); font-size: 12px; }
+.desktopPeriod { display: inline-flex; }
+.phoneHeaders { display: none; }
 
 @media (min-width: 1650px) { .videoGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 1250px) {
@@ -154,8 +168,9 @@
 @media (max-width: 1000px) {
   .homeGrid, .split { grid-template-columns: minmax(0, 1fr); }
 }
+@media (max-width: 767px) { .theme input:not([type="checkbox"]):not([type="radio"]), .theme select, .theme textarea { font-size: 16px; min-height: 44px; } }
 @media (max-width: 700px) {
-  .content { padding: 14px 14px 24px; }
+  .content { padding: 14px max(14px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
   .hero { grid-template-columns: minmax(0, 1fr); padding: 16px; }
   .heroTrend { border-top: 1px solid var(--border); border-left: 0; padding-top: 12px; padding-left: 0; }
   .settingsGrid, .equalColumns, .managerCards { grid-template-columns: minmax(0, 1fr); }
@@ -166,6 +181,60 @@
   .videoGrid { grid-template-columns: minmax(0, 1fr); }
   .entry { padding: 20px 14px; }
   .entryCard > :global(.bg-card) { padding: 20px; }
+}
+@media (max-width: 639px) {
+  .phoneOnly { display: inline; }
+  .mobileSort { display: flex; align-items: end; gap: 8px; width: 100%; padding: 0 12px 12px; }
+  .phonePeriod { display: block; min-width: 0; width: 100%; }
+  .phonePeriod .phoneSelect { margin: 0; }
+  .desktopPeriod { display: none; }
+  .entry { align-items: start; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  .entry input:not([type="checkbox"]):not([type="radio"]), .entry select { min-height: 44px; font-size: 16px; }
+  .theme main[id] { scroll-margin-top: calc(56px + env(safe-area-inset-top)); }
+  .theme :is(button, summary), .theme :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) { min-height: 44px; }
+  .theme .rowAction a { min-height: 44px; }
+  .recordTable { display: block; min-width: 0 !important; width: 100%; }
+  .recordTable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .recordTable .desktopHeaders { display: none; }
+  .recordTable .phoneHeaders { display: table-row; }
+  .portalHeader { padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); }
+  .recordTable tbody { display: grid; gap: 12px; padding: 12px; }
+  .recordTable tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 12px; background: var(--card); overflow: hidden; }
+  .recordTable tbody td { display: block; min-width: 0; max-width: none; padding: 10px 12px; border: 0; text-align: left; overflow-wrap: anywhere; }
+  .recordTable tbody td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--muted-foreground); font-size: 11px; line-height: 16px; font-weight: 500; }
+  .recordTable tbody td:first-child { grid-column: 1 / -1; border-bottom: 1px solid var(--border); padding: 12px; }
+  .recordTable tbody td:first-child::before { display: none; }
+  .recordTable tbody td:first-child :is(a, span, p) { max-width: 100%; white-space: normal; }
+  .recordTable tbody td:first-child a { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; }
+  .recordTable tbody td:first-child :global(.truncate) { overflow: visible; text-overflow: clip; white-space: normal; }
+  .recordTable tbody td:first-child :global(.flex) { flex-wrap: wrap; }
+  .recordTable tbody td :global(.justify-end) { justify-content: flex-start; }
+  .rankRecords tbody tr { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .rankRecords tbody td:first-child { grid-column: 1; grid-row: 1; padding: 12px 4px; text-align: center; }
+  .rankRecords tbody td:first-child svg { display: none; }
+  .rankRecords tbody td:nth-child(2) { grid-column: 2 / -1; grid-row: 1; border-bottom: 1px solid var(--border); }
+  .rankRecords tbody td:nth-child(2)::before { display: none; }
+  .rankRecords tbody td:nth-child(n+3) { grid-column: span 3; }
+  .rankRecords tbody td:last-child { grid-column: 1 / -1; }
+  .recordTable .rowAction { grid-column: 1 / -1; padding-top: 0; }
+  .recordTable .rowAction a { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; border: 1px solid var(--border); border-radius: 8px; color: var(--primary); font-weight: 600; }
+  .recordTable .emptyRecord, .recordTable .gapRecord { grid-column: 1 / -1; }
+  .recordTable tbody tr:has(.gapRecord) { border: 0; }
+  .recordTable .gapRecord { padding: 0; text-align: center; }
+  .pagination { flex-wrap: wrap; gap: 8px; }
+  .pagination a { min-height: 44px; padding-inline: 12px; }
+  .phoneVideoRow { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 6px 12px; }
+  .phoneVideoRow > div:last-child { grid-column: 2; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; text-align: left; }
+  .phoneVideoRow > div:nth-child(2) > div:first-child { flex-wrap: wrap; }
+  .phoneVideoRow > div:nth-child(2) > div:first-child > span:first-child { min-width: 100%; white-space: normal; }
+  .phoneVideoRow > div:nth-child(2) > div:first-child > span:first-child :global(.truncate) { white-space: normal; }
+  .phoneVideoRow > div:nth-child(2) > div:first-child a { display: flex; align-items: center; min-height: 44px; }
+  .phoneVideoRow > div:nth-child(2) > div:last-child { flex-wrap: wrap; }
+  .phoneRankVideoRow { display: grid; grid-template-columns: 16px 44px minmax(0, 1fr); gap: 4px 10px; }
+  .phoneRankVideoRow > span:last-child { grid-column: 3; }
+  .phoneRankVideoRow > span:nth-child(3) > span:first-child { flex-wrap: wrap; }
+  .phoneRankVideoRow > span:nth-child(3) > span:first-child > span:first-child { white-space: normal; }
+  .phoneRankVideoRow > span:nth-child(3) > span:last-child { flex-wrap: wrap; }
 }
 @media (max-width: 420px) { .podium { grid-template-columns: minmax(0, 1fr); } .podium > * { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 3px 12px; text-align: left; } .podium > * > * { margin: 0; } .podium > * > :first-child { display: none; } .podium > * > :nth-child(2) { grid-row: span 5; width: 32px; height: 32px; } }
 @media (pointer: coarse) { .theme button, .theme input:not([type="checkbox"]):not([type="radio"]), .theme select, .theme [role="switch"] { min-height: 44px; } }

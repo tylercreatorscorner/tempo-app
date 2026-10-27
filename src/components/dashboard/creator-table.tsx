@@ -6,6 +6,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
 import { type CreatorStatus, ALL_STATUSES, STATUS_CONFIG } from '@/lib/data/creator-status';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import mobile from './performance-mobile.module.css';
 
 interface Creator {
   display_name: string;
@@ -99,6 +100,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
                 <button
                   key={s}
                   onClick={() => setFilter(s)}
+                  aria-pressed={active}
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 border',
                     active
@@ -121,8 +123,8 @@ export function CreatorTable({ creators, csvButton }: Props) {
           </div>
         )}
       </div>
-      <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-        <table className="w-full text-sm">
+      <div className={`${mobile.tableRegion} overflow-x-auto max-h-[600px] overflow-y-auto`}>
+        <table role="table" aria-label="Creator performance" className={`${mobile.table} w-full text-sm`}>
           <thead className="sticky top-0 z-10 bg-muted">
             <tr className="border-b border-border text-muted-foreground">
               <th className="px-4 py-3 text-left font-medium text-[11px] w-12">#</th>
@@ -143,7 +145,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
                 'hover:bg-muted',
               )}>
                 <td className="px-4 py-2.5"><RankBadge rank={i + 1} /></td>
-                <td className="px-4 py-2.5 font-medium text-[var(--foreground)]">
+                <td data-label="Creator" className="px-4 py-2.5 font-medium text-[var(--foreground)]">
                   <div className="flex items-center gap-2">
                     <StatusDot status={c.status} />
                     <div>
@@ -155,25 +157,26 @@ export function CreatorTable({ creators, csvButton }: Props) {
                           {c.handles.map((h) => `@${h}`).join(', ')}
                         </p>
                       )}
+                      {c.status && <span className={mobile.statusLabel}>{STATUS_CONFIG[c.status].label}</span>}
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-2.5">
+                <td data-label="Brand" className="px-4 py-2.5">
                   {c.brand ? <BrandPill brand={c.brand} /> : <span className="text-muted-foreground">-</span>}
                 </td>
-                <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(c.total_gmv)}</td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_orders)}</td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_items_sold)}</td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_videos)}</td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                  {c.retainer && c.retainer > 0 ? `$${c.retainer.toLocaleString()}` : ''}
+                <td data-label="GMV" className="px-4 py-2.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(c.total_gmv)}</td>
+                <td data-label="Orders" className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_orders)}</td>
+                <td data-label="Items" className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_items_sold)}</td>
+                <td data-label="Videos" className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_videos)}</td>
+                <td data-label="Monthly retainer" className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                  {c.retainer && c.retainer > 0 ? `$${c.retainer.toLocaleString()}` : '—'}
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums pr-6">
+                <td data-label="GMV / fee" className="px-4 py-2.5 text-right tabular-nums pr-6">
                   {c.retainer && c.retainer > 0 ? (
                     <span className={c.total_gmv / c.retainer >= 1 ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
                       {(c.total_gmv / c.retainer).toFixed(1)}x
                     </span>
-                  ) : ''}
+                  ) : '—'}
                 </td>
               </tr>
             ))}

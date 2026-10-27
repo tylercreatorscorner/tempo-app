@@ -99,6 +99,11 @@ export function OnboardingForm({
               <Input
                 id="contact-email"
                 type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="next"
                 placeholder="you@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -111,6 +116,9 @@ export function OnboardingForm({
               <Input
                 id="contact-phone"
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                enterKeyHint="done"
                 placeholder="(555) 123-4567"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}

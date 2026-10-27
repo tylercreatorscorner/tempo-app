@@ -19,6 +19,7 @@ import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { SearchInput } from '@/components/ui/search-input';
 import { Table, TBody, THead, TD, TH, TR } from '@/components/ui/table';
+import mobile from '@/components/finance/finance-mobile.module.css';
 
 export interface RetainerBookRow {
   creator_name: string;
@@ -110,8 +111,8 @@ export function RetainerBook({
             <p className="mt-1 text-xs text-muted-foreground">Try changing the brand filter or clearing search.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
+          <div className={mobile.ledger}>
+            <Table role="table">
               <THead>
                 <TR>
                   <TH>Creator</TH>
@@ -124,8 +125,8 @@ export function RetainerBook({
               <TBody>
                 {pageRows.map((c, i) => (
                   <TR key={`${c.brand}|${c.creator_name}|${i}`} className="hover:bg-muted/40">
-                    <TD className="font-semibold text-foreground">{c.creator_name}</TD>
-                    <TD className="text-left">
+                    <TD data-mobile-title className="font-semibold text-foreground">{c.creator_name}</TD>
+                    <TD data-label="Brand" className="text-left">
                       <span className="flex items-center gap-1.5">
                         <span
                           className="h-2 w-2 shrink-0 rounded-full"
@@ -135,7 +136,7 @@ export function RetainerBook({
                         <span className="text-foreground">{brandMeta.label(c.brand)}</span>
                       </span>
                     </TD>
-                    <TD className="text-left">
+                    <TD data-label="TikTok accounts" data-mobile-full className="text-left">
                       {c.accounts.length === 0 ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
@@ -156,8 +157,8 @@ export function RetainerBook({
                         </span>
                       )}
                     </TD>
-                    <TD className="font-bold text-foreground">{formatCurrency(c.retainer)}</TD>
-                    <TD className="text-left text-xs">
+                    <TD data-label="Retainer /mo" className="font-bold text-foreground">{formatCurrency(c.retainer)}</TD>
+                    <TD data-label="Started" className="text-left text-xs">
                       {c.retainer_start_date ? formatDate(c.retainer_start_date) : <span className="text-muted-foreground">—</span>}
                     </TD>
                   </TR>
