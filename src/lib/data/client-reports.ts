@@ -1,4 +1,5 @@
 import type { ReportReconciliation } from './report-reconciliation';
+import { filterExcludedReportCreators } from './reporting-exclusions';
 import type { ClientReportContext } from '@/lib/auth/client-report-access';
 /**
  * Client report share links — snapshot creation + helpers.
@@ -342,7 +343,7 @@ export async function buildClientReportSnapshot(
   };
 
   return {
-    snapshot,
+    snapshot: report.reportingExclusions ? filterExcludedReportCreators(snapshot, report.reportingExclusions) : snapshot,
     brandName,
     periodStart: fmtDate(report.startDate),
     periodEnd: fmtDate(report.endDate),

@@ -13,6 +13,7 @@ const tables={brands_v2:[brand('own','a'),brand('foreign','b')], client_reports:
 function from(table){let filters=[],limit=null,offset=0,patch=null,insert=null;const q={select:()=>q,order:()=>q,
  eq:(k,v)=>{filters.push(r=>r[k]===v);return q;},in:(k,v)=>{filters.push(r=>v.includes(r[k]));return q;},limit:n=>{limit=n;return q;},
  range:(start,end)=>{offset=start;limit=end-start+1;return q;},
+ contains:(k,v)=>{filters.push(r=>v.every(item=>(r[k]??[]).includes(item)));return q;},
  or:expression=>{const terms=expression.split(',').map(term=>{const [column,,...pattern]=term.split('.');return [column,pattern.join('.').replace(/^%|%$/g,'').toLowerCase()];});filters.push(row=>terms.some(([column,value])=>String(row[column]??'').toLowerCase().includes(value)));return q;},
  update:v=>{patch=v;return q;},insert:v=>{insert=v;return q;},like:()=>q,
  maybeSingle:()=>run(true),single:()=>run(true),then:(r,j)=>Promise.resolve(run(false)).then(r,j)};
@@ -27,6 +28,7 @@ deps['@/lib/auth/permissions']=load('src/lib/auth/permissions.ts');
 deps['@/lib/data/brand-registry-core']=load('src/lib/data/brand-registry-core.ts');deps['@/lib/data/brand-registry']=deps['@/lib/data/brand-registry-core'];
 deps['@/lib/auth/client-report-access']=load('src/lib/auth/client-report-access.ts');
 deps['@/lib/agreements/renewals']={ensureAgreementPeriods:async()=>{}};
+deps['./reporting-exclusions']=load('src/lib/data/reporting-exclusions.ts');
 deps['@/lib/data/agency-period']=load('src/lib/data/agency-period.ts');
 deps['@/lib/data/brand-client-report']=load('src/lib/data/brand-client-report.ts');
 deps['@/lib/data/client-reports']=load('src/lib/data/client-reports.ts');
