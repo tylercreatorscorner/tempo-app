@@ -323,4 +323,23 @@ assert.equal((await creatorVideos(owner.id,null,null,0,'ARRAY[]::text[]')).total
 assert.equal((await creatorVideos(2147483647)).totalRows,0,'Unknown creator does not broaden selection');
 for(const role of ['anon','authenticated']) assert.equal((await db.query(`select has_function_privilege('${role}','get_creator_video_gmv_breakdown(uuid,text[],date,date,date,date,integer,integer)','execute') ok`)).rows[0].ok,false);
 console.log('PASS creator video breakdown: clicked-row reconciliation, same dates, duplicate ownership, umbrella, pagination, tenant and brand isolation');
+await db.exec('ALTER TABLE managed_creators ADD COLUMN IF NOT EXISTS tags text[];');
+await db.exec(readFileSync('supabase/migrations/20261028161319_creator_month_reporting_exclusions.sql','utf8'));
+await db.exec(`insert into managed_creators(id,tenant_id,brand,account_1,employment_status,tags,reporting_start_date) values
+ (20001,'${a}','exclusion-fixture','excludedfixture','active',ARRAY['reporting-exclude:2026-10'],null),
+ (20002,'${a}','exclusion-fixture','keptfixture','active',ARRAY[]::text[],null);
+ insert into creator_performance(tenant_id,brand,creator_name,report_date,period_type,gmv,orders,videos) values
+ ('${a}','exclusion-fixture','excludedfixture','2026-10-15','daily',123,2,1),
+ ('${a}','exclusion-fixture','keptfixture','2026-10-15','daily',77,1,1),
+ ('${a}','exclusion-fixture','excludedfixture','2026-09-15','daily',456,3,1);`);
+const exclusionAgg=async(month)=>(await db.query(`select get_brand_client_report_agg_workspace('${a}',ARRAY['exclusion-fixture'],ARRAY['exclusion-fixture'],$1::date,$2::date,'2026-08-01','2026-08-31') data`,[`${month}-01`,`${month}-30`])).rows[0].data;
+const octoberExcluded=await exclusionAgg('2026-10');
+assert.equal(octoberExcluded.totals.gmv,200,'True shop totals retain the excluded creator sales');
+assert.equal(octoberExcluded.managed.gmv,77,'October managed contribution excludes only the tagged creator');
+assert.equal(octoberExcluded.organic.gmv,123);
+assert.equal((await exclusionAgg('2026-09')).managed.gmv,456,'September remains attributed');
+const excludedGran=(await db.query(`select get_brand_client_report_granular_workspace('${a}',ARRAY['exclusion-fixture'],ARRAY['exclusion-fixture'],'2026-10-01','2026-10-31') data`)).rows[0].data;
+assert.ok(!JSON.stringify(excludedGran.creators).includes('excludedfixture'));
+assert.ok(JSON.stringify(excludedGran.creators).includes('keptfixture'));
+console.log('PASS month-specific report exclusions: creator scope, shop totals preserved, managed totals corrected and September retained');
 await db.close();

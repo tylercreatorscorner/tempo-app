@@ -29,10 +29,12 @@ import type { ClientReportContext } from '@/lib/auth/client-report-access';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
+import { getReportingExclusions, filterExcludedReportCreators } from './reporting-exclusions';
 
 export type ReportPeriod = '7d' | '30d';
 
 export interface BrandClientReportData {
+  reportingExclusions?: import('./reporting-exclusions').ReportingExclusions;
   brandName: string;
   brandSlug: string;
   startDate: Date;
@@ -964,7 +966,11 @@ export async function getBrandClientReportData(
   // ── Period label
   const periodLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${endDate.getFullYear()}`;
 
-  return {
+  const reportingExclusions = brandSlug !== 'all'
+    ? await getReportingExclusions(supabase, context.tenantId, rosterSlugs ?? [], formatDate(endDate))
+    : undefined;
+  return filterExcludedReportCreators({
+    reportingExclusions,
     brandName,
     brandSlug,
     startDate,
@@ -1044,7 +1050,7 @@ export async function getBrandClientReportData(
     topLive,
     agreementSplit,
     productCreatorBreakdown,
-  };
+  }, reportingExclusions ?? {month:'',handles:[],creatorIds:[]});
 }
 
 // ── Slack message builder ──────────────────────────────────────────
