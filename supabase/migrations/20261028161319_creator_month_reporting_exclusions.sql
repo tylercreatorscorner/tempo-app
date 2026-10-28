@@ -22,6 +22,7 @@ END $migration$;
 
 -- Keep original sent snapshots private when an explicitly requested exclusion
 -- updates their existing share links. This is not a publicly exposed archive.
+CREATE SCHEMA IF NOT EXISTS repair_archive;
 CREATE TABLE IF NOT EXISTS repair_archive.client_report_exclusion_backups (
  report_id uuid PRIMARY KEY,
  tenant_id uuid NOT NULL,
