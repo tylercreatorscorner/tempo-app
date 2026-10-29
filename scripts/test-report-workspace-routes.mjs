@@ -4,7 +4,9 @@ import { runInNewContext } from 'node:vm';
 import { NextRequest, NextResponse } from 'next/server.js';
 import ts from 'typescript';
 const own={userId:'actor',tenantId:'a',role:'admin',canViewFinance:true,brandScope:{kind:'all'},permissions:new Set(['reporting:read','reporting:write'])};
-let scope=own, rpcCalls=[], writes=0;
+let scope=own, rpcCalls=[], writes=0, agencyPortfolio={}, clientPublishedCounts={}, publishedVideoFailure=false;
+const publishedVideoCalls=[];
+let publishedVideoResult={total:0,priorTotal:0,storeTotal:0,priorStoreTotal:0,currentComplete:false,priorComplete:false,brands:[]};
 const brand=(id,tenant,extra={})=>({id,tenant_id:tenant,slug:id,name:id,parent_brand_id:null,is_archived:false,is_umbrella:false,...extra});
 const tables={brands_v2:[brand('own','a'),brand('foreign','b')], client_reports:[
  {id:'our-report',tenant_id:'a',brand_slug:'own',token:'our-token',notes:'original',plan:'keep',period_start:'2026-08-01',period_end:'2026-08-31',revoked_at:null},
@@ -20,7 +22,7 @@ function from(table){let filters=[],limit=null,offset=0,patch=null,insert=null;c
  function run(single){if(insert){writes++;const row={id:'new-report',token:'new-token',...insert};(tables[table]??=[]).push(row);return {data:row,error:null};}
  let data=(tables[table]??[]).filter(r=>filters.every(f=>f(r)));const count=data.length;if(limit)data=data.slice(offset,offset+limit);
  if(patch){writes+=data.length;data.forEach(r=>Object.assign(r,patch));}return {data:single?data[0]??null:data,error:null,count};}return q;}
-const admin={from,rpc:async(name,args)=>{rpcCalls.push({name,args});return {data:name==='get_brand_roster_weekly_workspace'?[]:name==='get_brand_client_report_granular_workspace'?null:{},error:null};},auth:{getUser:async()=>({data:{user:{email:'fixture@invalid'}}})}};
+const admin={from,rpc:async(name,args)=>{rpcCalls.push({name,args});return {data:name==='get_agency_portfolio_workspace'?agencyPortfolio:name==='get_brand_client_report_counts_workspace'?clientPublishedCounts:['get_brand_roster_weekly_workspace','get_agency_coverage_gaps_workspace','get_agency_roster_quality_workspace'].includes(name)?[]:name==='get_brand_client_report_granular_workspace'?null:{},error:null};},auth:{getUser:async()=>({data:{user:{email:'fixture@invalid'}}})}};
 const deps={'next/server':{NextRequest,NextResponse},'@/lib/supabase/server':{createAdminClient:async()=>admin,createClient:async()=>admin},
  '@/lib/auth/workspace-scope':{getWorkspaceScope:async()=>scope,isBrandInScope:(s,b)=>s.brandScope.kind==='all'||s.brandScope.brandIds.includes(b.id)||s.brandScope.brandSlugs.includes(b.slug)}};
 function load(file){const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,console,Set,Map,Date,URL,Uint8Array,process:{env:{}},require:name=>{let key=name;if(name.startsWith('./')&&file.includes('/auth/'))key='@/lib/auth/'+name.slice(2);assert.ok(key in deps,key);return deps[key];}});return exports;}
@@ -30,6 +32,7 @@ deps['@/lib/auth/client-report-access']=load('src/lib/auth/client-report-access.
 deps['@/lib/agreements/renewals']={ensureAgreementPeriods:async()=>{}};
 deps['./reporting-exclusions']=load('src/lib/data/reporting-exclusions.ts');
 deps['@/lib/data/agency-period']=load('src/lib/data/agency-period.ts');
+deps['@/lib/data/published-videos']={getPublishedVideoCounts:async args=>{publishedVideoCalls.push(args);if(publishedVideoFailure)throw new Error('fixture video count unavailable');return publishedVideoResult;}};
 deps['@/lib/data/brand-client-report']=load('src/lib/data/brand-client-report.ts');
 deps['@/lib/data/client-reports']=load('src/lib/data/client-reports.ts');
 deps['@/lib/data/agency-report']=load('src/lib/data/agency-report.ts');
@@ -159,3 +162,82 @@ scope={...own,brandScope:{kind:'scoped',brandIds:[],brandSlugs:[]}};
 paged=await (await outbox.GET(new NextRequest('https://fixture.invalid/api/client-reports?page=1'))).json();assert.equal(paged.total,0);assert.equal(paged.reports.length,0);
 scope=savedScope;
 console.log('PASS library pagination: search beyond 100 rows, full and final pages, invalid pages, tenant/brand-scoped totals');
+
+// Agency snapshots freeze scope-safe, portfolio-unique video counts independently of GMV.
+const videoRegistry=deps['@/lib/data/brand-registry-core'].buildRegistry([
+ brand('own','a'),brand('umbrella','a',{is_umbrella:true}),
+ brand('store','a',{parent_brand_id:'umbrella'}),brand('retired','a',{is_archived:true}),
+]);
+agencyPortfolio={brands:[{slug:'own',name:'Own',storeGmv:100,rosterGmv:50,priorStoreGmv:90,priorRosterGmv:40},
+ {slug:'umbrella',name:'Umbrella',storeGmv:0,rosterGmv:0,priorStoreGmv:0,priorRosterGmv:0}],totals:{storeGmv:100,rosterGmv:50,priorStoreGmv:90,priorRosterGmv:40}};
+publishedVideoResult={total:3,priorTotal:1,storeTotal:5,priorStoreTotal:2,currentComplete:true,priorComplete:true,brands:[
+ {slug:'own',count:2,priorCount:1,currentComplete:true,priorComplete:true},
+ {slug:'umbrella',count:2,priorCount:0,currentComplete:true,priorComplete:true},
+]};
+const agencyBuilder=deps['@/lib/data/agency-report'].buildAgencySnapshot;
+const videoSnapshot=await agencyBuilder('2026-09-14','2026-09-20',{tenantId:'a',registry:videoRegistry},'weekly');
+const countArgs=publishedVideoCalls.at(-1);
+assert.equal(countArgs.tenantId,'a');assert.deepEqual(Array.from(countArgs.rosterSlugs),['own','umbrella']);
+assert.equal(countArgs.start,'2026-09-14');assert.equal(countArgs.end,'2026-09-20');
+assert.equal(countArgs.priorStart,'2026-09-07');assert.equal(countArgs.priorEnd,'2026-09-13');
+assert.equal(videoSnapshot.totals.videosPublished,3,'Portfolio count must not sum per-brand counts for shared videos');
+assert.equal(videoSnapshot.totals.priorVideosPublished,1);assert.equal(videoSnapshot.totals.videoCoverageComplete,true);
+assert.equal(videoSnapshot.brands[1].videosPublished,2,'Zero-GMV publishing activity is preserved');
+assert.equal(videoSnapshot.brands[1].videoCoverageComplete,true,'Brand coverage stays independent of GMV');
+const frozenVideoSnapshot=JSON.stringify(videoSnapshot);
+publishedVideoFailure=true;
+const unavailableSnapshot=await agencyBuilder('2026-09-14','2026-09-20',{tenantId:'a',registry:videoRegistry},'weekly');
+assert.equal('videosPublished' in unavailableSnapshot.totals,false,'Unavailable counts are omitted, never printed as zero');
+assert.equal('videosPublished' in unavailableSnapshot.brands[0],false);
+assert.ok(unavailableSnapshot.caveats.some(c=>c.includes('Published-video counts could not be verified')));
+assert.equal(JSON.stringify(videoSnapshot),frozenVideoSnapshot,'A later failed read cannot change a frozen snapshot');
+publishedVideoFailure=false;
+
+const agencyView=load('src/app/a/[token]/agency-view.tsx');
+const elements=node=>!node||typeof node!=='object'?[]:Array.isArray(node)?node.flatMap(elements):[node,...elements(node.props?.children)];
+const callsBeforeRender=publishedVideoCalls.length;
+let rendered=agencyView.AgencyView({snapshot:videoSnapshot});
+let videoStat=elements(rendered).find(node=>node.props?.label==='Videos published');
+assert.equal(videoStat.props.value,'3');assert.equal(videoStat.props.delta,200);assert.equal(videoStat.props.note,'Recorded managed videos');
+videoSnapshot.totals.videoCoverageComplete=false;
+rendered=agencyView.AgencyView({snapshot:videoSnapshot});
+videoStat=elements(rendered).find(node=>node.props?.label==='Videos published');
+assert.equal(videoStat.props.delta,undefined,'Partial video coverage must withhold the relative change');
+assert.ok(videoStat.props.note.includes('check coverage'));
+const legacyVideoSnapshot=JSON.parse(frozenVideoSnapshot);
+for(const row of [legacyVideoSnapshot.totals,...legacyVideoSnapshot.brands]) for(const key of ['videosPublished','priorVideosPublished','videoCoverageComplete','priorVideoCoverageComplete']) delete row[key];
+rendered=agencyView.AgencyView({snapshot:legacyVideoSnapshot});
+assert.ok(!elements(rendered).some(node=>node.props?.label==='Videos published'),'Older reports omit the new metric');
+assert.equal(publishedVideoCalls.length,callsBeforeRender,'Frozen report rendering never fetches fresh counts');
+console.log('PASS agency published videos: tenant/active roster scope, matched periods, unique portfolio total, zero-GMV posts, coverage gating, optional legacy fields and immutable frozen rendering');
+// Newly built client reports use the same canonical IDs while keeping child-store scope.
+clientPublishedCounts={rosterPosts:7,rosterPostsPrior:5,storePosts:9,storePostsPrior:6,signedPeople:1,activePeople:1,activePeoplePrior:1,newlyActivePeople:0};
+const clientVideoReport=await deps['@/lib/data/brand-client-report'].getBrandClientReportData('store','Store',{start:'2026-09-14',end:'2026-09-20'},{tenantId:'a',registry:videoRegistry});
+const childCountArgs=publishedVideoCalls.at(-1);
+assert.deepEqual(Array.from(childCountArgs.dataSlugs),['store']);
+assert.deepEqual(Array.from(childCountArgs.rosterSlugs),['store','umbrella'],'Child report retains umbrella membership but only selected store data');
+assert.equal(clientVideoReport.creatorsCorner.videos,3);assert.equal(clientVideoReport.totalVideos,5);
+assert.equal(clientVideoReport.creatorsCorner.priorVideos,1);assert.equal(clientVideoReport.priorTotalVideos,2);
+assert.equal(clientVideoReport.videoCoverageComplete,true);assert.equal(clientVideoReport.priorVideoCoverageComplete,true);
+assert.equal(clientVideoReport.totalGmv,0,'Publication counts do not replace financial facts');
+publishedVideoFailure=true;
+const fallbackVideoReport=await deps['@/lib/data/brand-client-report'].getBrandClientReportData('store','Store',{start:'2026-09-14',end:'2026-09-20'},{tenantId:'a',registry:videoRegistry});
+assert.equal(fallbackVideoReport.creatorsCorner.videos,7);assert.equal(fallbackVideoReport.totalVideos,9,'Failed canonical lookup retains available existing counts');
+assert.equal(fallbackVideoReport.videoCoverageComplete,false);assert.equal(fallbackVideoReport.priorVideoCoverageComplete,false);
+assert.equal(fallbackVideoReport.creatorsCorner.videoChangePct,null);assert.equal(fallbackVideoReport.videoChangePct,null,'Fallback counts must not manufacture comparable changes');
+publishedVideoFailure=false;
+console.log('PASS new client report publication counts: canonical IDs, selected child data, umbrella membership, financial totals unchanged and unavailable coverage fallback');
+// Web report rendering must not revive a percentage or absolute change from partial counts.
+deps['@/components/ui/interface-icon']={InterfaceIcon:'interface-icon'};
+deps['./reconciliation-view']={ReconciliationView:'reconciliation'};
+deps['@/lib/data/delivered-spend']=load('src/lib/data/delivered-spend.ts');
+deps['./creator-rows']={PaginatedCreatorRows:'creator-rows'};
+const actualClientView=load('src/app/r/[token]/report-view.tsx');
+const renderClientVideo=report=>actualClientView.ReportView({token:'frozen-test',report,brandName:'Store',periodLabel:'September 14-20',notes:null,plan:null,reportType:'weekly',snapshot:{v:1,generatedAt:'2026-09-21T00:00:00Z',report,views:null,priorViews:null,videoViews:{},weekly:[],lifetime:{gmv:0,bestWeek:null,firstDate:null,videos:null}}});
+let clientVideoStat=elements(renderClientVideo(fallbackVideoReport)).find(node=>node.props?.label==='Videos published');
+assert.equal(clientVideoStat.props.comparisonAvailable,false);assert.equal(clientVideoStat.props.pct,undefined);assert.equal(clientVideoStat.props.abs,null);
+assert.ok(clientVideoStat.props.note.includes('check coverage'));
+const legacyClientVideoReport={...clientVideoReport};delete legacyClientVideoReport.videoCoverageComplete;delete legacyClientVideoReport.priorVideoCoverageComplete;
+clientVideoStat=elements(renderClientVideo(legacyClientVideoReport)).find(node=>node.props?.label==='Videos published');
+assert.equal(clientVideoStat.props.comparisonAvailable,true);assert.equal(clientVideoStat.props.pct,200,'Legacy snapshots keep their stored comparison behavior');
+console.log('PASS client frozen renderer: partial count differences stay withheld and legacy snapshots retain their existing comparison');

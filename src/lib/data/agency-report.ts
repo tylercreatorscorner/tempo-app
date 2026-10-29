@@ -45,6 +45,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import type { ClientReportContext } from '@/lib/auth/client-report-access';
 import { brandColor } from '@/lib/data/brand-registry-core';
 import { agencyPeriod } from '@/lib/data/agency-period';
+import { getPublishedVideoCounts } from '@/lib/data/published-videos';
 
 export interface AgencyBrandRow {
   slug: string;
@@ -75,6 +76,12 @@ export interface AgencyBrandRow {
   invoiceCount?: number;
   /** Active roster rows with no TikTok handle anywhere: signed, unmeasurable. */
   noHandle?: number;
+  /** Unique videos published by managed creators in the selected window. */
+  videosPublished?: number;
+  priorVideosPublished?: number;
+  /** A recorded total can be partial; only complete windows may be compared. */
+  videoCoverageComplete?: boolean;
+  priorVideoCoverageComplete?: boolean;
 }
 
 export interface AgencyTrendPoint {
@@ -124,6 +131,11 @@ export interface AgencySnapshot {
     invoiceCount?: number;
     invoicedClients?: number;
     noHandle?: number;
+    /** Portfolio-unique video IDs, not a sum of the per-brand counts. */
+    videosPublished?: number;
+    priorVideosPublished?: number;
+    videoCoverageComplete?: boolean;
+    priorVideoCoverageComplete?: boolean;
   };
   brands: AgencyBrandRow[];
   /**
@@ -338,7 +350,10 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
   const e = new Date(`${end}T00:00:00Z`);
   const period = agencyPeriod(start, end, periodKind);
 
-  const [portfolio, reg, gapCaveats, trendRaw, invoices, quality] = await Promise.all([
+  const videoRosterSlugs = context.registry.rows
+    .filter(brand => !brand.is_archived && !brand.parent_brand_id)
+    .map(brand => brand.slug);
+  const [portfolio, reg, gapCaveats, trendRaw, invoices, quality, publishedVideos] = await Promise.all([
     supabase.rpc('get_agency_portfolio_workspace', { p_tenant_id: context.tenantId,
       p_start: start,
       p_end: end,
@@ -350,12 +365,24 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
     periodKind === 'complete-month' ? buildTrend(supabase, e, context) : Promise.resolve(undefined),
     periodKind === 'weekly' ? Promise.resolve(new Map<string, { total: number; count: number }>()) : loadInvoices(supabase, start, context),
     loadRosterQuality(supabase, context),
+    getPublishedVideoCounts({
+      tenantId: context.tenantId,
+      rosterSlugs: videoRosterSlugs,
+      start,
+      end,
+      priorStart: period.priorStart,
+      priorEnd: period.priorEnd,
+    }).catch((error: unknown) => {
+      console.error('[agency-report] published video count failed:', error instanceof Error ? error.message : error);
+      return null;
+    }),
   ]);
   if (portfolio.error) {
     throw new Error(`[agency-report] get_agency_portfolio failed: ${portfolio.error.message}`);
   }
 
   const raw = (portfolio.data ?? {}) as { brands?: unknown[]; totals?: Record<string, unknown> };
+  const videosByBrand = new Map(publishedVideos?.brands.map(brand => [brand.slug, brand]) ?? []);
 
   const brands: AgencyBrandRow[] = (raw.brands ?? []).map((b) => {
     const r = b as Record<string, unknown>;
@@ -368,6 +395,7 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
     const sharePct = storeGmv > 0 ? (rosterGmv / storeGmv) * 100 : null;
     const priorSharePct = priorStoreGmv > 0 ? (priorRosterGmv / priorStoreGmv) * 100 : null;
     const inv = invoices.get(slug);
+    const videos = videosByBrand.get(slug);
     return {
       slug,
       name: String(r.name),
@@ -391,6 +419,12 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
       invoiced: inv ? inv.total : null,
       invoiceCount: inv ? inv.count : 0,
       noHandle: quality.get(slug) ?? 0,
+      ...(videos ? {
+        videosPublished: videos.count,
+        priorVideosPublished: videos.priorCount,
+        videoCoverageComplete: videos.currentComplete,
+        priorVideoCoverageComplete: videos.priorComplete,
+      } : {}),
     };
   });
 
@@ -421,6 +455,9 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
       ...(period.shorterPrior ? ['The prior month was shorter, so its comparison has fewer days.'] : []),
     ] : []),
     ...gapCaveats, ...trendGaps,
+    ...(publishedVideos ? ['Video counts reflect videos recorded in Tempo. Upload coverage confirms imported rows landed; it does not independently verify that TikTok exports contain every video.'] : []),
+    ...(!publishedVideos ? ['Published-video counts could not be verified when this report was prepared.']
+      : !publishedVideos.currentComplete ? ['Published-video totals include recorded videos only; one or more brands have incomplete video coverage.'] : []),
   ];
 
   return {
@@ -444,6 +481,12 @@ export async function buildAgencySnapshot(start: string, end: string, context: C
       invoiceCount: brands.reduce((a, b) => a + (b.invoiceCount ?? 0), 0),
       invoicedClients: brands.filter((b) => (b.invoiced ?? 0) > 0).length,
       noHandle: inReport.reduce((a, b) => a + (b.noHandle ?? 0), 0),
+      ...(publishedVideos ? {
+        videosPublished: publishedVideos.total,
+        priorVideosPublished: publishedVideos.priorTotal,
+        videoCoverageComplete: publishedVideos.currentComplete,
+        priorVideoCoverageComplete: publishedVideos.priorComplete,
+      } : {}),
     },
     brands,
     trend,

@@ -133,6 +133,15 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
   const readyWithData = (brand: AgencyBrandRow) => hasData(brand) && ready(brand);
   const covered = dataBrands.length > 0 && dataBrands.every(readyWithData);
   const totals = snapshot.totals;
+  const hasVideoCounts = typeof totals.videosPublished === 'number';
+  const videoComparisonComplete = totals.videoCoverageComplete === true &&
+    totals.priorVideoCoverageComplete === true;
+  const videoDelta = videoComparisonComplete && typeof totals.priorVideosPublished === 'number'
+    ? change(totals.videosPublished ?? 0, totals.priorVideosPublished) : null;
+  const videoDetail = totals.videoCoverageComplete !== true ? 'Recorded managed videos · check coverage'
+    : !videoComparisonComplete ? 'Recorded managed videos · prior coverage incomplete'
+      : videoDelta !== null ? `Recorded managed videos · ${signed(videoDelta)} vs prior week`
+        : `Recorded managed videos · ${totals.priorVideosPublished?.toLocaleString('en-US') ?? '0'} prior week`;
   const managedDelta = covered ? change(totals.rosterGmv, totals.priorRosterGmv) : null;
   const storeDelta = covered ? change(totals.storeGmv, totals.priorStoreGmv) : null;
   const share = totals.storeGmv > 0 ? totals.rosterGmv / totals.storeGmv * 100 : null;
@@ -194,11 +203,12 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4">
+      <div className={`grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border ${hasVideoCounts ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
         {[
           ['Managed GMV', money(totals.rosterGmv), covered ? `${signed(managedDelta)} vs prior week` : 'Comparison unavailable', managedDelta],
           ['Total store GMV', money(totals.storeGmv), covered ? `${signed(storeDelta)} vs prior week` : 'Comparison unavailable', storeDelta],
           ['Managed share', share === null ? '—' : pct(share), covered ? `${signed(shareDelta, ' pts')} vs prior week` : 'Comparison unavailable', shareDelta],
+          ...(hasVideoCounts ? [['Videos published', totals.videosPublished!.toLocaleString('en-US'), videoDetail, videoDelta]] : []),
           ['Manager updates', `${filed} / ${updateCount}`, 'Filed for assigned brands', null],
         ].map(([label, value, detail, delta]) => <div key={String(label)} className="bg-card p-4">
           <span className="text-xs text-muted-foreground">{label}</span>
@@ -217,6 +227,7 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
             <thead className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr><th className="px-4 py-3">Brand</th><th className="px-3 py-3 text-right">Managed GMV</th>
                 <th className="px-3 py-3 text-right">vs prior week</th><th className="px-3 py-3 text-right">Managed share</th>
+                {hasVideoCounts && <th className="px-3 py-3 text-right" title="Unique videos published by managed creators this week">Videos published</th>}
                 <th className="px-3 py-3">Manager</th><th className="px-4 py-3">Next action</th></tr>
             </thead>
             <tbody>{sorted.map(brand => {
@@ -230,6 +241,11 @@ export default async function WeeklyAgencyBrief({ searchParams }: {
                 <td className={`px-3 py-3 text-right tabular-nums ${tone(delta)}`}>{hasCoverage ? signed(delta) : 'Check coverage'}</td>
                 <td className="px-3 py-3 text-right tabular-nums">{brand.sharePct === null ? '—' : pct(brand.sharePct)}
                   {hasCoverage && typeof brand.sharePts === 'number' && <span className={`ml-1 text-xs ${tone(brand.sharePts)}`}>{signed(brand.sharePts, ' pts')}</span>}</td>
+                {hasVideoCounts && <td className="px-3 py-3 text-right tabular-nums">
+                  {typeof brand.videosPublished === 'number' ? <>{brand.videosPublished.toLocaleString('en-US')}
+                    {brand.videoCoverageComplete !== true && <small className="block text-[10px] text-muted-foreground">Recorded only</small>}</>
+                    : <span className="text-xs text-muted-foreground">Unavailable</span>}
+                </td>}
                 <td className="px-3 py-3">{manager ? <span className="inline-flex items-center gap-2">
                   <CreatorPortrait name={manager.name} source={manager.avatar} className="inline-grid h-6 w-6 place-items-center rounded-full bg-primary/10 object-cover text-[9px] font-bold text-primary" />{manager.name}
                 </span> : 'Unassigned'}</td>

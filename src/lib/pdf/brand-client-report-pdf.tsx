@@ -607,9 +607,10 @@ export function BrandClientReportPDF({
   // artifacts cannot disagree. Every one is guarded: these fields postdate
   // most of the frozen snapshots this document renders from.
   const cc = data.creatorsCorner;
-  const priorVideos = finite(cc.priorVideos);
+  const videoComparisonAvailable = data.videoCoverageComplete !== false && data.priorVideoCoverageComplete !== false;
+  const priorVideos = videoComparisonAvailable ? finite(cc.priorVideos) : null;
   const rosterVideoPct =
-    finite(cc.videoChangePct) ?? (priorVideos !== null ? pctChangeSafe(cc.videos, priorVideos) : undefined);
+    videoComparisonAvailable ? finite(cc.videoChangePct) ?? (priorVideos !== null ? pctChangeSafe(cc.videos, priorVideos) : undefined) : undefined;
 
   const ccGmvPct = finite(cc.gmvChangePct);
   const storeGmvPct = finite(data.gmvChangePct);
@@ -908,7 +909,7 @@ export function BrandClientReportPDF({
             pct: act.storeCreatorsPosted > 0 ? (rosterAct.posted / act.storeCreatorsPosted) * 100 : 0,
           },
           {
-            label: 'Posts published',
+            label: 'Videos published',
             ours: fmtNumber(cc.videos),
             theirs: fmtNumber(data.totalVideos),
             pct: data.totalVideos > 0 ? (cc.videos / data.totalVideos) * 100 : 0,
@@ -986,15 +987,15 @@ export function BrandClientReportPDF({
               </View>
             </View>
             <View style={styles.splitRightCard}>
-              <Text style={[styles.splitLabel, { color: COLORS.muted }]}>POSTS PUBLISHED</Text>
+              <Text style={[styles.splitLabel, { color: COLORS.muted }]}>VIDEOS PUBLISHED</Text>
               <Text style={[styles.splitGmv, { color: COLORS.ink }]}>{fmtNumber(data.creatorsCorner.videos)}</Text>
               <Text style={styles.splitMeta}>
                 by {fmtNumber(rosterAct ? rosterAct.posted : cc.activeCreatorCount)} signed creators who posted
               </Text>
-              <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
+              {videoComparisonAvailable ? <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={[styles.splitMeta, { marginRight: 6 }]}>vs prior period</Text>
                 <DeltaPill pct={rosterVideoPct} />
-              </View>
+              </View> : <Text style={[styles.splitMeta, { marginTop: 4 }]}>Recorded managed videos · check video coverage</Text>}
             </View>
           </View>
         </View>
@@ -1645,9 +1646,10 @@ export function BrandClientReportPDF({
               </View>
             )}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>VIDEOS POSTED</Text>
+              <Text style={styles.kpiLabel}>STORE VIDEOS PUBLISHED</Text>
               <Text style={styles.kpiValue}>{fmtNumber(data.totalVideos)}</Text>
-              <DeltaPill pct={data.videoChangePct} />
+              {videoComparisonAvailable ? <DeltaPill pct={data.videoChangePct} />
+                : <Text style={styles.splitMeta}>Recorded only · check coverage</Text>}
             </View>
           </View>
 

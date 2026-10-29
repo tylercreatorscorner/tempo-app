@@ -43,6 +43,8 @@ import { TopCreators } from '@/components/dashboard/top-creators';
 import { TopVideos } from '@/components/dashboard/top-videos';
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
+import { PublishedVideosStat } from '@/components/dashboard/published-videos-stat';
+import { getPublishedVideoCounts } from '@/lib/data/published-videos';
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string }>;
@@ -104,6 +106,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // in this file must not reach for `canViewFinance` and silently re-fuse the
   // two concerns. See workspace-scope.ts.
   const canViewCost = scope?.canViewCreatorCost ?? false;
+  const tenantId = activeTenantId ?? scope?.tenantId;
+  const canReviewUploads = scope?.role === 'owner' || scope?.role === 'admin';
 
   let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false).order('name');
   if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
@@ -171,6 +175,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const prevStart       = subDays(prevEnd, periodLength - 1);
   const prevStartDate   = format(prevStart, 'yyyy-MM-dd');
   const prevEndDate     = format(prevEnd, 'yyyy-MM-dd');
+
+  // Counting publications can scan more data than the sales rollups. Start it
+  // now, but let its own Suspense boundary await it so the rest of the
+  // dashboard streams even when this count takes longer.
+  const publishedVideosPromise = tenantId
+    ? getPublishedVideoCounts({
+        tenantId, rosterSlugs: activeRosterBrands,
+        start: startDate, end: endDate, priorStart: prevStartDate, priorEnd: prevEndDate,
+      }).catch((error) => {
+        console.error('[dashboard] published video counts failed:', error);
+        return null;
+      })
+    : Promise.resolve(null);
 
   // ── Single parallel fetch ───────────────────────────────────────────────
   // Brand summaries come from the multi-brand analytics_* RPC (one call each for
@@ -577,6 +594,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard label="Average order value" value={!totalsFailed && totals.orders > 0 ? formatCurrencyExact(totals.gmv / totals.orders) : '—'}
           trend={canCompare && comparison.current.orders > 0 && comparison.previous.orders > 0 ? pctChange(comparison.current.gmv / comparison.current.orders, comparison.previous.gmv / comparison.previous.orders) : undefined}
           trendLabel={comparisonLabel} info="Affiliate GMV divided by affiliate orders. The comparison uses the same fully recorded brands in both periods; this is a weighted average, not an average of brand averages." />
+        <Suspense fallback={<StatCard label="Videos published" value="…" detail="Counting published videos…" />}>
+          <PublishedVideosStat counts={publishedVideosPromise} canReviewUploads={canReviewUploads} />
+        </Suspense>
       </div>
       {canViewCost && <div className={reviewStyles.commitments}>
         <div>Current creator commitments <InfoTooltip label="Current recorded creator fees for the selected brands. Agreement periods may differ; this is not historical payment or spend in the selected date range."/><strong>{formatCurrency(totalRetainerSpend)}</strong><span>{retainerBrandCount} {retainerBrandCount===1?'brand':'brands'}</span></div>

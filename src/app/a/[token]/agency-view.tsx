@@ -154,6 +154,14 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
   const storeMom = t.priorStoreGmv > 0 ? ((t.storeGmv - t.priorStoreGmv) / t.priorStoreGmv) * 100 : null;
   const share = t.storeGmv > 0 ? (t.rosterGmv / t.storeGmv) * 100 : 0;
   const priorShare = t.priorStoreGmv > 0 ? (t.priorRosterGmv / t.priorStoreGmv) * 100 : null;
+  const hasVideoCounts = typeof t.videosPublished === 'number';
+  const videoComparisonComplete = t.videoCoverageComplete === true && t.priorVideoCoverageComplete === true;
+  const videoDelta = videoComparisonComplete && typeof t.priorVideosPublished === 'number' && t.priorVideosPublished > 0
+    ? ((t.videosPublished ?? 0) - t.priorVideosPublished) / t.priorVideosPublished * 100 : undefined;
+  const videoNote = t.videoCoverageComplete !== true ? 'Recorded managed videos · check coverage'
+    : !videoComparisonComplete ? 'Recorded managed videos · prior coverage incomplete'
+      : videoDelta === undefined ? `Recorded managed videos · ${num(t.priorVideosPublished ?? 0)} in ${s.priorLabel}`
+        : 'Recorded managed videos';
 
   const earners = s.brands.filter((b) => b.rosterGmv > 0);
   const ranked = [...earners].sort((a, b) => b.rosterGmv - a.rosterGmv);
@@ -161,7 +169,8 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
   // its loss belongs in "came off" and its row belongs in the table. Only
   // earners were counted before, so a churned client would have vanished and
   // the halves would no longer have added back to the headline change.
-  const active = s.brands.filter((b) => b.rosterGmv > 0 || b.priorRosterGmv > 0);
+  const active = s.brands.filter((b) => b.rosterGmv > 0 || b.priorRosterGmv > 0 ||
+    (b.videosPublished ?? 0) > 0 || (b.priorVideosPublished ?? 0) > 0);
   const rankedAll = [...active].sort((a, b) => b.rosterGmv - a.rosterGmv);
   const top1 = ranked[0];
   const top3 = ranked.slice(0, 3);
@@ -402,6 +411,8 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                   value={money(t.committedRetainer)} suffix="/mo"
                   note={`${num(t.retained)} creators` + (perDollar !== null ? ` · ${perDollar.toFixed(2)}x GMV per $1` : '')}
                 />
+                {hasVideoCounts && <div className="col-span-2 md:col-span-4 lg:col-span-2"><Stat label="Videos published" value={num(t.videosPublished!)}
+                  delta={videoDelta} note={videoNote} inline /></div>}
               </div>
             </div>
           </div>
@@ -682,6 +693,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                     <th className={TH_R}>Our GMV</th>
                     <th className={TH_R}>vs {priorMonth}</th>
                     <th className={TH_R}>Our share</th>
+                    {hasVideoCounts && <th className={TH_R} title="Unique videos published by managed creators">Videos published</th>}
                     <th className={TH_R}>On retainer / signed</th>
                     <th className={TH_R}>Committed / mo</th>
                     {isV2 && <th className={TH_R}>GMV per $1</th>}
@@ -702,6 +714,10 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
                         {b.sharePct === null ? NONE : pct(b.sharePct)}
                       </td>
+                      {hasVideoCounts && <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
+                        {typeof b.videosPublished === 'number' ? <>{num(b.videosPublished)}
+                          {b.videoCoverageComplete !== true && <span className="block text-[10px] text-[#8a8fb0]">recorded only</span>}</> : NONE}
+                      </td>}
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
                         {num(b.retained)}<span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(b.signed)}</span>
                       </td>
@@ -730,6 +746,8 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                     <td className="whitespace-nowrap px-3 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(rosterGmvPrinted)}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right"><Delta v={rosterMom} /></td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">{t.storeGmv > 0 ? pct(share) : NONE}</td>
+                    {hasVideoCounts && <td className="whitespace-nowrap px-3 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]"
+                      title="Unique video IDs across the portfolio; a video appearing for more than one brand is counted once">{num(t.videosPublished!)}</td>}
                     <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
                       {num(t.retained)}<span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(t.signed)}</span>
                     </td>
@@ -753,6 +771,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
               {isV2 && s.periodKind !== 'mtd' &&
                 ` GMV per $1 divides ${s.periodLabel} GMV by the full monthly retainer of everyone on the roster as of ${preparedOn}; under 1.0x is marked red.`}
               {s.periodKind === 'mtd' && ' Return multiples are withheld while the month is incomplete.'}
+              {hasVideoCounts && ' Videos published counts managed creators’ videos published during the report dates, including videos without sales. Each video counts once in the portfolio total.'}
             </p>
           </div>
         </div>
@@ -1075,9 +1094,9 @@ function SectionLine({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Stat({ label, value, suffix, note, delta }: { label: string; value: string; suffix?: string; note?: string; delta?: number | null }) {
+function Stat({ label, value, suffix, note, delta, inline = false }: { label: string; value: string; suffix?: string; note?: string; delta?: number | null; inline?: boolean }) {
   return (
-    <div className="rounded-[12px] border border-[#e7e7f2] bg-[#fcfcff] px-3.5 py-3">
+    <div className={`rounded-[12px] border border-[#e7e7f2] bg-[#fcfcff] px-3.5 ${inline ? 'flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5' : 'py-3'}`}>
       <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
       {/* 17px on a phone: "$594,900/mo" needs 125px at 19px and a two-up tile
           on a 390px screen gives 117px. */}
@@ -1087,10 +1106,11 @@ function Stat({ label, value, suffix, note, delta }: { label: string; value: str
             two-up tile on a phone. */}
         {suffix && <span className="ml-0.5 text-[11.5px] font-semibold text-[#8a8fb0]">{suffix}</span>}
       </div>
-      {delta !== undefined ? (
+      {delta !== undefined && (
         <div className="mt-1"><Delta v={delta} /></div>
-      ) : note ? (
-        <div className="mt-1 text-[11px] leading-tight text-[#8a8fb0]">{note}</div>
+      )}
+      {note ? (
+        <div className={`${inline ? 'basis-full' : 'mt-1'} text-[11px] leading-tight text-[#8a8fb0]`}>{note}</div>
       ) : null}
     </div>
   );

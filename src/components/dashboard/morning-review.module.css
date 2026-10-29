@@ -17,7 +17,7 @@
 .empty { padding:12px 16px; color:var(--muted-foreground); font-size:14px; line-height:1.6; }
 .rules { font-size:12px; color:var(--muted-foreground); line-height:1.7; }
 .rules summary { cursor:pointer; padding:10px 0; }
-.metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0; overflow:hidden; border:1px solid var(--border); border-radius:12px; background:var(--card); }
+.metrics { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0; overflow:hidden; border:1px solid var(--border); border-radius:12px; background:var(--card); }
 .metrics > div { border:0; border-radius:0; box-shadow:none; background:transparent; padding:14px 16px; }
 .metrics > div + div { border-left:1px solid var(--border); }
 .metrics > div > p { margin-top:8px; font-size:24px; }
@@ -60,11 +60,10 @@
 .contributor > strong { color:var(--foreground); font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
 .contributor small { display:block; font-size:11px; color:var(--muted-foreground); }
 .contributorEmpty { padding:0 14px 14px; color:var(--muted-foreground); font-size:12px; line-height:1.6; }
-@media(max-width:900px) { .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(min-width:701px) and (max-width:1200px) { .metrics { grid-template-columns:repeat(3,minmax(0,1fr)); } .metrics > div:nth-child(n+4) { border-top:1px solid var(--border); } .metrics > div:nth-child(3n+1) { border-left:0; } }
 
 @media(min-width:1101px){.metrics > div{padding:14px 12px}.metrics > div > p{font-size:22px}}
 
-@media(max-width:900px){.metrics > div:last-child{grid-column:1/-1}}
 @media(max-width:1200px) { .workspace { grid-template-columns:minmax(0,1fr); } .aside { grid-template-columns:repeat(2,minmax(0,1fr)); } .asideHeading { grid-column:1/-1; } }
-@media(max-width:900px) { .metrics > div { border-top:1px solid var(--border); } .metrics > div:nth-child(-n+2) { border-top:0; } .metrics > div:nth-child(odd) { border-left:0; } .metrics > div:last-child { border-left:0; } }
+@media(max-width:700px) { .metrics > div { border-top:1px solid var(--border); } .metrics > div:nth-child(-n+2) { border-top:0; } .metrics > div:nth-child(odd) { border-left:0; } }
 @media(max-width:700px) { .aside,.leaderboards { grid-template-columns:minmax(0,1fr); } .metrics > div { padding:12px; } .metrics > div > p { font-size:22px; } .commitments { gap:10px 16px; padding:10px 12px; } }

@@ -30,6 +30,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 import { getReportingExclusions, filterExcludedReportCreators } from './reporting-exclusions';
+import { getPublishedVideoCounts } from '@/lib/data/published-videos';
 
 export type ReportPeriod = '7d' | '30d';
 
@@ -68,6 +69,9 @@ export interface BrandClientReportData {
   itemChangePct?: number | null;
   creatorChangePct: number | null;
   videoChangePct: number | null;
+  /** Optional on older frozen reports. Partial video coverage withholds changes. */
+  videoCoverageComplete?: boolean;
+  priorVideoCoverageComplete?: boolean;
 
   // Highlight cards
   topCreator: { name: string; gmv: number; orders: number; videos: number } | null;
@@ -409,9 +413,9 @@ function formatDate(d: Date): string {
  * Resolve a roster brand slug to the data-table brand slugs to filter on.
  * Umbrella brands (leefar) expand to their per-store slugs — creator_performance
  * and video_performance are keyed by store slug, not the umbrella. 'all' (or
- * empty) returns null = no brand filter (every brand).
+ * empty) resolves to the explicit tenant-owned registry scope.
  */
-function getBrandDataSlugs(reg: BrandRegistry, brandFilter: string): string[] | null {
+function getBrandDataSlugs(reg: BrandRegistry, brandFilter: string): string[] {
   if (!brandFilter || brandFilter === 'all') return reg.rows.map(b => b.slug);
   return expandSlugs(reg, brandFilter);
 }
@@ -507,7 +511,7 @@ export async function getBrandClientReportData(
   // Managed-roster grain: managed_creators rows live at the umbrella/roster
   // slug. For a store slug include its parent umbrella so store-grain runs
   // stop returning an empty managed set (the old exact-match did).
-  let rosterSlugs: string[] | null = reg.rows.map(b => b.slug);
+  let rosterSlugs: string[] = reg.rows.map(b => b.slug);
   if (brandSlug && brandSlug !== 'all') {
     const row = reg.bySlug.get(brandSlug);
     const parentSlug = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
@@ -653,7 +657,7 @@ export async function getBrandClientReportData(
     endDate.getUTCDate() === daysInMonth;
   const wantMonthToDate = !windowIsWholeMonth;
 
-  const [granularRes, countsRes, splitRes, mtdRes, signingsRes] = await Promise.all([
+  const [granularRes, countsRes, splitRes, mtdRes, signingsRes, publishedVideos] = await Promise.all([
     supabase.rpc('get_brand_client_report_granular_workspace', {
       p_tenant_id: context.tenantId,
       p_data_slugs: brandSlugs,
@@ -693,6 +697,18 @@ export async function getBrandClientReportData(
       p_tenant_id: context.tenantId,
       p_roster_slugs: rosterSlugs,
       p_end: formatDate(endDate),
+    }),
+    getPublishedVideoCounts({
+      tenantId: context.tenantId,
+      rosterSlugs,
+      dataSlugs: brandSlugs,
+      start: formatDate(startDate),
+      end: formatDate(endDate),
+      priorStart: formatDate(priorStart),
+      priorEnd: formatDate(priorEnd),
+    }).catch((error: unknown) => {
+      console.error('[brand-client-report] published video count failed:', error instanceof Error ? error.message : error);
+      return null;
     }),
   ]);
 
@@ -898,6 +914,17 @@ export async function getBrandClientReportData(
     creatorsCorner.creatorChangePct = pctChange(counts.activePeople, counts.activePeoplePrior);
     creatorsCorner.newlyActivatedCount = counts.newlyActivePeople;
   }
+  // Canonical video IDs keep the dashboard and new report snapshots aligned
+  // when an older export and a later export use different creator labels.
+  // A failed read leaves the existing frozen-count path intact, never zero.
+  if (publishedVideos) {
+    creatorsCorner.videos = publishedVideos.total;
+    creatorsCorner.priorVideos = publishedVideos.priorTotal;
+    creatorsCorner.videoChangePct = publishedVideos.currentComplete && publishedVideos.priorComplete
+      ? pctChange(publishedVideos.total, publishedVideos.priorTotal) : null;
+  } else {
+    creatorsCorner.videoChangePct = null;
+  }
 
   /**
    * Activity, POSTED and SOLD kept apart (migration 165).
@@ -969,6 +996,12 @@ export async function getBrandClientReportData(
   const reportingExclusions = brandSlug !== 'all'
     ? await getReportingExclusions(supabase, context.tenantId, rosterSlugs ?? [], formatDate(endDate))
     : undefined;
+  // Choose the source once so the returned snapshot has one authoritative
+  // value per field. Failed canonical reads retain the available prior path.
+  const reportVideos = publishedVideos?.storeTotal ?? counts?.storePosts ?? totalVideos;
+  const priorReportVideos = publishedVideos?.priorStoreTotal ?? counts?.storePostsPrior ?? priorTotalVideos;
+  const reportVideoChange = publishedVideos?.currentComplete && publishedVideos.priorComplete
+    ? pctChange(reportVideos, priorReportVideos) : null;
   return filterExcludedReportCreators({
     reportingExclusions,
     brandName,
@@ -981,7 +1014,7 @@ export async function getBrandClientReportData(
     totalGmv,
     totalOrders,
     totalItems,
-    totalVideos,
+    totalVideos: reportVideos,
     activeCreators,
     avgOrderValue,
     avgGmvPerCreator,
@@ -991,12 +1024,12 @@ export async function getBrandClientReportData(
     priorTotalOrders,
     priorTotalItems,
     priorActiveCreators,
-    priorTotalVideos,
+    priorTotalVideos: priorReportVideos,
     gmvChangePct: pctChange(totalGmv, priorTotalGmv),
     orderChangePct: pctChange(totalOrders, priorTotalOrders),
     itemChangePct: pctChange(totalItems, priorTotalItems),
     creatorChangePct: pctChange(activeCreators, priorActiveCreators),
-    videoChangePct: pctChange(totalVideos, priorTotalVideos),
+    videoChangePct: reportVideoChange,
 
     topCreator,
     topVideo,
@@ -1016,15 +1049,8 @@ export async function getBrandClientReportData(
     topCreators,
     topVideos,
     topProducts,
-    // Corrected at the point of return so every consumer — page, PDF and the
-    // frozen snapshot — gets the same figure. See `counts` above.
-    ...(counts
-      ? {
-          totalVideos: counts.storePosts,
-          priorTotalVideos: counts.storePostsPrior,
-          videoChangePct: pctChange(counts.storePosts, counts.storePostsPrior),
-        }
-      : {}),
+    videoCoverageComplete: publishedVideos?.currentComplete ?? false,
+    priorVideoCoverageComplete: publishedVideos?.priorComplete ?? false,
     granular,
     signings:
       !signingsRes.error && signingsRes.data

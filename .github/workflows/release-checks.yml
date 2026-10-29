@@ -36,6 +36,8 @@ jobs:
         run: npm run test:ci
       - name: Creator report exclusions
         run: node scripts/test-reporting-exclusions.mjs && npx eslint src/lib/data/reporting-exclusions.ts
+      - name: Published video totals
+        run: node scripts/test-published-videos.mjs && node scripts/test-published-videos-stat.mjs && npx eslint src/lib/data/published-videos.ts src/components/dashboard/published-videos-stat.tsx
       - name: Upload coverage evidence regressions
         run: node --import tsx scripts/test-coverage-classify.ts && node --import tsx scripts/test-upload-coverage-evidence.ts && node --import tsx scripts/test-workbook-range-recovery.ts && node scripts/test-upload-source-replacement.mjs
       - name: Lint hardened entry points

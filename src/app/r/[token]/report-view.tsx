@@ -197,6 +197,8 @@ function HeroStat({
   pct,
   abs,
   points,
+  note,
+  comparisonAvailable = true,
 }: {
   label: string;
   value: string;
@@ -204,12 +206,15 @@ function HeroStat({
   abs?: string | null;
   /** For values that are themselves a percentage. Wins over `pct`. */
   points?: number | null;
+  note?: string;
+  comparisonAvailable?: boolean;
 }) {
   return (
     <div>
       <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
       <div className="mt-0.5 text-[25px] font-extrabold leading-tight tabular-nums text-[#171a33]">{value}</div>
-      {points !== undefined ? <PointsDelta points={points} /> : <Delta pct={pct} abs={abs} />}
+      {comparisonAvailable && (points !== undefined ? <PointsDelta points={points} /> : <Delta pct={pct} abs={abs} />)}
+      {note && <div className="mt-1 text-[10px] leading-tight text-[#8a8fb0]">{note}</div>}
     </div>
   );
 }
@@ -643,7 +648,7 @@ function InvestmentStrip({
         </div>
       )}
       <div className="px-5 py-4">
-      {/* ⚠️ NO "Signed creators" and NO "Posts published" here, deliberately.
+      {/* ⚠️ NO "Signed creators" and NO "Videos published" here, deliberately.
           Both already appear earlier in the report from a DIFFERENT source and
           at a DIFFERENT grain, and showing a second value under the same name
           is the exact defect this pass exists to remove. Seen live on Lemme:
@@ -1694,8 +1699,15 @@ export function ReportView({
   // simply are not there and cannot be recovered, so they render as absent.
   // creatorChangePct CAN be recovered: priorCreatorCount predates it.
   const priorGmv = finite(cc.priorGmv);
-  const priorVideos = finite(cc.priorVideos);
-  const videoPct = finite(cc.videoChangePct) ?? (priorVideos !== null ? pctChange(cc.videos, priorVideos) : undefined);
+  const videoComparisonAvailable = r.videoCoverageComplete !== false && r.priorVideoCoverageComplete !== false;
+  const priorVideos = videoComparisonAvailable ? finite(cc.priorVideos) : null;
+  const videoPct = videoComparisonAvailable
+    ? finite(cc.videoChangePct) ?? (priorVideos !== null ? pctChange(cc.videos, priorVideos) : undefined)
+    : undefined;
+  const videoCountNote = r.videoCoverageComplete === undefined ? undefined
+    : r.videoCoverageComplete === false ? 'Recorded managed videos · check coverage'
+      : r.priorVideoCoverageComplete === false ? 'Recorded managed videos · prior coverage incomplete'
+        : 'Recorded managed videos';
   const priorCreators = finite(cc.priorCreatorCount);
   const creatorPct =
     finite(cc.creatorChangePct) ?? (priorCreators !== null ? pctChange(cc.activeCreatorCount, priorCreators) : undefined);
@@ -1824,7 +1836,7 @@ export function ReportView({
           pct: act.storeCreatorsPosted > 0 ? (rosterAct.posted / act.storeCreatorsPosted) * 100 : 0,
         },
         {
-          label: 'Posts published',
+          label: 'Videos published',
           ours: num(cc.videos),
           theirs: num(r.totalVideos),
           pct: r.totalVideos > 0 ? (cc.videos / r.totalVideos) * 100 : 0,
@@ -2089,10 +2101,12 @@ export function ReportView({
                   pct={rosterAct ? postedPct : creatorPct}
                 />
                 <HeroStat
-                  label="Posts published"
+                  label="Videos published"
                   value={num(cc.videos)}
                   pct={videoPct}
                   abs={priorVideos !== null ? num(Math.abs(cc.videos - priorVideos)) : null}
+                  comparisonAvailable={videoComparisonAvailable}
+                  note={videoCountNote}
                 />
               </div>
             </div>
@@ -2468,10 +2482,12 @@ export function ReportView({
             />
           )}
           <Mini
-            label="Videos posted"
+            label="Store videos published"
             value={num(r.totalVideos)}
             pct={r.videoChangePct}
-            note={hasRoster ? `${num(cc.videos)} are ours` : undefined}
+            note={r.videoCoverageComplete === false ? 'Recorded videos only · check coverage'
+              : r.priorVideoCoverageComplete === false ? 'Recorded videos · prior coverage incomplete'
+              : hasRoster ? `${num(cc.videos)} from managed creators` : undefined}
           />
           {/* ⚠️ NOT r.activeCreators. That is count(distinct handle) over the
               TikTok export with no gmv filter, so it counts every creator who
