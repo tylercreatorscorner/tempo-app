@@ -12,6 +12,16 @@ Agency leadership can open **Agency / Client finance** to configure each client,
 6. Prepare an invoice for a completed month. The server loads the current agency agreement, finance settings, and complete managed GMV for every linked brand. Partial service months and incomplete GMV are blocked for review. Drafts capture the fee calculation, billing details, manager arrangement, GMV, dates, and source revisions.
 7. Review and mark issued, print/save the client-facing PDF, and record full collection when received. Issuing does not email the invoice. Record manager payment separately after it is made. No action transfers funds.
 
+## Monthly agency revenue estimates
+
+**Agency / Revenue** automatically combines saved service-month agreements and manager arrangements with recorded managed GMV. It defaults to the current month through the last completed day in America/Chicago; past months use month-end. It does not require manual GMV forecasts or invoice addresses, and opening it never prepares an invoice or changes a payment record.
+
+The three headline amounts use the same supported clients: estimated gross client billings, manager compensation, and the amount Creators Corner retains before overhead. Full monthly fixed fees accompany recorded GMV share; no month-end extrapolation or automatic partial-service proration is applied. Higher-of, tiered, and recipient allocation calculations use the shared integer-cent fee functions. The client table retains unknown amounts, explains exclusions, and links to the relevant agreement or data review. Fixed-only financial amounts may be known even when GMV is unavailable.
+
+Available but incomplete daily GMV can produce a clearly provisional estimate. Coverage indicates daily creator-data presence across expected stores, not proof that every sale was included in the source export. Missing GMV, unresolved contract terms, unlinked brands, missing manager arrangements, and uncertain service dates remain visible. These estimates use the current client-to-brand links and dated terms; issued invoice snapshots remain separate and unchanged.
+
+Recorded collections and manager payments are a separate cash section, attributed by their actual recorded cash dates within the selected calendar period, regardless of the invoice service month. Only agency invoice payment records in Tempo contribute; individual-payee invoices, creator funding, off-platform accounting receipts, and bank balances are not inferred. This is separate from the 13-week collections forecast below, which continues to use explicit future GMV estimates and payment timing.
+
 ## Forecast rules
 
 The 13-week forecast uses rolling seven-day buckets from today in America/Chicago. Open invoices (including explicitly labeled drafts) replace estimates for the same client/month. Paid invoices contribute no future receipt, but unpaid manager obligations remain. Manager pay dates use actual collection where available; scenario delay changes only uncollected amounts. Overdue obligations appear in the first bucket. The detail schedule preserves dates outside the horizon, excluded from totals. Net cash is before overhead and is not profit or a bank balance.
