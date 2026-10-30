@@ -19,6 +19,14 @@ function dateLabel(value: string): string {
   return Number.isFinite(date.getTime()) ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : 'Date unavailable';
 }
 
+export function captureLabel(value: string): string {
+  const captured = new Date(value);
+  return Number.isFinite(captured.getTime()) ? captured.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+    timeZone: 'America/Chicago', timeZoneName: 'short',
+  }) : 'Time unavailable';
+}
+
 export function evidenceWatchUrl(video: PublishedVideoEvidenceItem): string | null {
   if (!video.watchUrl) return null;
   try {
@@ -109,15 +117,15 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
       <section className={`rounded-xl border px-4 py-3 ${library.basis === 'reconstructed' ? 'border-amber-200 bg-amber-50/60' : 'border-[#e7e7f2] bg-[#f1f0f8]'}`} aria-label="Video record basis">
         <p className="text-xs font-semibold">{library.basis === 'frozen' ? 'Captured with this report' : library.basis === 'reconstructed' ? 'Reconstructed video list' : 'Video list unavailable'}</p>
         <p className="mt-1 text-xs leading-relaxed text-[#6b7093]">{library.basis === 'frozen'
-          ? `These video records were saved with the report on ${library.evidence ? dateLabel(library.evidence.capturedAt) : 'its preparation date'}. Later uploads do not change this list.`
-          : library.basis === 'reconstructed' ? `This list uses currently saved video records and the report’s saved creators${library.evidence ? `, retrieved ${dateLabel(library.evidence.capturedAt)}` : ''}. It may differ from the report as sent. The original report numbers have not changed.`
+          ? `These video records were saved with the report on ${library.evidence ? captureLabel(library.evidence.capturedAt) : 'its preparation date'}. Later uploads do not change this list.`
+          : library.basis === 'reconstructed' ? `This list uses currently saved video records and the report’s saved creators${library.evidence ? `, retrieved ${captureLabel(library.evidence.capturedAt)}` : ''}. It may differ from the report as sent. The original report numbers have not changed.`
             : library.unavailableReason || 'The report remains available, but its supporting video records could not be loaded. Please ask your Creators Corner contact to review it.'}</p>
         {available && <p className="mt-1 text-xs leading-relaxed text-[#6b7093]">{library.evidence ? `${dateLabel(library.evidence.periodStart)} to ${dateLabel(library.evidence.periodEnd)}. ` : ''}All recorded published videos from managed creators, counted once per video ID, including videos with no sales. Missing source data can leave gaps. Contract deliverables and approved credits from earlier periods are separate.</p>}
       </section>
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[#e7e7f2] bg-[#e7e7f2]">
         <div className="bg-white px-4 py-3"><p className="text-[11px] text-[#6b7093]">Published count in report as sent</p><p className="mt-1 text-xl font-semibold tabular-nums">{library.reportCount === null ? 'Not recorded' : number(library.reportCount)}</p></div>
-        <div className="bg-white px-4 py-3"><p className="text-[11px] text-[#6b7093]">{library.basis === 'reconstructed' ? 'Currently recorded video records' : 'Video records captured'}</p><p className="mt-1 text-xl font-semibold tabular-nums">{available ? number(recordedTotal) : 'Unavailable'}</p></div>
+        <div className="bg-white px-4 py-3"><p className="text-[11px] text-[#6b7093]">{library.basis === 'reconstructed' ? 'Videos found in current records' : 'Video records captured'}</p><p className="mt-1 text-xl font-semibold tabular-nums">{available ? number(recordedTotal) : 'Unavailable'}</p></div>
       </div>
 
       {available && <section className="overflow-hidden rounded-xl border border-[#e7e7f2] bg-white" aria-label="Published video library" aria-busy={isPending || query.trim() !== initialQuery.trim()}>

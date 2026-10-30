@@ -95,6 +95,8 @@ assert.equal(ui.evidenceWatchUrl(video(0, { watchUrl: `https://tiktok.com/@jake/
 assert.equal(ui.evidenceWatchUrl(video(0, { watchUrl: `https://tiktok.com.evil.invalid/@jake/video/${video(0).videoId}/` })), null, 'Lookalike hosts are rejected');
 assert.equal(ui.evidenceWatchUrl(video(0, { watchUrl: `https://user:password@www.tiktok.com/@jake/video/${video(0).videoId}` })), null, 'Credential-bearing URLs are rejected');
 assert.equal(ui.evidenceWatchUrl(video(0, { watchUrl: `https://www.tiktok.com:444/@jake/video/${video(0).videoId}` })), null, 'Nonstandard ports are rejected');
+assert.equal(ui.captureLabel('2026-10-30T00:15:00Z'), 'Oct 29, 2026, 7:15 PM CDT', 'Capture timestamps use the agency timezone when UTC has crossed midnight');
+assert.equal(ui.captureLabel('2026-12-01T01:30:00Z'), 'Nov 30, 2026, 7:30 PM CST', 'Capture timestamps also honor standard time');
 
 props = await propsFor({});
 assert.equal(props.library.evidence.videos.length, 25, 'Only one page is serialized to the browser');
@@ -104,7 +106,7 @@ let tree = fresh(ui.VideoLibrary, props);
 let all = nodes(tree);
 assert.equal(all.filter(node => node?.type === 'li').length, 25);
 const copy = textOf(tree);
-for (const phrase of ['Reconstructed video list', 'Published count in report as sent', '45', 'Currently recorded video records', '28', 'The original report numbers have not changed.', 'Missing source data can leave gaps.', 'approved credits from earlier periods are separate.']) assert.ok(copy.includes(phrase), phrase);
+for (const phrase of ['Reconstructed video list', 'Published count in report as sent', '45', 'Videos found in current records', '28', 'The original report numbers have not changed.', 'Missing source data can leave gaps.', 'approved credits from earlier periods are separate.']) assert.ok(copy.includes(phrase), phrase);
 assert.ok(all.find(node => node?.type === 'a' && node.props.target === '_blank')?.props.rel.includes('noopener'));
 all.find(node => node?.type === 'button' && textOf(node) === 'Next').props.onClick();
 assert.ok(currentUrl.includes('page=1'));
