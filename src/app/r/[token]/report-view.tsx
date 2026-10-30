@@ -946,12 +946,14 @@ function FullRosterTable({
   g,
   judgeQuota,
   token,
+  videoLibraryUrl,
 }: {
   g: NonNullable<BrandClientReportData['granular']>;
   /** Whether the window is the month the monthly quota was written for. */
   judgeQuota: boolean;
   /** For the CSV export, which is public by this same opaque token. */
   token: string;
+  videoLibraryUrl: string;
 }) {
   /**
    * Show the level column only where enough of the roster actually carries
@@ -997,6 +999,7 @@ function FullRosterTable({
         judgeQuota={judgeQuota}
         showLevel={showLevel}
         showEarned={judgeQuota}
+        videoLibraryUrl={videoLibraryUrl}
       />
 
       {dormant.length > 0 && (
@@ -1017,6 +1020,7 @@ function FullRosterTable({
             judgeQuota={judgeQuota}
             showLevel={showLevel}
             showEarned={judgeQuota}
+            videoLibraryUrl={videoLibraryUrl}
             muted
           />
         </details>
@@ -1648,6 +1652,7 @@ export type ReportType = 'performance' | 'weekly' | 'monthly';
 
 export function ReportView({
   token,
+  preview = false,
   report: r,
   snapshot: s,
   notes,
@@ -1658,6 +1663,7 @@ export function ReportView({
   logoUrl = null,
 }: {
   token: string;
+  preview?: boolean;
   report: BrandClientReportData;
   snapshot: ClientReportSnapshot;
   notes: string | null;
@@ -1678,6 +1684,7 @@ export function ReportView({
    * the rest of the report alone.
    */
   if (s.reconciliation) return <ReconciliationView revision={s.reconciliation} report={r} token={token} brandName={brandName} periodLabel={periodLabel} />;
+  const videoLibraryUrl = `/r/${encodeURIComponent(token)}/videos${preview ? '?preview=1' : ''}`;
   const isMonthly = reportType === 'monthly';
   const isWeekly = reportType === 'weekly';
   const word = periodWord(r.periodLengthDays);
@@ -2100,14 +2107,17 @@ export function ReportView({
                   value={num(rosterAct ? rosterAct.posted : cc.activeCreatorCount)}
                   pct={rosterAct ? postedPct : creatorPct}
                 />
-                <HeroStat
-                  label="Videos published"
-                  value={num(cc.videos)}
-                  pct={videoPct}
-                  abs={priorVideos !== null ? num(Math.abs(cc.videos - priorVideos)) : null}
-                  comparisonAvailable={videoComparisonAvailable}
-                  note={videoCountNote}
-                />
+                <div>
+                  <HeroStat
+                    label="Videos published"
+                    value={num(cc.videos)}
+                    pct={videoPct}
+                    abs={priorVideos !== null ? num(Math.abs(cc.videos - priorVideos)) : null}
+                    comparisonAvailable={videoComparisonAvailable}
+                    note={videoCountNote}
+                  />
+                  <a href={videoLibraryUrl} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#4b45ff] hover:underline print:hidden">View all recorded videos<InterfaceIcon name="forward" className="size-3"/></a>
+                </div>
               </div>
             </div>
 
@@ -2416,6 +2426,7 @@ export function ReportView({
           <>
             <SectionLine>Content that sold</SectionLine>
             <TopPosts rows={watchVideos} />
+            <a href={videoLibraryUrl} className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#4b45ff] hover:underline print:hidden">View all recorded published videos<InterfaceIcon name="forward" className="size-3.5"/></a>
           </>
         )}
 
@@ -2441,7 +2452,7 @@ export function ReportView({
         {gran && gran.creators.length > 0 && (
           <>
             <SectionLine>Every creator we run for you</SectionLine>
-            <FullRosterTable g={gran} judgeQuota={windowIsMonth} token={token} />
+            <FullRosterTable g={gran} judgeQuota={windowIsMonth} token={token} videoLibraryUrl={videoLibraryUrl} />
           </>
         )}
 

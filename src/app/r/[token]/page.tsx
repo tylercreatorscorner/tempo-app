@@ -118,6 +118,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
       <ViewBeacon token={token} preview={isPreview} />
       <ReportView
         token={token}
+        preview={isPreview}
         report={report}
         snapshot={snapshot}
         notes={row.notes}

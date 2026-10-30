@@ -17,6 +17,8 @@ import type { ClientReportContext } from '@/lib/auth/client-report-access';
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getPublishedVideoEvidence } from '@/lib/data/published-video-evidence';
+import type { PublishedVideoEvidence } from './published-video-evidence-types';
 import { expandSlugs, brandLabel } from '@/lib/data/brand-registry';
 import {
   getBrandClientReportData,
@@ -27,6 +29,8 @@ import {
 export type ClientReportPeriod = ReportPeriod | { start: string; end: string };
 
 export interface ClientReportSnapshot {
+  /** Complete managed publication evidence frozen with new reports. Older reports omit it. */
+  publishedVideoEvidence?: PublishedVideoEvidence;
   reconciliation?: ReportReconciliation;
   v: 1;
   generatedAt: string;                     // ISO timestamp the numbers were frozen
@@ -211,7 +215,13 @@ export async function buildClientReportSnapshot(
     p_video_ids: videoIds.length > 0 ? videoIds : null,
   };
 
-  const { data: extrasRaw, error: extrasErr } = await supabase.rpc('get_brand_report_extras_workspace', extrasArgs);
+  const [{ data: extrasRaw, error: extrasErr }, publishedVideoEvidence] = await Promise.all([
+    supabase.rpc('get_brand_report_extras_workspace', extrasArgs),
+    getPublishedVideoEvidence({
+      tenantId: context.tenantId, rosterSlugs, dataSlugs,
+      start: fmtDate(report.startDate), end: fmtDate(report.endDate),
+    }, supabase),
+  ]);
   if (extrasErr) {
     throw new Error(`[client-reports] get_brand_report_extras failed: ${extrasErr.message}`);
   }
@@ -321,9 +331,19 @@ export async function buildClientReportSnapshot(
   }
 
   const life = extras.lifetime ?? {};
+  // The current published total and its clickable proof come from one read.
+  // Per-creator contractual delivery figures stay separate: some include
+  // approved prior-period credits whose exact video IDs were never recorded.
+  if (report.creatorsCorner.videos !== publishedVideoEvidence.total) {
+    report.creatorsCorner.videoChangePct = null;
+    report.videoCoverageComplete = false;
+  }
+  report.creatorsCorner.videos = publishedVideoEvidence.total;
+  if (report.granular) report.granular.videoCounts.postsPublished = publishedVideoEvidence.total;
   const snapshot: ClientReportSnapshot = {
     v: 1,
     generatedAt: new Date().toISOString(),
+    publishedVideoEvidence,
     report,
     views: extras.views === null || extras.views === undefined ? null : num(extras.views),
     priorViews:
