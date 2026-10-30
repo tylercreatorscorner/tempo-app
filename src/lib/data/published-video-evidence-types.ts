@@ -20,6 +20,8 @@ export interface PublishedVideoEvidence {
 
 export interface ReportVideoLibrary {
   token: string;
+  /** Operator preview navigation must not count as a client report view. */
+  preview?: boolean;
   brandName: string;
   periodLabel: string;
   reportCount: number | null;

@@ -172,6 +172,46 @@ tree = render(rows.PaginatedCreatorRows, { rows: creators, judgeQuota: false, sh
 links = nodes(tree).filter(node => node?.type === 'a' && textOf(node) === 'View videos');
 assert.equal(links.length, 1);
 assert.equal(links[0].props.href, '/r/public-token/videos?creator=id%3Acreator-10', 'Creator identity stays stable after pagination');
+tree = fresh(rows.PaginatedCreatorRows, { rows: creators.slice(0, 1), judgeQuota: false, showLevel: false, videoLibraryUrl: '/r/public-token/videos?preview=1' });
+assert.equal(nodes(tree).find(node => node?.type === 'a' && textOf(node) === 'View videos').props.href, '/r/public-token/videos?preview=1&creator=id%3Acreator-0', 'Creator links append filters without discarding preview');
+
+loadedLibrary = fixture;
+props = await propsFor({ preview: '1', creator: 'id:jake', sort: 'oldest' });
+assert.equal(props.library.preview, true);
+tree = fresh(ui.VideoLibrary, props);
+assert.equal(nodes(tree).find(node => node?.type === 'link').props.href, '/r/public-token?preview=1#creators', 'Returning to an operator preview does not become a client view');
+nodes(tree).find(node => node?.type === 'choice-menu' && node.props.label === 'Sort published videos').props.onChange('newest');
+assert.equal(currentUrl, '/r/public-token/videos?preview=1&creator=id%3Ajake');
+props = await navigate();
+tree = render(ui.VideoLibrary, props);
+nodes(tree).find(node => node?.type === 'button' && textOf(node) === 'Next').props.onClick();
+assert.equal(currentUrl, '/r/public-token/videos?preview=1&creator=id%3Ajake&page=1', 'Pagination preserves operator preview');
+props = await navigate();
+tree = render(ui.VideoLibrary, props);
+nodes(tree).find(node => node?.type === 'input').props.onChange({ target: { value: 'title 27' } });
+for (const callback of timers.values()) callback();
+timers.clear();
+assert.equal(currentUrl, '/r/public-token/videos?preview=1&creator=id%3Ajake&q=title+27', 'Search preserves preview and resets pagination');
+props = await navigate();
+tree = render(ui.VideoLibrary, props);
+const previewCsv = nodes(tree).find(node => node?.type === 'a' && textOf(node).includes('Download filtered CSV'));
+assert.equal(previewCsv.props.href, '/api/report-videos/public-token?creator=id%3Ajake&q=title+27', 'CSV does not need a preview flag');
+assert.equal((await propsFor({})).library.preview, false, 'Normal public report navigation stays normal');
+
+const reportPage = load('src/app/r/[token]/page.tsx', {
+  '@/lib/supabase/server': { createAdminClient: async () => {
+    const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: { token: 'public-token', tenant_id: null, snapshot: { report: {} } }, error: null }) };
+    return { from: () => query };
+  } },
+  '@/lib/data/client-reports': { reviveReportDates: value => value },
+  './report-view': { ReportView: 'report-view' },
+  './view-beacon': { ViewBeacon: 'view-beacon' },
+});
+for (const preview of [true, false]) {
+  tree = await reportPage.default({ params: Promise.resolve({ token: 'public-token' }), searchParams: Promise.resolve(preview ? { preview: '1' } : {}) });
+  assert.equal(nodes(tree).find(node => node?.type === 'report-view').props.preview, preview, 'The report page passes its beacon preview mode into all report links');
+  assert.equal(nodes(tree).find(node => node?.type === 'view-beacon').props.preview, preview);
+}
 
 assert.equal(page.metadata.robots.index, false);
 assert.equal(page.metadata.robots.follow, false);

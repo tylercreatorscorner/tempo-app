@@ -238,7 +238,7 @@ function CreatorRows({
                     <span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(c.quota)}</span>
                   )}
                   {videoLibraryUrl && videoKey && <a
-                    href={`${videoLibraryUrl}?creator=${encodeURIComponent(videoKey)}`}
+                    href={`${videoLibraryUrl}${videoLibraryUrl.includes('?') ? '&' : '?'}creator=${encodeURIComponent(videoKey)}`}
                     aria-label={`View published videos for ${c.realName || c.name}`}
                     className="mt-1 block text-[10.5px] font-semibold text-[#4b45ff] hover:underline print:hidden"
                   >View videos</a>}

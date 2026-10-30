@@ -11,7 +11,7 @@ export const metadata = {
 
 export default async function ReportVideosPage({ params, searchParams }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ creator?: string | string[]; q?: string | string[]; sort?: string | string[]; page?: string | string[] }>;
+  searchParams: Promise<{ creator?: string | string[]; q?: string | string[]; sort?: string | string[]; page?: string | string[]; preview?: string | string[] }>;
 }) {
   const [{ token }, query] = await Promise.all([params, searchParams]);
   const library = await getClientReportVideoLibrary(token);
@@ -28,7 +28,7 @@ export default async function ReportVideosPage({ params, searchParams }: {
   const page = Math.min(requestedPage, Math.max(0, Math.ceil(filtered.length / 25) - 1));
   // The complete packet stays on the server. Mobile viewers receive one page,
   // while CSV export applies the same filters to every saved record.
-  const pagedLibrary = { ...library, evidence: library.evidence ? { ...library.evidence, videos: filtered.slice(page * 25, (page + 1) * 25) } : null };
+  const pagedLibrary = { ...library, preview: query.preview === '1', evidence: library.evidence ? { ...library.evidence, videos: filtered.slice(page * 25, (page + 1) * 25) } : null };
   return <VideoLibrary library={pagedLibrary}
     recordedTotal={library.evidence?.videos.length ?? 0}
     filteredTotal={filtered.length}

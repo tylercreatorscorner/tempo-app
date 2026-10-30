@@ -80,6 +80,7 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
     navigationSequence.current += 1;
     if (searchTimer.current) clearTimeout(searchTimer.current);
     const params = new URLSearchParams();
+    if (library.preview) params.set('preview', '1');
     const nextCreator = next.creator ?? creatorKey;
     const nextQuery = next.q ?? query;
     const nextSort = next.sort ?? sort;
@@ -108,7 +109,7 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
 
   return <main className="min-h-screen bg-[#fbfbfd] px-4 py-6 text-[#171a33] sm:px-8 sm:py-9">
     <div className="mx-auto max-w-5xl space-y-5">
-      <Link href={`/r/${encodeURIComponent(library.token)}#creators`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b7093] hover:text-[#4b45ff]"><InterfaceIcon name="back" className="size-3.5"/>Back to report</Link>
+      <Link href={`/r/${encodeURIComponent(library.token)}${library.preview ? '?preview=1' : ''}#creators`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b7093] hover:text-[#4b45ff]"><InterfaceIcon name="back" className="size-3.5"/>Back to report</Link>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-[11px] font-semibold uppercase tracking-wider text-[#8a8fb0]">{library.brandName}</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Published videos</h1><p className="mt-1 text-sm text-[#6b7093]">{library.periodLabel}</p></div>
         {available && <a href={csvHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[#e7e7f2] bg-white px-3 py-2 text-xs font-semibold text-[#4b45ff] hover:bg-[#f6f6fb]"><Download className="size-3.5" aria-hidden="true"/>Download filtered CSV</a>}
