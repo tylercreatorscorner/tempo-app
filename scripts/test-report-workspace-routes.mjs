@@ -6,6 +6,8 @@ import ts from 'typescript';
 const own={userId:'actor',tenantId:'a',role:'admin',canViewFinance:true,brandScope:{kind:'all'},permissions:new Set(['reporting:read','reporting:write'])};
 let scope=own, rpcCalls=[], writes=0, agencyPortfolio={}, clientPublishedCounts={}, publishedVideoFailure=false;
 const publishedVideoCalls=[];
+const reportEvidenceCalls=[];
+let reportEvidenceOverride=null,reportEvidenceFailure=false;
 let publishedVideoResult={total:0,priorTotal:0,storeTotal:0,priorStoreTotal:0,currentComplete:false,priorComplete:false,brands:[]};
 const brand=(id,tenant,extra={})=>({id,tenant_id:tenant,slug:id,name:id,parent_brand_id:null,is_archived:false,is_umbrella:false,...extra});
 const tables={brands_v2:[brand('own','a'),brand('foreign','b')], client_reports:[
@@ -33,6 +35,7 @@ deps['@/lib/agreements/renewals']={ensureAgreementPeriods:async()=>{}};
 deps['./reporting-exclusions']=load('src/lib/data/reporting-exclusions.ts');
 deps['@/lib/data/agency-period']=load('src/lib/data/agency-period.ts');
 deps['@/lib/data/published-videos']={getPublishedVideoCounts:async args=>{publishedVideoCalls.push(args);if(publishedVideoFailure)throw new Error('fixture video count unavailable');return publishedVideoResult;}};
+deps['@/lib/data/published-video-evidence']={getPublishedVideoEvidence:async args=>{reportEvidenceCalls.push(args);if(reportEvidenceFailure)throw new Error('Evidence unavailable');return reportEvidenceOverride??{v:1,capturedAt:'2026-10-01T12:00:00.000Z',periodStart:args.start,periodEnd:args.end,scope:'managed-published',total:0,videos:[]};}};
 deps['@/lib/data/brand-client-report']=load('src/lib/data/brand-client-report.ts');
 deps['@/lib/data/client-reports']=load('src/lib/data/client-reports.ts');
 deps['@/lib/data/agency-report']=load('src/lib/data/agency-report.ts');
@@ -241,3 +244,28 @@ const legacyClientVideoReport={...clientVideoReport};delete legacyClientVideoRep
 clientVideoStat=elements(renderClientVideo(legacyClientVideoReport)).find(node=>node.props?.label==='Videos published');
 assert.equal(clientVideoStat.props.comparisonAvailable,true);assert.equal(clientVideoStat.props.pct,200,'Legacy snapshots keep their stored comparison behavior');
 console.log('PASS client frozen renderer: partial count differences stay withheld and legacy snapshots retain their existing comparison');
+
+// The new current headline and its clickable proof are frozen from one evidence read.
+const preservedReportRows=JSON.stringify(tables.client_reports);
+reportEvidenceOverride={v:1,capturedAt:'2026-09-21T12:00:00.000Z',periodStart:'2026-09-14',periodEnd:'2026-09-20',scope:'managed-published',total:2,videos:[
+ {videoId:'7496167504848455902',creatorHandle:'creator',qualifyingHandles:['creator'],publishedAt:'2026-09-15',watchUrl:null,title:null},
+ {videoId:'7496167504848455903',creatorHandle:'creator',qualifyingHandles:['creator'],publishedAt:'2026-09-16',watchUrl:null,title:null},
+]};
+const evidenceBuild=await deps['@/lib/data/client-reports'].buildClientReportSnapshot('store',{start:'2026-09-14',end:'2026-09-20'},{tenantId:'a',registry:videoRegistry},undefined,'monthly');
+assert.equal(evidenceBuild.snapshot.publishedVideoEvidence.total,2);
+assert.equal(evidenceBuild.snapshot.report.creatorsCorner.videos,2,'The published headline must equal the frozen complete video list');
+assert.equal(evidenceBuild.snapshot.report.creatorsCorner.videoChangePct,null,'A different concurrent count cannot leave a mismatched comparison');
+assert.equal(evidenceBuild.snapshot.report.videoCoverageComplete,false);
+assert.equal(evidenceBuild.snapshot.report.totalGmv,0,'Evidence capture does not modify financial facts');
+assert.deepEqual(Array.from(reportEvidenceCalls.at(-1).dataSlugs),['store']);
+assert.deepEqual(Array.from(reportEvidenceCalls.at(-1).rosterSlugs),['store','umbrella']);
+const frozenEvidenceBuild=JSON.stringify(evidenceBuild.snapshot);
+reportEvidenceOverride={...reportEvidenceOverride,total:0,videos:[]};
+const secondEvidenceBuild=await deps['@/lib/data/client-reports'].buildClientReportSnapshot('store',{start:'2026-09-14',end:'2026-09-20'},{tenantId:'a',registry:videoRegistry},undefined,'monthly');
+assert.equal(secondEvidenceBuild.snapshot.report.creatorsCorner.videos,0);
+assert.equal(JSON.stringify(evidenceBuild.snapshot),frozenEvidenceBuild,'Later source changes cannot change a previously built evidence packet');
+reportEvidenceFailure=true;
+await assert.rejects(deps['@/lib/data/client-reports'].buildClientReportSnapshot('store',{start:'2026-09-14',end:'2026-09-20'},{tenantId:'a',registry:videoRegistry},undefined,'monthly'),/Evidence unavailable/);
+assert.equal(JSON.stringify(tables.client_reports),preservedReportRows,'Evidence capture never rewrites existing sent report rows');
+reportEvidenceFailure=false;reportEvidenceOverride=null;
+console.log('PASS report video snapshot builder: shared current total/list read, selected store scope, comparison safety, failed evidence cannot freeze and older snapshots remain unchanged');

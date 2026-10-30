@@ -38,6 +38,8 @@ jobs:
         run: node scripts/test-reporting-exclusions.mjs && npx eslint src/lib/data/reporting-exclusions.ts
       - name: Published video totals
         run: node scripts/test-published-videos.mjs && node scripts/test-published-videos-stat.mjs && npx eslint src/lib/data/published-videos.ts src/components/dashboard/published-videos-stat.tsx
+      - name: Client report video evidence
+        run: node scripts/test-published-video-evidence.mjs && node scripts/test-report-video-library.mjs && node scripts/test-report-video-ui.mjs && npx eslint src/lib/data/published-video-evidence-types.ts src/lib/data/published-video-evidence.ts src/lib/data/client-report-videos.ts 'src/app/api/report-videos/[token]/route.ts' 'src/app/r/[token]/videos' 'src/app/r/[token]/creator-rows.tsx'
       - name: Upload coverage evidence regressions
         run: node --import tsx scripts/test-coverage-classify.ts && node --import tsx scripts/test-upload-coverage-evidence.ts && node --import tsx scripts/test-workbook-range-recovery.ts && node scripts/test-upload-source-replacement.mjs
       - name: Lint hardened entry points

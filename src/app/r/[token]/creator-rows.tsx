@@ -21,6 +21,8 @@
 import { useState } from 'react';
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
 import { creatorEarnedShare } from '@/lib/data/delivered-spend';
+import { reportVideoCreatorKey } from '@/lib/data/published-video-evidence-types';
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 
 function money(n: number): string {
   return '$' + Math.round(n).toLocaleString('en-US');
@@ -52,6 +54,7 @@ function CreatorRows({
   showLevel,
   showEarned = false,
   muted = false,
+  videoLibraryUrl,
 }: {
   rows: NonNullable<BrandClientReportData['granular']>['creators'];
   /** Only show the monthly target beside a count covering that month. */
@@ -59,6 +62,8 @@ function CreatorRows({
   /** Only where enough of the roster carries a level. */
   showLevel: boolean;
   muted?: boolean;
+  /** The public, token-scoped evidence library. Counts remain the report as sent. */
+  videoLibraryUrl?: string;
   /**
    * Show what each retained creator's posting actually earned of their
    * retainer.
@@ -107,6 +112,7 @@ function CreatorRows({
             const partnershipStart = dateLabel(c.ccStartDate);
             const termStart = dateLabel(c.agreement?.periodStart);
             const termEnd = dateLabel(c.agreement?.periodEnd);
+            const videoKey = reportVideoCreatorKey(c);
             return (
               <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${muted ? 'opacity-70' : ''}`}>
                 {/* Identity: the person's name, falling back to the handle
@@ -148,7 +154,7 @@ function CreatorRows({
                     <details className="group mt-0.5">
                       <summary className="inline-flex cursor-pointer list-none items-center gap-0.5 text-[11px] font-semibold text-[#8a8fb0] hover:text-[#4b45ff]">
                         +{extras.length} more
-                        <span className="transition-transform group-open:rotate-90">&rsaquo;</span>
+                        <InterfaceIcon name="forward" className="size-3 transition-transform group-open:rotate-90"/>
                       </summary>
                       <div className="mt-1 flex flex-col gap-0.5">
                         {extras.map((x) => (
@@ -231,6 +237,11 @@ function CreatorRows({
                   {judgeQuota && c.quota != null && (!c.agreement || c.agreement.reportPeriodComparable) && (
                     <span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(c.quota)}</span>
                   )}
+                  {videoLibraryUrl && videoKey && <a
+                    href={`${videoLibraryUrl}?creator=${encodeURIComponent(videoKey)}`}
+                    aria-label={`View published videos for ${c.realName || c.name}`}
+                    className="mt-1 block text-[10.5px] font-semibold text-[#4b45ff] hover:underline print:hidden"
+                  >View videos</a>}
                 </td>
                 {/* ⚠️ From the SAME function that produces the total, so a
                     client adding this column cannot arrive at a different
@@ -283,12 +294,14 @@ export function PaginatedCreatorRows({
   showLevel,
   showEarned = false,
   muted = false,
+  videoLibraryUrl,
 }: {
   rows: NonNullable<BrandClientReportData['granular']>['creators'];
   judgeQuota: boolean;
   showLevel: boolean;
   showEarned?: boolean;
   muted?: boolean;
+  videoLibraryUrl?: string;
 }) {
   const [page, setPage] = useState(0);
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
@@ -305,6 +318,7 @@ export function PaginatedCreatorRows({
         showLevel={showLevel}
         showEarned={showEarned}
         muted={muted}
+        videoLibraryUrl={videoLibraryUrl}
       />
       {pages > 1 && (
         <div className="flex items-center justify-between gap-3 border-t border-[#eeedf5] px-4 py-2.5">
