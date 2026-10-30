@@ -133,3 +133,9 @@
 
 .reviewActions { display: flex; flex-wrap: wrap; gap: 0 12px; }
 .negative, .table tbody td.negative, .metric.negative > strong { color: var(--destructive); }
+
+.noFee summary > span { display: inline-block; margin-left: 5px; padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font-size: 10px; font-variant-numeric: tabular-nums; }
+.noFeeRecord { display: flex; flex-direction: column; gap: 5px; padding: 1px 0 3px; }
+.noFeeRecord small { font-size: 10px; line-height: 1.5; color: var(--muted-foreground); }
+
+.table .servicePeriod { margin-top: 7px; color: var(--foreground); font-size: 10px; line-height: 1.5; }

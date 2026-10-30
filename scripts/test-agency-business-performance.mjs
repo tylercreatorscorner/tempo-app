@@ -134,6 +134,15 @@ try {
   for (const [index, [forTenant, month]] of parityCases.entries()) {
     assert.deepEqual(await snapshot(forTenant, month), baseline[index], `Bounded query full-month wrapper preserves deployed semantics: ${forTenant}/${month}`);
   }
+  const oldPeriod = (forTenant, month, through) => db.query('select to_jsonb(t) as value from agency_business_period_performance($1,$2,$3) t order by brand_id', [forTenant, month, through]).then(result => result.rows.map(row => row.value));
+  const periodParityCases = [[tenant, '2026-09-01', '2026-09-15'], [tenant, '2026-10-01', '2026-10-05'], [tenant, '2024-03-01', '2024-03-31'], [id(777), '2026-09-01', '2026-09-30']];
+  const periodBaseline = await Promise.all(periodParityCases.map(args => oldPeriod(...args)));
+  // The combined migration also replaces finance writers; only their declared
+  // row type is needed in this independent performance fixture.
+  await db.exec('create table public.agency_client_invoices(id uuid,tenant_id uuid,client_id uuid,month text,revision integer,status text,snapshot jsonb,collected_on date,manager_paid_on date)');
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261030061138_agency_explicit_service_periods.sql', import.meta.url), 'utf8'));
+  for (const [index, args] of periodParityCases.entries()) assert.deepEqual(await oldPeriod(...args), periodBaseline[index], 'Range canonical extraction preserves every field of the old MTD wrapper');
+  for (const [index, [forTenant, month]] of parityCases.entries()) assert.deepEqual(await snapshot(forTenant, month), baseline[index], 'Range canonical extraction preserves the original monthly wrapper');
 
   const before = await snapshot();
   const rows = new Map(before.map(row => [row.brand_id, row]));
@@ -234,6 +243,19 @@ try {
   assert.deepEqual(await bounded(id(999)), []);
   for (const through of [null, '2026-09-30', '2026-11-01', 'infinity']) await assert.rejects(bounded(tenant, through), error => error.code === '22023');
 
+  await brand(21, 'partial-service');
+  await member('partial-service', 'managed');
+  await monthRows('partial-service', 'managed', 1000000, 14, '2026-10');
+  await db.query(`INSERT INTO creator_performance SELECT $1,'partial-service','managed',DATE '2026-10-15'+i,'daily',10 FROM generate_series(0,16) i`, [tenant]);
+  await sale('partial-service', '2026-10-16', 'managed', -3);
+  await sale('partial-service', '2026-10-15', 'managed', 9999999, { tenant: foreignTenant });
+  const serviceRange = async (from = '2026-10-15', through = '2026-10-29') => (await db.query(`SELECT brand_id,managed_gmv,recorded_days,expected_days,recorded_through::text,source_recorded_days,complete FROM agency_business_range_performance($1,'2026-10-01',$2,$3)`, [tenant,from,through])).rows;
+  const partial = (await serviceRange()).find(row => row.brand_id === id(21));
+  assert.equal(Number(partial.managed_gmv), 147, 'Huge October 1-14 GMV is excluded from the approved October 15-through range; refunds remain');
+  assert.equal(partial.recorded_days, 15); assert.equal(partial.expected_days, 15); assert.equal(partial.recorded_through, '2026-10-29'); assert.equal(partial.complete, true);
+  assert.deepEqual((await db.query(`select to_jsonb(t) as value from agency_business_range_performance($1,'2026-10-01','2026-10-01','2026-10-29') t order by brand_id`, [tenant])).rows.map(row => row.value), await oldPeriod(tenant,'2026-10-01','2026-10-29'), 'Range start equal to month start is exactly the MTD wrapper');
+  for (const [from,through] of [[null,'2026-10-29'],['2026-09-30','2026-10-29'],['2026-10-30','2026-10-29'],['2026-10-15','2026-11-01'],['infinity','2026-10-29']]) await assert.rejects(serviceRange(from,through), error => error.code === '22023');
+
   const security = (await db.query(`SELECT prosecdef, provolatile, proconfig,
     has_function_privilege('anon',oid,'EXECUTE') AS anon,
     has_function_privilege('authenticated',oid,'EXECUTE') AS authenticated,
@@ -249,6 +271,7 @@ try {
     await db.exec(`SET ROLE ${role}`);
     await assert.rejects(snapshot(), error => error.code === '42501');
     await assert.rejects(bounded(), error => error.code === '42501');
+    await assert.rejects(serviceRange(), error => error.code === '42501');
     await db.exec('RESET ROLE');
   }
   // The calling service has SELECT only. A read-only transaction proves this
@@ -258,12 +281,14 @@ try {
   assert.deepEqual(await snapshot(), expected);
   assert.deepEqual(await snapshot(), expected);
   assert.equal(Number((await bounded()).find(row => row.brand_id === id(20)).managed_gmv), 93);
+  assert.equal(Number((await serviceRange()).find(row => row.brand_id === id(21)).managed_gmv), 147);
   await db.exec('ROLLBACK; RESET ROLE');
   console.log('PASS agency performance: membership dates, interval union, all account sources, refunds and two-month bounds');
   console.log('PASS fast-path parity with deployed original: absent sources, zeros, unknown managed/organic money and empty roots');
   console.log('PASS independent missing/zero months, archived clients, full-store daily coverage and leap-year calendar');
   console.log('PASS tenant isolation across every source; service-only invoker executes in a read-only transaction');
   console.log('PASS bounded revenue period: same/open day excluded, source freshness separate from all-store coverage, no-source/zero/unknown preserved');
+  console.log('PASS approved service range: prestart GMV excluded, exact range coverage, MTD/month wrapper parity and service-only read-only execution');
 } finally {
   await db.close();
 }
