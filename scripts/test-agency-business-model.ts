@@ -38,6 +38,18 @@ assert.equal(revenue({ terms: [{ ...term, feeModel: "share", revSharePercent: 10
 assert.equal(revenue({ terms: [{ ...term, feeModel: "share", revSharePercent: 10 }] }, { gmvCents: -100 }).status, "review_required");
 assert.equal(revenue({ terms: [{ ...term, feeModel: "minimum", monthlyRetainer: 100, revSharePercent: 10 }] }).revenueCents, 10000);
 assert.equal(revenue({ terms: [{ ...term, feeModel: "additive", monthlyRetainer: 100, revSharePercent: 10 }] }).revenueCents, 10010);
+const components: AgencyTerms = { ...term, effectiveMonth: '2026-01', feeModel: 'components', monthlyRetainer: 4000, revSharePercent: 2, managerComponent: { monthlyRetainer: 6000, revSharePercent: 3, feeModel: 'minimum' } };
+assert.deepEqual(validateClientSaveInput({ ...draft, terms: [components] }).terms, [components]);
+assert.equal(revenue({ terms: [components] }, { gmvCents: 10000000 }).revenueCents, 1200000, 'CC $4k + 2% plus manager higher of $6k or 3% is gross receipts');
+assert.equal(revenue({ terms: [components] }, { gmvCents: 30000000 }).revenueCents, 1900000, 'manager minimum switches to share above the crossing');
+assert.equal(revenue({ terms: [{ ...components, monthlyRetainer: 0, managerComponent: { monthlyRetainer: 5000, revSharePercent: 3, feeModel: 'minimum' } }] }, { gmvCents: 10000000 }).revenueCents, 700000, 'Dr Dent gross fee includes the manager minimum plus CC share');
+assert.equal(revenue({ terms: [{ ...components, monthlyRetainer: 0, revSharePercent: 0.5, managerComponent: { monthlyRetainer: 0, revSharePercent: 0.5, feeModel: 'additive' } }] }, { gmvCents: 100 }).revenueCents, 2, 'half-cent components each round up before adding');
+assert.equal(revenue({ terms: [components] }, { gmvComplete: false }).status, 'missing_gmv');
+assert.equal(revenue({ terms: [components] }, { gmvCents: -1 }).status, 'review_required');
+assert.equal(revenue({ terms: [{ ...components, revSharePercent: 100, monthlyRetainer: 100000000 }] }, { gmvCents: Number.MAX_SAFE_INTEGER }).status, 'review_required', 'an overflowing component amount requires review rather than throwing from revenue summaries');
+for (const managerComponent of [undefined, null, {}, { monthlyRetainer: 6000, revSharePercent: 3, feeModel: 'fixed' }, { monthlyRetainer: -1, revSharePercent: 3, feeModel: 'minimum' }, { monthlyRetainer: 6000, revSharePercent: 3.001, feeModel: 'minimum' }, { monthlyRetainer: 6000, revSharePercent: 3, feeModel: 'minimum', unexpected: 1 }]) assert.throws(() => validateClientSaveInput({ ...draft, terms: [{ ...components, managerComponent }] }));
+assert.throws(() => validateClientSaveInput({ ...draft, terms: [{ ...components, feeModel: 'additive' }] }), /components fee model/);
+assert.throws(() => validateClientSaveInput({ ...draft, terms: [{ ...components, tierCalculation: 'marginal' }] }), /Tier settings/);
 const tiered: AgencyTerms = { ...term, feeModel: "tiered", monthlyRetainer: 10000, tierCalculation: "marginal", gmvBasis: "managed", revShareTiers: [
   { upToGmv: 500000, percent: 10 }, { upToGmv: 1500000, percent: 7.5 }, { upToGmv: 3500000, percent: 6.5 }, { upToGmv: null, percent: 5.5 },
 ] };

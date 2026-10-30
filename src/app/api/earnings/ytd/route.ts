@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const brandFilterSlugs = finance.brandSlugs;
 
   const url = req.nextUrl;
+  const teamMemberId = url.searchParams.get('team_member_id') ?? undefined;
   const now = new Date();
   const currentYear = now.getUTCFullYear();
   const currentMonthIdx = now.getUTCMonth(); // 0-based
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
     monthList.push(`${year}-${String(m).padStart(2, '0')}`);
   }
 
-  const results = await Promise.all(monthList.map((m) => getEarnings(m, undefined, brandFilterSlugs, finance.scope.tenantId)));
+  const results = await Promise.all(monthList.map((m) => getEarnings(m, teamMemberId, brandFilterSlugs, finance.scope.tenantId)));
 
   // Per-month totals (compact form)
   const months = results.map((r: EarningsResult) => ({

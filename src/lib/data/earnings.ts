@@ -39,6 +39,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 import { computeManagedGmv } from '@/lib/data/managed-gmv';
+import { readCompensationForMonth } from '@/lib/finance/compensation-history';
 import {
   applyCompensationModel,
   type CompensationModel,
@@ -285,7 +286,7 @@ export async function getEarnings(
 ): Promise<EarningsResult> {
   if (!tenantId || !Array.isArray(brandFilterSlugs)) throw new Error('Financial scope is required.');
   // Validate month "YYYY-MM"
-  if (!/^\d{4}-\d{2}$/.test(month)) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     throw new Error(`Invalid month "${month}" — expected YYYY-MM`);
   }
   const [yearStr, monthStr] = month.split('-');
@@ -354,12 +355,8 @@ export async function getEarnings(
     marketingRes,
   ] = await Promise.all([
     activeTeamMemberId
-      ? supabase
-          .from('brand_compensation')
-          .select('brand, retainer, commission_rate, revenue_share_rate, marketing_commission_rate, product_retainer_amount, product_retainer_name, launch_fee, launch_fee_name, launch_fee_ends, compensation_model')
-          .eq('team_member_id', activeTeamMemberId).eq('tenant_id', tenantId)
-          .in('brand', activeBrandSlugs)
-      : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+      ? readCompensationForMonth(supabase, tenantId, activeTeamMemberId, activeBrandSlugs, month)
+      : Promise.resolve(activeBrandSlugs.map(brand => ({ brand, active: false }))),
     // Brand-level fields stay on brand_settings (bill_to_*, monthly_gmv_goal,
     // legacy payment_instructions which we DON'T use anymore now that it lives
     // per-payee on team_members).
@@ -382,7 +379,7 @@ export async function getEarnings(
 
   // Merge per-payee compensation rows with brand-level info into a single
   // BrandSettingsRow-shaped lookup. The downstream loop is unchanged.
-  const compensationRows = (compensationRes.data as Array<Record<string, unknown>> | null ?? []);
+  const compensationRows = compensationRes as unknown as Array<Record<string, unknown>>;
   const brandLevelRows = (brandLevelRes.data as Array<Record<string, unknown>> | null ?? []);
   const teamMember = (teamMemberRes.data as { name?: string; email?: string; address?: string; payment_instructions?: string | null } | null);
 
@@ -445,6 +442,9 @@ export async function getEarnings(
   let monthlyGoalSum = 0;
 
   for (const brand of activeBrandSlugs) {
+    // An inactive payee-brand pair has no earnings, including global creator
+    // overrides and marketing GMV. Resolve this before calculating either.
+    if (compByBrand.get(brand)?.active === false) continue;
     const s = settingsByBrand.get(brand);
     const ratePct = getBrandRatePct(s);
     // Honor an explicitly configured marketing rate — INCLUDING 0% (a brand

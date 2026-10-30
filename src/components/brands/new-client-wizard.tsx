@@ -20,6 +20,7 @@ import {
   Check, Trash2, AlertCircle, Mail, Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { currentMonth } from '@/lib/utils/format';
 import { invalidateBrandList } from '@/hooks/use-brand-list';
 
 type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
@@ -49,6 +50,7 @@ interface Identity {
 }
 
 interface Financial {
+  effectiveMonth: string;
   compensation_model: CompensationModel;
   commission_rate: string;        // % as user-typed string
   retainer: string;               // $
@@ -65,6 +67,7 @@ interface Financial {
 }
 
 const EMPTY_FIN: Financial = {
+  effectiveMonth: '',
   compensation_model: 'standard',
   commission_rate: '',
   retainer: '',
@@ -90,7 +93,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [identity, setIdentity] = useState<Identity>({ name: '', slug: '', color: COLOR_PRESETS[0] });
   const [slugDirty, setSlugDirty] = useState(false);
-  const [financial, setFinancial] = useState<Financial>(EMPTY_FIN);
+  const [financial, setFinancial] = useState<Financial>(() => ({ ...EMPTY_FIN, effectiveMonth: currentMonth() }));
   const [contactEmails, setContactEmails] = useState<string[]>([]);
   const [pendingEmail, setPendingEmail] = useState('');
 
@@ -105,7 +108,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
       setStep(1);
       setIdentity({ name: '', slug: '', color: COLOR_PRESETS[0] });
       setSlugDirty(false);
-      setFinancial(EMPTY_FIN);
+      setFinancial({ ...EMPTY_FIN, effectiveMonth: currentMonth() });
       setContactEmails([]);
       setPendingEmail('');
       setError(null);
@@ -183,6 +186,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
         bill_to_address: strOrUndef(financial.bill_to_address),
       },
       compensation: {
+        effectiveMonth: financial.effectiveMonth,
         compensation_model: financial.compensation_model,
         commission_rate: numOrUndef(financial.commission_rate),
         retainer: numOrUndef(financial.retainer),
@@ -537,6 +541,9 @@ function Step2Financial({
         All financial fields are optional — you can fill them in now or after creating the brand.
       </p>
 
+      <Section title="Terms effective from">
+        <input type="month" required value={financial.effectiveMonth} onChange={event => set('effectiveMonth', event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+      </Section>
       <Section title="Compensation Model">
         <div className="space-y-2">
           {MODEL_OPTIONS.map((opt) => (

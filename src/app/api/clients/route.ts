@@ -7,7 +7,7 @@
  *
  *   1. Create brands_v2 row (identity: slug, name, color, display_name)
  *   2. Upsert brand_settings (monthly_gmv_goal, bill_to_*)
- *   3. Upsert brand_compensation for the default team member
+ *   3. Record month-effective compensation history for the default team member
  *      (compensation_model, commission_rate, retainer, launch_fee, etc.)
  *   4. Invite one or more brand contacts (auth user + user_profiles row +
  *      user_brand_access scoped to this new brand)
@@ -23,6 +23,9 @@ import { inviteWorkspaceMember } from '@/lib/auth/invite-workspace-member';
 import { assertNotImpersonating } from '@/lib/auth/platform-admin';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isEffectiveMonth } from '@/lib/finance/save-compensation';
+import { writeCompensationForMonth } from '@/lib/finance/compensation-history';
+import { getFinanceAccess } from '@/lib/finance/access';
 
 export const runtime = 'nodejs';
 
@@ -44,6 +47,7 @@ interface SettingsInput {
 }
 
 interface CompensationInput {
+  effectiveMonth?: unknown;
   compensation_model?: unknown;
   commission_rate?: unknown;
   retainer?: unknown;
@@ -91,6 +95,26 @@ export async function POST(req: NextRequest) {
   let body: PostBody;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
+
+  const compIn = body.compensation ?? {};
+  const hasCompFields =
+    compIn.compensation_model !== undefined ||
+    compIn.commission_rate !== undefined ||
+    compIn.retainer !== undefined ||
+    compIn.launch_fee !== undefined ||
+    compIn.launch_fee_name !== undefined ||
+    compIn.launch_fee_ends !== undefined ||
+    compIn.product_retainer_amount !== undefined ||
+    compIn.product_retainer_name !== undefined ||
+    compIn.marketing_commission_rate !== undefined;
+
+  if (hasCompFields) {
+    const finance = await getFinanceAccess('earnings', 'configure', true);
+    if (finance instanceof NextResponse) return finance;
+    if (!isEffectiveMonth(compIn.effectiveMonth)) {
+      return NextResponse.json({ error: 'A valid compensation.effectiveMonth (YYYY-MM) is required.' }, { status: 400 });
+    }
+  }
 
   // ── 1. Identity ────────────────────────────────────────────────────
   const idIn = body.identity ?? {};
@@ -150,17 +174,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 3. Per-(brand × team_member) compensation ───────────────────────
-  const compIn = body.compensation ?? {};
-  const hasCompFields =
-    compIn.compensation_model !== undefined ||
-    compIn.commission_rate !== undefined ||
-    compIn.retainer !== undefined ||
-    compIn.launch_fee !== undefined ||
-    compIn.launch_fee_name !== undefined ||
-    compIn.launch_fee_ends !== undefined ||
-    compIn.product_retainer_amount !== undefined ||
-    compIn.product_retainer_name !== undefined ||
-    compIn.marketing_commission_rate !== undefined;
+
 
   if (hasCompFields) {
     // Resolve team member: explicit id wins, otherwise the first active member
@@ -169,6 +183,7 @@ export async function POST(req: NextRequest) {
       const { data: tm } = await admin
         .from('team_members')
         .select('id')
+        .eq('tenant_id', profile.tenant_id)
         .eq('is_archived', false)
         .order('created_at', { ascending: true })
         .limit(1)
@@ -179,12 +194,7 @@ export async function POST(req: NextRequest) {
     if (!teamMemberId) {
       warnings.push('No team member exists yet — compensation terms were not saved. Add a team member in Settings → Team Members, then edit the brand to fill in terms.');
     } else {
-      const compPatch: Record<string, unknown> = {
-        tenant_id: profile.tenant_id,
-        brand: slug,
-        team_member_id: teamMemberId,
-        updated_at: new Date().toISOString(),
-      };
+      const compPatch: Record<string, unknown> = {};
 
       const model = typeof compIn.compensation_model === 'string' ? compIn.compensation_model : null;
       if (model && (COMPENSATION_MODELS as string[]).includes(model)) {
@@ -212,10 +222,15 @@ export async function POST(req: NextRequest) {
       const mkt = nonNegNumber(compIn.marketing_commission_rate);
       if (mkt !== null) compPatch.marketing_commission_rate = mkt;
 
-      const { error } = await admin
-        .from('brand_compensation')
-        .upsert(compPatch, { onConflict: 'brand,team_member_id,tenant_id' });
-      if (error) warnings.push(`brand_compensation: ${error.message}`);
+      try {
+        await writeCompensationForMonth(admin, {
+          tenantId: profile.tenant_id, actorId: profile.user_id, brand: slug, teamMemberId,
+          effectiveMonth: compIn.effectiveMonth as string, patch: compPatch,
+          source: { endpoint: 'clients', action: 'initialize' },
+        });
+      } catch (cause) {
+        warnings.push(`Compensation was not saved: ${cause instanceof Error ? cause.message : 'History write failed.'}`);
+      }
     }
   }
 

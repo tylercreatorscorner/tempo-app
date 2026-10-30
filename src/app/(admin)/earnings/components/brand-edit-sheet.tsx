@@ -29,8 +29,9 @@ import { DateField } from '@/components/ui/date-field';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils/format';
+import { currentMonth, formatCurrency } from '@/lib/utils/format';
 import { applyCompensationModel, type CompensationModel } from '@/lib/finance/invoice-math';
+import { buildArrangementPatch } from '@/lib/finance/arrangement-patch';
 import { CreatorOverridesSection } from './creator-overrides-section';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { Button } from '@/components/ui/button';
@@ -85,6 +86,8 @@ interface Props {
   /** Payee display name for the header — the arrangement is per (brand, payee). */
   payeeName?: string | null;
   initialValues: BrandSettingsValues;
+  /** Context-free brand settings may edit billing/goal fields only. */
+  billingOnly?: boolean;
   /** Earnings context for the live billed preview; omit to hide the strip. */
   preview?: ArrangementPreviewContext | null;
   /**
@@ -93,7 +96,7 @@ interface Props {
    * the drawer no longer renders a Marketing GMV field.
    */
   marketingGmv?: number | null;
-  /** @deprecated See marketingGmv — no longer used by the drawer. */
+  /** Effective month for compensation terms. Defaults to the current month in Settings. */
   activeMonth?: string | null;
   onClose: () => void;
   /** Called with the saved values so the caller can patch its rows optimistically. */
@@ -112,10 +115,11 @@ function modelLabelOf(m: CompensationModel): string {
 }
 
 export function BrandEditSheet({
-  open, brand, brandLabel, teamMemberId, payeeName, initialValues, preview, onClose, onSaved,
+  open, brand, brandLabel, teamMemberId, payeeName, initialValues, preview, activeMonth, billingOnly = false, onClose, onSaved,
 }: Props) {
   const [values, setValues] = useState<BrandSettingsValues>(initialValues);
   const [baseline, setBaseline] = useState<BrandSettingsValues>(initialValues);
+  const [effectiveMonth, setEffectiveMonth] = useState(activeMonth ?? currentMonth());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,9 +135,10 @@ export function BrandEditSheet({
       setValues(initialRef.current);
       setBaseline(initialRef.current);
       setError(null);
+      setEffectiveMonth(activeMonth ?? currentMonth());
     }
     wasOpen.current = open;
-  }, [open]);
+  }, [open, activeMonth]);
 
   // Live billed preview — the SAME pure combine math the server runs. The
   // affiliate side re-rates each creator's GMV: per-creator overrides (rate
@@ -206,25 +211,11 @@ export function BrandEditSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           brand,
+          effectiveMonth,
           // Target the payee currently shown in the table; without this the
           // API defaults to the first team member and the edit lands there.
           team_member_id: teamMemberId ?? undefined,
-          patch: {
-            commission_rate: values.commission_rate,
-            retainer: values.retainer,
-            launch_fee: values.launch_fee,
-            launch_fee_name: values.launch_fee_name,
-            launch_fee_ends: values.launch_fee_ends,
-            product_retainer_amount: values.product_retainer_amount,
-            product_retainer_name: values.product_retainer_name,
-            monthly_gmv_goal: values.monthly_gmv_goal,
-            marketing_commission_rate: values.marketing_commission_rate,
-            compensation_model: values.compensation_model,
-            bill_to_name: values.bill_to_name,
-            bill_to_email: values.bill_to_email,
-            bill_to_address: values.bill_to_address,
-            payment_instructions: values.payment_instructions,
-          },
+          patch: buildArrangementPatch(values, baseline, billingOnly),
         }),
       });
       if (!res.ok) {
@@ -278,10 +269,15 @@ export function BrandEditSheet({
           {/* Form */}
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5">
             {/* ── Billing arrangement (this payee) ── */}
-            <Section
+            {billingOnly && <p className="text-xs text-muted-foreground">Edit compensation in Earnings or the compensation matrix, where the month and payee are selected.</p>}
+            {!billingOnly && <Section
               title="Billing arrangement (this payee)"
               caption="Drives the Earnings table and invoices"
             >
+              <label className="block text-xs font-medium">Terms effective from
+                <Input type="month" required disabled={saving || !!activeMonth} value={effectiveMonth} onChange={event => setEffectiveMonth(event.target.value)} />
+                <span className="mt-1 block text-[11px] text-muted-foreground">Earlier terms and issued invoices are preserved.</span>
+              </label>
               {/* Compensation model — how retainer and commission combine */}
               <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Compensation model">
                 {MODEL_OPTIONS.map((opt) => {
@@ -381,10 +377,10 @@ export function BrandEditSheet({
                   onValueChange={(v) => set('launch_fee_ends', v || null)}
                 />
               </Field>
-            </Section>
+            </Section>}
 
             {/* Per-creator rate overrides — saves immediately, separate from main form */}
-            <CreatorOverridesSection brand={brand} brandRate={values.commission_rate} />
+            {!billingOnly && <CreatorOverridesSection brand={brand} brandRate={values.commission_rate} />}
 
             {/* ── Brand invoicing details ── */}
             <Section title="Brand invoicing details" caption="Appears on invoices only">
@@ -435,7 +431,7 @@ export function BrandEditSheet({
 
           {/* Sticky footer: live billed preview + notices + actions */}
           <div className="border-t border-border bg-muted/40">
-            {(previewCalc || modelNotices.length > 0) && (
+            {!billingOnly && (previewCalc || modelNotices.length > 0) && (
               <div className="space-y-1.5 border-b border-border/70 px-6 py-3">
                 {previewCalc && preview && (
                   <>

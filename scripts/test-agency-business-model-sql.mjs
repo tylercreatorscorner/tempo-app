@@ -137,4 +137,27 @@ assert.equal((await list()).find(row => row.id === archived.id).historical, fals
 await db.exec('reset role');
 assert.equal((await db.query("select prosecdef from pg_proc where oid='agency_business_save_client(uuid,uuid,jsonb)'::regprocedure")).rows[0].prosecdef, false);
 console.log('PASS historical agency SQL: optional strict boolean, immutable legacy snapshots, old-writer preservation, explicit reactivation, empty terms/unknown dates, scope and CAS');
+// A new migration extends validation without changing any immutable prior revision.
+const componentsMigration = readdirSync('supabase/migrations').find(name => name.endsWith('_agency_fee_components_manager_allocations.sql'));
+// The combined migration also references the finance table row type.
+await db.exec(`create table agency_client_invoices(id uuid,tenant_id uuid,client_id uuid,month text,revision integer,status text,snapshot jsonb,collected_on date,manager_paid_on date);`);
+await db.exec(readFileSync(`supabase/migrations/${componentsMigration}`, 'utf8'));
+await db.exec('set role service_role');
+const componentTerm = { effectiveMonth: '2026-10', monthlyRetainer: 4000, revSharePercent: 2, feeModel: 'components', managerComponent: { monthlyRetainer: 6000, revSharePercent: 3, feeModel: 'minimum' } };
+const componentDraft = { ...draft, name: 'Gross component client', serviceStart: '2026-10-01', brandIds: [], terms: [componentTerm] };
+for (const managerComponent of [null, {}, { ...componentTerm.managerComponent, feeModel: 'fixed' }, { ...componentTerm.managerComponent, extra: true }, { ...componentTerm.managerComponent, monthlyRetainer: -1 }, { ...componentTerm.managerComponent, revSharePercent: 3.001 }]) await assert.rejects(save({ ...componentDraft, terms: [{ ...componentTerm, managerComponent }] }), /Invalid agency/);
+const missingComponent = { ...componentTerm }; delete missingComponent.managerComponent;
+await assert.rejects(save({ ...componentDraft, terms: [missingComponent] }), /Invalid agency/);
+await assert.rejects(save({ ...componentDraft, terms: [{ ...componentTerm, feeModel: 'additive' }] }), /Invalid agency/);
+await assert.rejects(save({ ...componentDraft, terms: [{ ...componentTerm, tierCalculation: 'whole' }] }), /Invalid agency/);
+const componentClient = await save(componentDraft);
+assert.deepEqual(componentClient.terms, [componentTerm]);
+await assert.rejects(save({ ...componentDraft, id: componentClient.id, expectedRevision: 0 }), /Invalid agency/);
+await assert.rejects(save(componentDraft, id(2), id(20)), /Invalid agency scope/);
+assert.deepEqual((await list()).find(row => row.id === tieredClient.id).terms[0].revShareTiers, tiers, 'signed tiered terms retain their exact original bands');
+assert.deepEqual((await db.query('select snapshot from agency_business_client_revisions where client_id=$1 and revision=1', [first.id])).rows[0].snapshot, first, 'old gross fee models and snapshots remain unchanged');
+await db.exec('reset role');
+for (const role of ['anon', 'authenticated']) { await db.exec(`set role ${role}`); await assert.rejects(save(componentDraft), /permission denied/); await db.exec('reset role'); }
+assert.equal((await db.query("select prosecdef from pg_proc where oid='agency_business_save_client(uuid,uuid,jsonb)'::regprocedure")).rows[0].prosecdef, false);
+console.log('PASS gross component SQL: strict component fields, old tier and snapshot preservation, scoped invoker writes and CAS');
 await db.close();

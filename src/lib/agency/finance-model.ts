@@ -1,10 +1,24 @@
 import { z } from 'zod';
-import { agencyMonthBounds, calculateServiceRevenue, isAgencyDate, type ClientRecord } from './model';
+import { agencyMonthBounds, calculateFeeComponent, calculateServiceRevenue, isAgencyDate, type ClientRecord } from './model';
 
 const date = z.string().refine(isAgencyDate, 'Enter a valid date');
 const month = z.string().regex(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/);
 const amount = z.number().finite().min(0).max(100000000).refine(n => Math.round(n * 100) / 100 === n, 'Use two decimal places');
 const text = (max: number) => z.string().trim().max(max);
+const compensationModel = z.enum(['additive', 'minimum']).default('additive');
+const managerAllocationSchema = z.object({ managerId: z.uuid(), fixedMonthly: amount, gmvPercent: amount.refine(n => n <= 100), compensationModel }).strict();
+const managerTermsSchema = z.object({ effectiveMonth: month, managerId: z.uuid(), fixedMonthly: amount,
+  gmvPercent: amount.refine(n => n <= 100), payoutDays: z.literal(7), compensationModel,
+  allocations: z.array(managerAllocationSchema).min(1).max(20).optional(),
+}).strict().superRefine((term, context) => {
+  if (!term.allocations?.length) return;
+  if (new Set(term.allocations.map(row => row.managerId.toLowerCase())).size !== term.allocations.length) context.addIssue({ code: 'custom', message: 'Each pay recipient must be unique' });
+  if (term.managerId.toLowerCase() !== term.allocations[0].managerId.toLowerCase()) context.addIssue({ code: 'custom', message: 'The lead manager must match the first allocation' });
+  if (Math.round(term.fixedMonthly * 100) !== term.allocations.reduce((sum, row) => sum + Math.round(row.fixedMonthly * 100), 0) ||
+    Math.round(term.gmvPercent * 100) !== term.allocations.reduce((sum, row) => sum + Math.round(row.gmvPercent * 100), 0) || term.compensationModel !== 'additive') context.addIssue({ code: 'custom', message: 'Arrangement totals must match its allocations; each allocation sets its own calculation' });
+});
+export type ManagerAllocation = z.input<typeof managerAllocationSchema>;
+export type ManagerTerms = z.input<typeof managerTermsSchema>;
 export const financeSettingsSchema = z.object({
   agencyName: text(200), agencyAddress: text(2000), paymentInstructions: text(2000),
   legalName: text(200), billingEmail: z.union([z.literal(''), z.email()]), billingContact: text(200),
@@ -18,13 +32,11 @@ export const financeSettingsSchema = z.object({
   termsReviewRequired: z.boolean().default(false), termsReviewNotes: text(4000).default(''),
   noticeDays: z.number().int().min(0).max(365).nullable(), autoRenew: z.enum(['unknown', 'yes', 'no']),
   notes: text(4000),
-  managerTerms: z.array(z.object({ effectiveMonth: month, managerId: z.uuid(), fixedMonthly: amount,
-    gmvPercent: amount.refine(n => n <= 100), payoutDays: z.literal(7),
-  }).strict()).max(240).refine(rows => new Set(rows.map(r => r.effectiveMonth)).size === rows.length, 'Each manager effective month must be unique'),
+  managerTerms: z.array(managerTermsSchema).max(240).refine(rows => new Set(rows.map(r => r.effectiveMonth)).size === rows.length, 'Each manager effective month must be unique'),
   forecastGmv: z.array(z.object({ month, amount }).strict()).max(36)
     .refine(rows => new Set(rows.map(r => r.month)).size === rows.length, 'Each forecast month must be unique'),
 }).strict();
-export type FinanceSettings = z.infer<typeof financeSettingsSchema>;
+export type FinanceSettings = Omit<z.infer<typeof financeSettingsSchema>, 'managerTerms'> & { managerTerms: ManagerTerms[] };
 export const emptyFinanceSettings = (): FinanceSettings => financeSettingsSchema.parse({ agencyName: '', agencyAddress: '', paymentInstructions: '', legalName: '', billingEmail: '', billingContact: '', billingAddress: '', taxId: '', purchaseOrder: '', currency: 'USD', invoiceDay: 1, netDays: 30, collectionDelayDays: 0, signedDate: null, campaignStart: null, renewalDate: null, noticeDays: null, autoRenew: 'unknown', notes: '', managerTerms: [], forecastGmv: [] });
 export type FinanceRecord = { client_id: string; revision: number; settings: FinanceSettings };
 export type InvoiceSnapshot = { clientName: string; billing: FinanceSettings; clientRevision: number; settingsRevision: number;
@@ -34,6 +46,13 @@ export type AgencyInvoice = { id: string; client_id: string; month: string; revi
 export function addDays(day: string, days: number) { const value = new Date(`${day}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); }
 export function shiftMonth(value: string, offset: number) { const [y, m] = value.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + offset, 1)).toISOString().slice(0, 7); }
 export function managerFor(settings: FinanceSettings, month: string) { return settings.managerTerms.filter(t => t.effectiveMonth <= month).sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth))[0] ?? null; }
+export function managerAllocations(term: ManagerTerms): ManagerAllocation[] { return term.allocations ?? [{ managerId: term.managerId, fixedMonthly: term.fixedMonthly, gmvPercent: term.gmvPercent, compensationModel: term.compensationModel ?? 'additive' }]; }
+export function calculateManagerCompensation(term: ManagerTerms, gmvCents: number) {
+  const allocations = managerAllocations(term).map(row => ({ ...row, compensationModel: row.compensationModel ?? 'additive', amountCents: calculateFeeComponent(gmvCents, row.fixedMonthly, row.gmvPercent, row.compensationModel ?? 'additive').totalCents }));
+  const totalCents = allocations.reduce((sum, row) => sum + row.amountCents, 0);
+  if (!Number.isSafeInteger(totalCents)) throw new Error('Manager amount exceeds supported limits.');
+  return { totalCents, allocations };
+}
 export function readiness(settings: FinanceSettings) { return Boolean(settings.legalName && settings.billingEmail && settings.billingAddress); }
 export function buildInvoice(client: ClientRecord, record: FinanceRecord, month: string, gmvCents: number, issuedDate: string): InvoiceSnapshot {
   if (client.historical) throw new Error('Past agreements are kept for history. Reactivate this client before preparing a new invoice.');
@@ -46,7 +65,7 @@ export function buildInvoice(client: ClientRecord, record: FinanceRecord, month:
   if (!manager) throw new Error('Add a manager pay arrangement for this service month.');
   if (fee.status !== 'calculated' || fee.revenueCents === null || !fee.terms) throw new Error('Review service dates and agency terms. Partial service months require manual review.');
   if (!Number.isSafeInteger(gmvCents) || gmvCents < 0) throw new Error('Complete managed GMV is required.');
-  const managerCents = Math.round(manager.fixedMonthly * 100) + Number((BigInt(gmvCents) * BigInt(Math.round(manager.gmvPercent * 100)) + BigInt(5000)) / BigInt(10000));
+  const managerCents = calculateManagerCompensation(manager, gmvCents).totalCents;
   if (!Number.isSafeInteger(managerCents)) throw new Error('Manager amount exceeds supported limits.');
   const dueDate = addDays(issuedDate, record.settings.netDays);
   return { clientName: client.name, billing: record.settings, clientRevision: client.revision, settingsRevision: record.revision,

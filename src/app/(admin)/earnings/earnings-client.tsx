@@ -106,7 +106,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
       // from a stale browser/HTTP cache.
       const [earningsRes, seriesRes, planRes] = await Promise.all([
         fetch(`/api/earnings?month=${m}${tmParam}`, { cache: 'no-store' }),
-        fetch(`/api/earnings/series?endMonth=${m}&months=12`, { cache: 'no-store' }),
+        fetch(`/api/earnings/series?endMonth=${m}&months=12${tmParam}`, { cache: 'no-store' }),
         fetch(`/api/invoices/run?month=${m}${tmParam}`, { cache: 'no-store' }),
       ]);
       const earningsJson = await earningsRes.json();
@@ -382,7 +382,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
       </div>}
 
       {view === 'year' ? (
-        <YearView initialYear={initialYear} viewControl={viewControl} />
+        <YearView initialYear={initialYear} teamMemberId={teamMemberId} viewControl={viewControl} />
       ) : (
         <>
           {error && (
@@ -483,6 +483,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
           brandLabel={editingRow.brandLabel}
           teamMemberId={teamMemberId}
           payeeName={payeeName}
+          activeMonth={month}
           preview={{
             monthLabel: monthName,
             affiliateGmv: editingRow.affiliateGmv,

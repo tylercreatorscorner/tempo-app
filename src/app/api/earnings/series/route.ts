@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const brandFilterSlugs = finance.brandSlugs;
 
   const url = req.nextUrl;
+  const teamMemberId = url.searchParams.get('team_member_id') ?? undefined;
   const monthsParam = parseInt(url.searchParams.get('months') ?? '12', 10);
   const months = Number.isFinite(monthsParam) ? Math.max(1, Math.min(24, monthsParam)) : 12;
   const endMonth = url.searchParams.get('endMonth') ?? currentMonth();
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
   }
 
   const monthList = buildMonthList(endMonth, months);
-  const results = await Promise.all(monthList.map((m) => getEarnings(m, undefined, brandFilterSlugs, finance.scope.tenantId)));
+  const results = await Promise.all(monthList.map((m) => getEarnings(m, teamMemberId, brandFilterSlugs, finance.scope.tenantId)));
 
   const series = results.map((r: EarningsResult) => ({
     month: r.month,
