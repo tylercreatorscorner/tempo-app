@@ -130,6 +130,10 @@ try {
   for (const [index, [forTenant, month]] of parityCases.entries()) {
     assert.deepEqual(await snapshot(forTenant, month), baseline[index], `Optimized query preserves deployed semantics: ${forTenant}/${month}`);
   }
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261030044928_agency_revenue_period_performance.sql', import.meta.url), 'utf8'));
+  for (const [index, [forTenant, month]] of parityCases.entries()) {
+    assert.deepEqual(await snapshot(forTenant, month), baseline[index], `Bounded query full-month wrapper preserves deployed semantics: ${forTenant}/${month}`);
+  }
 
   const before = await snapshot();
   const rows = new Map(before.map(row => [row.brand_id, row]));
@@ -190,6 +194,46 @@ try {
   }
   await assert.rejects(snapshot(null), error => error.code === '22023', 'Reject missing tenant');
 
+  await brand(20, 'bounded');
+  await member('bounded', '@BOUND', '2026-10-02', '2026-10-05T12:00:00Z', { alias: 'bound' });
+  await member('bounded', 'bound', '2026-10-03', '2026-10-05T12:00:00Z');
+  await monthRows('bounded', 'organic', 0, 5, '2026-10');
+  await sale('bounded', '2026-10-01', 'bound', 10000);
+  await sale('bounded', '2026-10-02', '@bound', 100);
+  await sale('bounded', '2026-10-03', 'bound', -7);
+  await sale('bounded', '2026-10-05', 'bound', 9000);
+  await sale('bounded', '2026-10-06', 'bound', 99999);
+  await member('bounded', 'always');
+  await sale('bounded', '2026-10-06', 'always', 55555);
+  await sale('bounded', '2026-10-02', 'bound', 88888, { tenant: foreignTenant });
+  await monthRows('store-a', 'store-creator', 1, 5, '2026-10');
+  await monthRows('store-b', 'store-creator', 1, 4, '2026-10');
+  await sale('umbrella', '2026-10-05', 'store-creator', 5);
+  await monthRows('true-zero', 'organic', 100, 5, '2026-10');
+  await member('unknown-money', 'unknown');
+  await sale('unknown-money', '2026-10-01', 'unknown', null);
+  async function bounded(forTenant = tenant, through = '2026-10-05') {
+    return (await db.query(`SELECT brand_id, managed_gmv, recorded_days, expected_days,
+      recorded_through::text, latest_recorded_through::text, source_recorded_days, complete
+      FROM agency_business_period_performance($1,'2026-10-01',$2) ORDER BY brand_id`, [forTenant, through])).rows;
+  }
+  const boundedRows = new Map((await bounded()).map(row => [row.brand_id, row]));
+  assert.equal(Number(boundedRows.get(id(20)).managed_gmv), 93, 'Bounded canonical membership preserves aliases and refunds, excluding outside-membership, same/open-day and foreign facts');
+  assert.equal(boundedRows.get(id(20)).recorded_days, 5);
+  assert.equal(boundedRows.get(id(20)).complete, true, 'Coverage compares only elapsed closed dates, not unelapsed month days');
+  assert.equal(Number(boundedRows.get(id(2)).managed_gmv), 14, 'Umbrella sums root legacy data and each child once');
+  assert.equal(boundedRows.get(id(2)).recorded_days, 4);
+  assert.equal(boundedRows.get(id(2)).expected_days, 5);
+  assert.equal(boundedRows.get(id(2)).recorded_through, '2026-10-04');
+  assert.equal(boundedRows.get(id(2)).latest_recorded_through, '2026-10-05');
+  assert.equal(boundedRows.get(id(2)).source_recorded_days, 5);
+  assert.equal(boundedRows.get(id(2)).complete, false, 'Latest source date cannot conceal a missing child store day');
+  assert.equal(Number(boundedRows.get(id(6)).managed_gmv), 0);
+  assert.equal(boundedRows.get(id(7)).managed_gmv, null, 'No daily source remains missing rather than a fabricated zero');
+  assert.equal(boundedRows.get(id(12)).managed_gmv, null, 'Unknown managed money stays unknown');
+  assert.deepEqual(await bounded(id(999)), []);
+  for (const through of [null, '2026-09-30', '2026-11-01', 'infinity']) await assert.rejects(bounded(tenant, through), error => error.code === '22023');
+
   const security = (await db.query(`SELECT prosecdef, provolatile, proconfig,
     has_function_privilege('anon',oid,'EXECUTE') AS anon,
     has_function_privilege('authenticated',oid,'EXECUTE') AS authenticated,
@@ -204,6 +248,7 @@ try {
   for (const role of ['anon', 'authenticated']) {
     await db.exec(`SET ROLE ${role}`);
     await assert.rejects(snapshot(), error => error.code === '42501');
+    await assert.rejects(bounded(), error => error.code === '42501');
     await db.exec('RESET ROLE');
   }
   // The calling service has SELECT only. A read-only transaction proves this
@@ -212,11 +257,13 @@ try {
   await db.exec('SET ROLE service_role; BEGIN READ ONLY');
   assert.deepEqual(await snapshot(), expected);
   assert.deepEqual(await snapshot(), expected);
+  assert.equal(Number((await bounded()).find(row => row.brand_id === id(20)).managed_gmv), 93);
   await db.exec('ROLLBACK; RESET ROLE');
   console.log('PASS agency performance: membership dates, interval union, all account sources, refunds and two-month bounds');
   console.log('PASS fast-path parity with deployed original: absent sources, zeros, unknown managed/organic money and empty roots');
   console.log('PASS independent missing/zero months, archived clients, full-store daily coverage and leap-year calendar');
   console.log('PASS tenant isolation across every source; service-only invoker executes in a read-only transaction');
+  console.log('PASS bounded revenue period: same/open day excluded, source freshness separate from all-store coverage, no-source/zero/unknown preserved');
 } finally {
   await db.close();
 }
