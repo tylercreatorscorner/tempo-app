@@ -24,6 +24,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry-core';
+import { readCompensationForMonth } from '@/lib/finance/compensation-history';
 
 export type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
@@ -191,11 +192,10 @@ export function buildDisplayLineItems(
 
 /**
  * Resolve the compensation model that governs an invoice's (brand, payee)
- * pair, reading `brand_compensation` (keyed per team member, per data store).
+ * pair for its invoice month, reading audited compensation history.
  *
- * Umbrella slugs (e.g. 'leefar') expand to their child stores; the first store
- * (registry store_order) with a configured model wins — matching the earnings
- * roll-up, which takes the first store row's model.
+ * Umbrella slugs expand to their stores. Their already adjusted store totals
+ * combine additively; individual-store invoices use the period's model.
  *
  * `teamMemberId` null (legacy invoices predating team_members) falls back to
  * the first non-archived team member, mirroring getEarnings' default payee.
@@ -210,6 +210,7 @@ export async function resolveCompensationModel(
   teamMemberId: string | null,
   tenantId: string,
   permittedSlugs: string[],
+  month: string,
 ): Promise<CompensationModel> {
   if (!tenantId || !permittedSlugs.includes(brandSlug)) throw new Error('Financial scope is required.');
   let payeeId = teamMemberId;
@@ -236,17 +237,12 @@ export async function resolveCompensationModel(
   // child's model to re-apply at the merged grain would mis-zero mixed
   // outcomes (same class as the computeInvoiceLineItems double-apply
   // finding). Merged rows combine additively.
+  const data = await readCompensationForMonth(supabase, tenantId, payeeId, storeSlugs, month);
+  if (!data.some(row => row.active)) throw new Error('No active compensation arrangement for this invoice period.');
   if (storeSlugs.length > 1) return 'standard';
-  const { data, error } = await supabase
-    .from('brand_compensation')
-    .select('brand, compensation_model')
-    .eq('team_member_id', payeeId)
-    .eq('tenant_id', tenantId)
-    .in('brand', storeSlugs);
-  if (error) throw new Error(`[invoice-math] brand_compensation read failed: ${error.message}`);
 
   const modelByBrand = new Map<string, unknown>(
-    ((data as Array<{ brand: string; compensation_model: string | null }> | null) ?? [])
+    data
       .map((r) => [r.brand, r.compensation_model] as const),
   );
   for (const slug of storeSlugs) {

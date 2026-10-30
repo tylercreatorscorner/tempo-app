@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildInvoice, emptyFinanceSettings, financeSettingsSchema, forecast, type AgencyInvoice } from '../src/lib/agency/finance-model';
+import { buildInvoice, calculateManagerCompensation, emptyFinanceSettings, financeSettingsSchema, forecast, type AgencyInvoice, type ManagerTerms } from '../src/lib/agency/finance-model';
 import type { ClientRecord } from '../src/lib/agency/model';
 const client: ClientRecord = { id: '00000000-0000-4000-8000-000000000010', revision: 1, name: 'Example', brandIds: [], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 1000, revSharePercent: 5, feeModel: 'additive' }] };
 const settings = { ...emptyFinanceSettings(), agencyName: 'Example Agency LLC', agencyAddress: '200 Example Avenue', paymentInstructions: 'Use the agreed bank transfer reference.', legalName: 'Example LLC', billingEmail: 'ap@example.com', billingAddress: 'Example address', managerTerms: [{ effectiveMonth: '2026-01', managerId: '00000000-0000-4000-8000-000000000020', fixedMonthly: 500, gmvPercent: 1, payoutDays: 7 as const }], forecastGmv: [{ month: '2026-09', amount: 100000 }] };
@@ -16,6 +16,25 @@ const snapshot = buildInvoice(client, record, '2026-09', 10000000, '2026-10-01')
 assert.throws(() => buildInvoice({ ...client, historical: true, serviceStart: null }, record, '2026-09', 10000000, '2026-10-01'), /Past agreements/, 'historical agreements cannot create new invoices even with complete saved billing terms');
 assert.equal(snapshot.feeCents, 600000);
 assert.equal(snapshot.managerCents, 150000);
+assert.equal(financeSettingsSchema.parse(settings).managerTerms[0].compensationModel, 'additive', 'older settings default to additive without rewriting invoice snapshots');
+const minimum: ManagerTerms = { ...settings.managerTerms[0], fixedMonthly: 6000, gmvPercent: 3, compensationModel: 'minimum' };
+assert.equal(calculateManagerCompensation(minimum, 10000000).totalCents, 600000);
+assert.equal(calculateManagerCompensation(minimum, 30000000).totalCents, 900000);
+const split: ManagerTerms = { ...minimum, fixedMonthly: 3500, gmvPercent: 2, compensationModel: 'additive', allocations: [
+  { managerId: minimum.managerId, fixedMonthly: 3500, gmvPercent: 1.5 },
+  { managerId: '00000000-0000-4000-8000-000000000021', fixedMonthly: 0, gmvPercent: 0.5 },
+] };
+assert.equal(financeSettingsSchema.safeParse({ ...settings, managerTerms: [split] }).success, true);
+const splitAmounts = calculateManagerCompensation(split, 10000000);
+assert.deepEqual(splitAmounts.allocations.map(row => row.amountCents), [500000, 50000]);
+assert.equal(splitAmounts.totalCents, 550000, 'Cata Kor pays Tyler and Vic separately');
+for (const [fixedMonthly, gmvPercent, primaryPercent] of [[4500, 2.5, 2], [5000, 2, 1.5]]) assert.equal(calculateManagerCompensation({ ...split, fixedMonthly, gmvPercent, allocations: [{ ...split.allocations![0], fixedMonthly, gmvPercent: primaryPercent }, split.allocations![1]] }, 10000000).totalCents, Math.round(fixedMonthly * 100) + gmvPercent * 100000);
+assert.equal(calculateManagerCompensation({ ...split, fixedMonthly: 0, gmvPercent: 1, allocations: split.allocations!.map(row => ({ ...row, fixedMonthly: 0, gmvPercent: 0.5 })) }, 100).totalCents, 2, 'round recipient amounts before adding');
+for (const override of [{ allocations: [] }, { allocations: [split.allocations![0], split.allocations![0]] }, { managerId: split.allocations![1].managerId }, { fixedMonthly: 3501 }, { gmvPercent: 3 }, { compensationModel: 'minimum' }, { allocations: [{ ...split.allocations![0], compensationModel: 'automatic' }, split.allocations![1]] }]) assert.equal(financeSettingsSchema.safeParse({ ...settings, managerTerms: [{ ...split, ...override }] }).success, false);
+const splitSnapshot = buildInvoice(client, { ...record, settings: { ...settings, managerTerms: [split] } }, '2026-09', 10000000, '2026-10-01');
+assert.equal(splitSnapshot.managerCents, 550000);
+const splitPaid: AgencyInvoice = { id: 'split', client_id: client.id, month: '2026-09', revision: 1, status: 'paid', snapshot: splitSnapshot, collected_on: '2026-10-01', manager_paid_on: '2026-10-08' };
+assert.equal(forecast([client], [record], [splitPaid], '2026-10-19').events[0].payoutCents, 0, 'aggregate manager paid flag settles every allocation');
 assert.equal(snapshot.dueDate, '2026-10-31');
 assert.throws(() => buildInvoice({ ...client, serviceStart: '2026-09-15' }, record, '2026-09', 1000, '2026-10-01'), /Partial/);
 assert.throws(() => buildInvoice(client, { ...record, settings: { ...settings, managerTerms: [{ ...settings.managerTerms[0], effectiveMonth: '2026-10' }] } }, '2026-09', 1000, '2026-10-01'), /manager/);

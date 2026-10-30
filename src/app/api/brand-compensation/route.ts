@@ -1,94 +1,67 @@
-/**
- * /api/brand-compensation
- *
- * GET    — list compensation arrangements (filtered by ?brand= and/or ?team_member_id=)
- * POST   — create / upsert an arrangement (brand × team_member_id)
- *
- * One row per (brand × team_member). Drives the rev-share / retainer / launch-fee
- * math on the earnings page and the invoice generator.
- */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
-import { createAdminClient } from '@/lib/supabase/server';
+import { getFinanceAccess } from '@/lib/finance/access';
+import { getBrandRegistry } from '@/lib/data/brand-registry';
+import { readCompensationForMonth, type CompensationFinancials } from '@/lib/finance/compensation-history';
+import { compensationPatch, isEffectiveMonth, saveCompensation } from '@/lib/finance/save-compensation';
 
 export const runtime = 'nodejs';
 
-interface PostBody {
-  brand?: string;
-  team_member_id?: string;
-  retainer?: number | null;
-  product_retainer_amount?: number | null;
-  product_retainer_name?: string | null;
-  launch_fee?: number | null;
-  launch_fee_name?: string | null;
-  launch_fee_ends?: string | null;
-  commission_rate?: number | null;
-  revenue_share_rate?: number | null;
-  marketing_commission_rate?: number | null;
-  compensation_model?: string | null;
-}
-
 export async function GET(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-  const url = req.nextUrl;
-  const brand = url.searchParams.get('brand');
-  const teamMemberId = url.searchParams.get('team_member_id');
-
-  const supabase = await createAdminClient();
-  let query = supabase
-    .from('brand_compensation')
-    .select(`
-      id, brand, team_member_id,
-      retainer, product_retainer_amount, product_retainer_name,
-      launch_fee, launch_fee_name, launch_fee_ends,
-      commission_rate, revenue_share_rate, marketing_commission_rate,
-      compensation_model,
-      team_members(id, name, email, is_archived)
-    `)
-    .order('brand');
-  if (brand) query = query.eq('brand', brand);
-  if (teamMemberId) query = query.eq('team_member_id', teamMemberId);
-
-  const { data, error } = await query;
+  const finance = await getFinanceAccess('earnings', 'read', true);
+  if (finance instanceof NextResponse) return finance;
+  const brand = req.nextUrl.searchParams.get('brand');
+  const payeeId = req.nextUrl.searchParams.get('team_member_id');
+  const month = req.nextUrl.searchParams.get('month');
+  if (!isEffectiveMonth(month)) return NextResponse.json({ error: 'A valid month (YYYY-MM) is required.' }, { status: 400 });
+  if (brand && !finance.brandSlugs.includes(brand)) return NextResponse.json({ error: 'Brand unavailable.' }, { status: 403 });
+  const slugs = brand ? [brand] : finance.brandSlugs;
+  let query = finance.admin.from('team_members').select('id, name, email, is_archived').eq('tenant_id', finance.scope.tenantId);
+  if (payeeId) query = query.eq('id', payeeId);
+  const { data: payees, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ arrangements: data ?? [] });
+  if (payeeId && !payees?.length) return NextResponse.json({ error: 'Payee unavailable.' }, { status: 403 });
+  let identitiesQuery = finance.admin.from('brand_compensation').select('id, brand, team_member_id')
+    .eq('tenant_id', finance.scope.tenantId).in('brand', slugs);
+  if (payeeId) identitiesQuery = identitiesQuery.eq('team_member_id', payeeId);
+  const { data: identities, error: identityError } = await identitiesQuery;
+  if (identityError) return NextResponse.json({ error: identityError.message }, { status: 500 });
+  const ids = new Map((identities ?? []).map(row => [`${row.team_member_id}:${row.brand}`, row.id]));
+  try {
+    const arrangements = (await Promise.all((payees ?? []).map(async payee => {
+      const rows = await readCompensationForMonth(finance.admin, finance.scope.tenantId!, payee.id, slugs, month);
+      // Captured legacy defaults are calculation compatibility, not configured
+      // arrangements. Keep blank cells distinct from explicit zero terms.
+      return rows.filter(row => row.active && (row.effective_month !== null || ['retainer', 'commission_rate', 'revenue_share_rate', 'marketing_commission_rate', 'product_retainer_amount', 'launch_fee', 'compensation_model'].some(field => row[field as keyof CompensationFinancials] != null)))
+        .map(row => ({ ...row, id: ids.get(`${payee.id}:${row.brand}`) ?? null, team_member_id: payee.id, team_members: payee }));
+    }))).flat();
+    return NextResponse.json({ arrangements, month });
+  } catch (cause) {
+    return NextResponse.json({ error: cause instanceof Error ? cause.message : 'Compensation read failed.' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-  let body: PostBody;
+  const finance = await getFinanceAccess('earnings', 'configure', true);
+  if (finance instanceof NextResponse) return finance;
+  let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
-
-  const { brand, team_member_id } = body;
-  if (!brand) return NextResponse.json({ error: 'brand is required' }, { status: 400 });
-  if (!team_member_id) return NextResponse.json({ error: 'team_member_id is required' }, { status: 400 });
-
-  const supabase = await createAdminClient();
-  // Upsert by (brand, team_member_id, tenant_id) — composite unique key.
-  const { data, error } = await supabase
-    .from('brand_compensation')
-    .upsert({
-      tenant_id: profile.tenant_id,
-      brand,
-      team_member_id,
-      retainer: body.retainer ?? 0,
-      product_retainer_amount: body.product_retainer_amount ?? 0,
-      product_retainer_name: body.product_retainer_name ?? null,
-      launch_fee: body.launch_fee ?? 0,
-      launch_fee_name: body.launch_fee_name ?? null,
-      launch_fee_ends: body.launch_fee_ends ?? null,
-      commission_rate: body.commission_rate ?? 0,
-      revenue_share_rate: body.revenue_share_rate ?? 0,
-      marketing_commission_rate: body.marketing_commission_rate ?? 0.02,
-      compensation_model: body.compensation_model ?? 'standard',
-    }, { onConflict: 'brand,team_member_id,tenant_id' })
-    .select()
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ arrangement: data }, { status: 201 });
+  const { brand, team_member_id: payeeId, effectiveMonth } = body;
+  if (typeof brand !== 'string' || !finance.brandSlugs.includes(brand)) return NextResponse.json({ error: 'Brand unavailable.' }, { status: 403 });
+  if (typeof payeeId !== 'string') return NextResponse.json({ error: 'team_member_id is required.' }, { status: 400 });
+  if (!isEffectiveMonth(effectiveMonth)) return NextResponse.json({ error: 'A valid effectiveMonth (YYYY-MM) is required.' }, { status: 400 });
+  let patch: Record<string, unknown>;
+  try { patch = compensationPatch(body); } catch (cause) { return NextResponse.json({ error: String((cause as Error).message) }, { status: 400 }); }
+  if (!Object.keys(patch).length) return NextResponse.json({ error: 'No compensation fields supplied.' }, { status: 400 });
+  const { data: payee, error } = await finance.admin.from('team_members').select('id').eq('id', payeeId).eq('tenant_id', finance.scope.tenantId).maybeSingle();
+  if (error || !payee) return NextResponse.json({ error: 'Payee unavailable.' }, { status: 403 });
+  try {
+    const rows = await saveCompensation(finance.admin, {
+      tenantId: finance.scope.tenantId!, actorId: finance.scope.userId, brand, teamMemberId: payeeId,
+      effectiveMonth, patch, permittedSlugs: finance.brandSlugs, registry: await getBrandRegistry(),
+      source: { endpoint: 'brand-compensation' },
+    });
+    return NextResponse.json({ arrangement: rows[0], arrangements: rows }, { status: 201 });
+  } catch (cause) {
+    return NextResponse.json({ error: cause instanceof Error ? cause.message : 'Compensation save failed.' }, { status: 500 });
+  }
 }

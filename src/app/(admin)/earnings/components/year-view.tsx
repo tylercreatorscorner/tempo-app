@@ -68,7 +68,7 @@ function monthLabel(ym: string) {
   return new Date(Date.UTC(2000, (m ?? 1) - 1, 1)).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
 }
 
-export function YearView({ initialYear, viewControl }: { initialYear: number; viewControl?: React.ReactNode }) {
+export function YearView({ initialYear, teamMemberId, viewControl }: { initialYear: number; teamMemberId?: string | null; viewControl?: React.ReactNode }) {
   const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
   const yearOptions = useMemo(() => Array.from({ length: 6 }, (_, i) => currentYear - i), [currentYear]);
 
@@ -82,7 +82,7 @@ export function YearView({ initialYear, viewControl }: { initialYear: number; vi
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/earnings/ytd?year=${y}`, { cache: 'no-store' });
+      const res = await fetch(`/api/earnings/ytd?year=${y}${teamMemberId ? `&team_member_id=${encodeURIComponent(teamMemberId)}` : ''}`, { cache: 'no-store' });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       setData(j);
@@ -91,7 +91,7 @@ export function YearView({ initialYear, viewControl }: { initialYear: number; vi
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [teamMemberId]);
 
   useEffect(() => { fetchData(year); }, [year, fetchData]);
 

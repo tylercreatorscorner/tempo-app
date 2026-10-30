@@ -10,7 +10,8 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
  * rate, launch fee, compensation model.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { currentMonth } from '@/lib/utils/format';
 import { Loader2, Check, X } from 'lucide-react';
 
 interface TeamMember {
@@ -48,6 +49,7 @@ const COMP_MODELS: Array<{ value: string; label: string }> = [
 ];
 
 export function CompensationArrangementsSection({ brands }: { brands: Brand[] }) {
+  const [month, setMonth] = useState(currentMonth);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [arrangements, setArrangements] = useState<Arrangement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,13 +58,14 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [tmRes, baRes] = await Promise.all([
         fetch('/api/team-members'),
-        fetch('/api/brand-compensation'),
+        fetch(`/api/brand-compensation?month=${encodeURIComponent(month)}`),
       ]);
+      if (!tmRes.ok || !baRes.ok) throw new Error('Compensation arrangements could not be loaded.');
       const tmJson = await tmRes.json();
       const baJson = await baRes.json();
       setMembers(tmJson.teamMembers ?? []);
@@ -72,9 +75,9 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
     } finally {
       setLoading(false);
     }
-  }
+  }, [month]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function findArr(brand: string, memberId: string): Arrangement | undefined {
     return arrangements.find(a => a.brand === brand && a.team_member_id === memberId);
@@ -109,6 +112,7 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
     setError(null);
     try {
       const body = {
+        effectiveMonth: month,
         brand: editing.brand,
         team_member_id: editing.teamMemberId,
         retainer: numOrNull(form.retainer),
@@ -154,6 +158,7 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
       <div className="px-4 py-3 border-b border-border">
         <div>
           <h2 className="font-semibold text-sm">Compensation arrangements</h2>
+          <label className="mt-2 block text-xs">Terms month <input type="month" required value={month} onChange={event => setMonth(event.target.value)} className="ml-2 rounded border border-border bg-background px-2 py-1" /></label>
           <p className="mt-0.5 text-xs text-muted-foreground">Select a brand and payee cell to edit its earnings and invoicing terms.</p>
         </div>
       </div>

@@ -130,7 +130,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (lineItemsChanged) {
     const { data: current, error: curErr } = await supabase
       .from('invoices')
-      .select('commission, retainer, product_retainer, launch_fee, brand, team_member_id')
+      .select('commission, retainer, product_retainer, launch_fee, brand, team_member_id, period_month')
       .eq('id', id).in('brand', finance.brandSlugs)
       .maybeSingle();
     if (curErr) return NextResponse.json({ error: curErr.message }, { status: 500 });
@@ -149,6 +149,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           (current.team_member_id as string | null) ?? null,
           finance.scope.tenantId,
           finance.brandSlugs,
+          current.period_month as string,
         );
         // Persist the MODEL-ADJUSTED line items, not the raw edits — a stored
         // non-zero loser line would render on the PDF/share view while the

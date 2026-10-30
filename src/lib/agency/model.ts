@@ -3,7 +3,9 @@ export type AgencyTerms = {
   effectiveMonth: string;
   monthlyRetainer: number;
   revSharePercent: number;
-  feeModel: "fixed" | "share" | "additive" | "minimum" | "tiered";
+  feeModel: "fixed" | "share" | "additive" | "minimum" | "tiered" | "components";
+  /** Gross client fee = CC additive component plus this independently rounded component. */
+  managerComponent?: { monthlyRetainer: number; revSharePercent: number; feeModel: "additive" | "minimum" };
   revShareTiers?: Array<{ upToGmv: number | null; percent: number }>;
   tierCalculation?: "unconfirmed" | "marginal" | "whole";
   gmvBasis?: "managed" | "agency_supported_affiliate";
@@ -73,11 +75,17 @@ export function validateClientSaveInput(input: unknown): ClientSaveInput {
   if (!end && row.exitReason !== null) fail("An exit reason requires a service end.");
   if (!Array.isArray(row.terms) || row.terms.length > 240) fail("Invalid monthly terms.");
   const terms = (row.terms as unknown[]).map(value => {
-    const term = object(value, ["effectiveMonth", "monthlyRetainer", "revSharePercent", "feeModel", "revShareTiers", "tierCalculation", "gmvBasis"], "terms");
+    const term = object(value, ["effectiveMonth", "monthlyRetainer", "revSharePercent", "feeModel", "revShareTiers", "tierCalculation", "gmvBasis", "managerComponent"], "terms");
     if (typeof term.effectiveMonth !== "string") fail("Invalid effective month.");
     agencyMonthBounds(term.effectiveMonth as string);
-    if (!["fixed", "share", "additive", "minimum", "tiered"].includes(term.feeModel as string)) fail("Invalid fee model.");
+    if (!["fixed", "share", "additive", "minimum", "tiered", "components"].includes(term.feeModel as string)) fail("Invalid fee model.");
     const extra: Partial<AgencyTerms> = {};
+    if (term.feeModel === "components") {
+      const component = object(term.managerComponent, ["monthlyRetainer", "revSharePercent", "feeModel"], "manager fee component");
+      if (!["additive", "minimum"].includes(component.feeModel as string)) fail("Invalid manager component fee model.");
+      extra.managerComponent = { monthlyRetainer: decimal(component.monthlyRetainer, 100000000, "manager component monthly retainer"),
+        revSharePercent: decimal(component.revSharePercent, 100, "manager component revenue share percentage"), feeModel: component.feeModel as "additive" | "minimum" };
+    } else if ("managerComponent" in term) fail("Manager fee components require the components fee model.");
     if (term.feeModel === "tiered") {
       if (term.revSharePercent !== 0) fail("Tiered terms require a zero flat revenue share percentage.");
       if (!["unconfirmed", "marginal", "whole"].includes(term.tierCalculation as string)) fail("Invalid tier calculation method.");
@@ -116,6 +124,17 @@ export type ServiceRevenueResult = {
   shareCents: number | null;
   terms: AgencyTerms | null;
 };
+/** Half-up rounding once per component keeps CC and manager amounts exact to cents. */
+export function calculateFeeComponent(gmvCents: number, fixedMonthly: number, percent: number, mode: "additive" | "minimum" = "additive") {
+  if (!Number.isSafeInteger(gmvCents) || gmvCents < 0) throw new Error("Invalid managed GMV.");
+  const fixedCents = Math.round(fixedMonthly * 100);
+  const shareCents = Number((BigInt(gmvCents) * BigInt(Math.round(percent * 100)) + BigInt(5000)) / BigInt(10000));
+  const useFixed = mode === "additive" || fixedCents >= shareCents;
+  const useShare = mode === "additive" || shareCents > fixedCents;
+  const totalCents = (useFixed ? fixedCents : 0) + (useShare ? shareCents : 0);
+  if (!Number.isSafeInteger(totalCents)) throw new Error("Fee amount exceeds supported limits.");
+  return { totalCents, fixedCents: useFixed ? fixedCents : 0, shareCents: useShare ? shareCents : 0 };
+}
 export function calculateServiceRevenue(input: {
   client: ClientRecord; month: string; periodStart: string; periodEnd: string;
   gmvCents: number | null; gmvComplete: boolean;
@@ -144,6 +163,16 @@ export function calculateServiceRevenue(input: {
   }
   if (!gmvComplete || gmvCents === null) return unavailable("missing_gmv");
   if (!Number.isSafeInteger(gmvCents) || gmvCents < 0) return unavailable("review_required");
+  if (terms.feeModel === "components") {
+    if (!terms.managerComponent) return unavailable("review_required");
+    try {
+      const cc = calculateFeeComponent(gmvCents, terms.monthlyRetainer, terms.revSharePercent);
+      const bm = calculateFeeComponent(gmvCents, terms.managerComponent.monthlyRetainer, terms.managerComponent.revSharePercent, terms.managerComponent.feeModel);
+      const revenueCents = cc.totalCents + bm.totalCents;
+      if (!Number.isSafeInteger(revenueCents)) return unavailable("review_required");
+      return { status: "calculated", revenueCents, retainerCents: cc.fixedCents + bm.fixedCents, shareCents: cc.shareCents + bm.shareCents, terms };
+    } catch { return unavailable("review_required"); }
+  }
   // Integer basis points and half-up rounding avoid binary float multiplication of money.
   let numerator = BigInt(gmvCents) * BigInt(Math.round(terms.revSharePercent * 100));
   if (terms.feeModel === "tiered") {

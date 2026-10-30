@@ -20,7 +20,7 @@ Future fees use recorded effective terms and explicit monthly GMV estimates. No 
 
 ## Boundaries
 
-This adds agency client receivables; historical individual-payee invoices remain in the existing Finance / Invoicing system and are not included in these forecast totals. Existing issued invoices and earnings are not migrated or recalculated. Only full collections and full manager payments are recorded in this first release; split receipts, refunds, taxes, credits, multiple simultaneous managers, and non-USD billing require a later extension. A manager selected here is a finance pay arrangement; it does not grant brand access or change user permissions.
+This adds agency client receivables; historical individual-payee invoices remain in the existing Finance / Invoicing system and are not included in these forecast totals. Existing issued invoices and earnings are not migrated or recalculated. Only full collections and full manager payments are recorded in this first release; split receipts, refunds, taxes, credits, per-recipient payment tracking, and non-USD billing require a later extension. Multiple manager allocations are supported, with one aggregate paid flag that means every allocation was settled. Adding arrangements or allocations records terms only and makes no payments. A manager selected here is a finance pay arrangement; it does not grant brand access or change user permissions.
 
 The PDF is an authenticated print view with client billing and agency fee amounts only. Internal manager compensation is not rendered. Issuing-agency identity, address, and payment instructions must be configured before invoice preparation. The invoice date is the draft preparation date and is visible for review; void and prepare again to replace a draft or uncollected invoice.
 
@@ -39,3 +39,9 @@ Finance writes serialize with client agreement saves using the same tenant advis
 ## Validation
 
 `npm run test:agency` includes financial model and PGlite database tests covering exact-cent calculations, effective terms, partial months, duplicate invoice prevention, tenant/actor/manager ownership, revision conflicts, transitions, audit immutability, forecast replacement, paid/overdue handling, and seven-day payouts. `node scripts/preview-agency-finance.mjs` provides a local fictional UI fixture with no production requests. Run typecheck and agency lint before release.
+
+## Gross fee components and manager allocations
+
+A component agreement stores the CC additive fee and a manager fee component separately. The gross client fee is the sum of the independently rounded components; it is never the CC net fee alone. A manager component may be additive or a minimum (higher of fixed pay or GMV share). Other saved fee models and issued invoice snapshots retain their original calculations.
+
+Manager arrangements default to additive for older settings. Optional recipient allocations preserve the exact fixed fee, GMV share, and additive/minimum mode for each tenant-scoped owner, admin, or manager profile. Aggregate fixed and percentage fields equal the allocation totals; calculation rounds each recipient separately. One manager-paid date settles the whole invoice allocation set, so record it only after all recipients have been paid. Client PDFs show the full client fee without internal pay recipients or compensation.

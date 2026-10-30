@@ -262,6 +262,7 @@ export function BrandsSettingsClient() {
       {editing && (
         <BrandEditSheet
           open
+          billingOnly
           brand={editing.slug}
           brandLabel={editing.name}
           marketingGmv={null}

@@ -2,11 +2,11 @@ import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * PATCH /api/earnings/brand-settings
  *
- * Update brand-level + per-payee compensation fields. Backwards-compatible
- * with the old single-table endpoint.
+ * Update brand-level fields and audited, month-effective payee compensation.
  *
  * Body shape:
- *   { brand: string, patch: { [field]: value, ... }, team_member_id?: string }
+ *   { brand: string, patch: { [field]: value, ... }, team_member_id?: string,
+ *     effectiveMonth?: string } // required when compensation fields change
  *
  * Field routing:
  *   - Brand-level (brand_settings):   bill_to_name/email/address, monthly_gmv_goal
@@ -21,24 +21,10 @@ import { getFinanceAccess } from '@/lib/finance/access';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry, expandSlugs } from '@/lib/data/brand-registry';
+import { getBrandRegistry } from '@/lib/data/brand-registry';
+import { isEffectiveMonth, saveCompensation } from '@/lib/finance/save-compensation';
 
 export const runtime = 'nodejs';
-
-// Per-payee fields that are RATES/MODEL — identical on every store of an
-// umbrella (earnings computes per store, then merges).
-const FAN_OUT_TO_ALL = new Set([
-  'commission_rate', 'revenue_share_rate', 'marketing_commission_rate', 'compensation_model',
-]);
-// Per-payee AMOUNTS — the umbrella row displays the SUM of its stores, so an
-// edited amount parks on the store that currently carries it (zeroing other
-// carriers keeps the sum equal to what the operator typed). Name/date fields
-// follow their amount's carrier.
-const PARKED_AMOUNTS: Record<string, string[]> = {
-  retainer: [],
-  launch_fee: ['launch_fee_name', 'launch_fee_ends'],
-  product_retainer_amount: ['product_retainer_name'],
-};
 
 // Fields that live per-(brand × team_member)
 const COMPENSATION_NUMERIC = new Set([
@@ -75,11 +61,11 @@ export async function PATCH(request: NextRequest) {
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  let body: { brand?: string; patch?: Record<string, unknown>; team_member_id?: string };
+  let body: { brand?: string; patch?: Record<string, unknown>; team_member_id?: string; effectiveMonth?: string };
   try { body = await request.json(); }
   catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
-  const { brand, patch, team_member_id: teamMemberIdInput } = body;
+  const { brand, patch, team_member_id: teamMemberIdInput, effectiveMonth } = body;
   if (!brand || typeof brand !== 'string') {
     return NextResponse.json({ error: 'Missing or invalid brand' }, { status: 400 });
   }
@@ -126,6 +112,10 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
+  if (Object.keys(compensationUpdate).length > 0 && !isEffectiveMonth(effectiveMonth)) {
+    return NextResponse.json({ error: 'A valid effectiveMonth (YYYY-MM) is required.' }, { status: 400 });
+  }
+
   if (!finance.brandSlugs.includes(brand)) return NextResponse.json({ error: 'Brand unavailable' }, { status: 403 });
   const admin = await createAdminClient();
 
@@ -147,95 +137,21 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (teamMemberId) {
-    const { data: payee, error } = await admin.from('team_members').select('id').eq('id', teamMemberId).eq('tenant_id', finance.scope.tenantId).eq('tenant_id', finance.scope.tenantId).maybeSingle();
+    const { data: payee, error } = await admin.from('team_members').select('id').eq('id', teamMemberId).eq('tenant_id', finance.scope.tenantId).maybeSingle();
     if (error || !payee) return NextResponse.json({ error: 'Payee unavailable' }, { status: 403 });
   }
   const errors: string[] = [];
 
   if (Object.keys(compensationUpdate).length > 0 && teamMemberId) {
-    // ⚠️ THE GRAIN MATTERS: earnings reads brand_compensation at DATA-STORE
-    // slugs only (never the umbrella), so a write keyed 'leefar' is an orphan
-    // the calc never sees — the adversarial-review root cause of "my LeeFar
-    // edits don't save" (a real stranded edit sat in prod). Umbrella saves fan
-    // out: rates/model to EVERY store; amounts park on the current carrying
-    // store (others zeroed) so the umbrella's displayed sum equals the typed
-    // value. Non-umbrella brands expand to themselves — one plain upsert.
-    const reg = await getBrandRegistry();
-    const storeSlugs = expandSlugs(reg, brand);
-    if (!storeSlugs.length || storeSlugs.some(slug => !finance.brandSlugs.includes(slug))) return NextResponse.json({ error: 'Brand unavailable' }, { status: 403 });
-    const now = new Date().toISOString();
-
-    if (storeSlugs.length <= 1) {
-      const { error } = await admin.from('brand_compensation').upsert({
-        tenant_id: profile.tenant_id,
-        brand: storeSlugs[0] ?? brand,
-        team_member_id: teamMemberId,
-        ...compensationUpdate,
-        updated_at: now,
-      }, { onConflict: 'brand,team_member_id,tenant_id' });
-      if (error) errors.push(error.message);
-    } else {
-      // Current store rows decide where parked amounts live today.
-      const { data: currentRows, error: curErr } = await admin
-        .from('brand_compensation')
-        .select('brand, retainer, launch_fee, product_retainer_amount')
-        .eq('team_member_id', teamMemberId).eq('tenant_id', finance.scope.tenantId)
-        .in('brand', storeSlugs);
-      if (curErr) {
-        errors.push(curErr.message);
-      } else {
-        const byStore = new Map(
-          ((currentRows as Array<Record<string, unknown>> | null) ?? []).map((r) => [r.brand as string, r]),
-        );
-        const perStore: Record<string, Record<string, unknown>> = {};
-        for (const slug of storeSlugs) perStore[slug] = {};
-
-        for (const [field, value] of Object.entries(compensationUpdate)) {
-          if (FAN_OUT_TO_ALL.has(field)) {
-            for (const slug of storeSlugs) perStore[slug][field] = value;
-          } else if (field in PARKED_AMOUNTS) {
-            // Carrier = store with the largest current value, else store #1.
-            let carrier = storeSlugs[0];
-            let best = -1;
-            for (const slug of storeSlugs) {
-              const cur = Number(byStore.get(slug)?.[field] ?? 0);
-              if (cur > best) { best = cur; carrier = slug; }
-            }
-            for (const slug of storeSlugs) {
-              perStore[slug][field] = slug === carrier ? value : 0;
-            }
-          } else {
-            // Name/date companions ride with their amount's carrier below;
-            // if the amount itself wasn't edited, apply to the current carrier.
-            const parent = Object.entries(PARKED_AMOUNTS).find(([, companions]) => companions.includes(field))?.[0];
-            if (parent) {
-              let carrier = storeSlugs[0];
-              let best = -1;
-              for (const slug of storeSlugs) {
-                const cur = Number(byStore.get(slug)?.[parent] ?? 0);
-                if (cur > best) { best = cur; carrier = slug; }
-              }
-              perStore[carrier][field] = value;
-            } else {
-              for (const slug of storeSlugs) perStore[slug][field] = value;
-            }
-          }
-        }
-
-        const upserts = storeSlugs
-          .filter((slug) => Object.keys(perStore[slug]).length > 0)
-          .map((slug) => ({
-            tenant_id: profile.tenant_id,
-            brand: slug,
-            team_member_id: teamMemberId,
-            ...perStore[slug],
-            updated_at: now,
-          }));
-        const { error } = await admin
-          .from('brand_compensation')
-          .upsert(upserts, { onConflict: 'brand,team_member_id,tenant_id' });
-        if (error) errors.push(error.message);
-      }
+    try {
+      await saveCompensation(admin, {
+        tenantId: finance.scope.tenantId!, actorId: finance.scope.userId,
+        teamMemberId, brand, effectiveMonth: effectiveMonth!, patch: compensationUpdate,
+        permittedSlugs: finance.brandSlugs, registry: await getBrandRegistry(),
+        source: { endpoint: 'earnings/brand-settings' },
+      });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Compensation save failed.' }, { status: 500 });
     }
   }
   if (Object.keys(brandLevelUpdate).length > 0) {

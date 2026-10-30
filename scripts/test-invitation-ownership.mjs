@@ -66,6 +66,9 @@ const admin={from,auth:{admin:{
  inviteUserByEmail:async(email,options)=>{events.push('invite-mail');if(accounts.some(u=>u.email===email))return {data:{user:null},error:{message:'User already registered'}};if(createError)return {data:{user:null},error:{message:'fixture invite failure'}};assert.ok(options.redirectTo.endsWith('/auth/callback'));const user={id:newId,email};await db.exec('RESET ROLE');await db.query('INSERT INTO auth.users VALUES ($1,$2)',[user.id,user.email]);await db.exec('SET ROLE service_role');accounts.push(user);return {data:{user},error:null};},
 }},rpc:async(name,args)=>{events.push('rpc');if(beforeRpc)await beforeRpc();assert.equal(name,'provision_invited_member');try{await db.query('SELECT provision_invited_member($1,$2,$3,$4,$5,$6)',Object.values(args));return {error:null};}catch(error){return {error};}}};
 const deps={
+ '@/lib/finance/access':{getFinanceAccess:()=>{throw new Error('Source-only onboarding must not require a finance capability');}},
+ '@/lib/finance/save-compensation':{isEffectiveMonth:()=>{throw new Error('Compensation is not exercised by invitation tests');}},
+ '@/lib/finance/compensation-history':{writeCompensationForMonth:()=>{throw new Error('Unexpected compensation write');}},
  '@supabase/ssr':{createServerClient:()=>({auth:{signInWithOtp:async options=>{events.push('mail');assert.equal(options.options.shouldCreateUser,false);return {error:mailError?{message:'fixture mail failure'}:null};}}})},
  '@/lib/supabase/server':{createAdminClient:async()=>admin,createClient:async()=>({from,auth:{getUser:async()=>({data:{user:actor?{id:actor.user_id}:null}})}})},
  '@/lib/auth/require-admin':{requireAdmin:async()=>actor&&['owner','admin'].includes(actor.role)?actor:null},

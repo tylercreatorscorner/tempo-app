@@ -41,7 +41,13 @@ function from(table) {
   }
   return q;
 }
-const client = { from };
+const client = { from, rpc: async (name, args) => {
+  assert.equal(name, 'finance_compensation_for_month');
+  return { data: args.p_brands.map(brand => ({
+    ...(tables.brand_compensation ?? []).find(row => row.brand === brand && row.tenant_id === args.p_tenant_id && row.team_member_id === args.p_team_member_id),
+    brand, active: true, revision: 0, snapshot_revision: 0, effective_month: null,
+  })), error: null };
+} };
 const workspace = { getWorkspaceScope: async () => scope, isBrandInScope: (s, b) => s.brandScope.kind === 'all' || s.brandScope.brandIds.includes(b.id) };
 function load(path, deps, source = readFileSync(path, 'utf8')) {
   const exports = {};
@@ -85,7 +91,7 @@ assert.equal((await access.getFinanceAccess('invoicing')).status, 503);
 truncated = false; failure = 'brands_v2';
 assert.equal((await access.getFinanceAccess('invoicing')).status, 503); failure = '';
 
-const routeFiles = ['invoices/route.ts', 'invoices/run/route.ts', 'invoices/bulk/route.ts', ...['route.ts', 'pdf/route.ts', 'share/route.ts', 'refresh/route.ts', 'email/route.ts', 'send/route.ts', 'nudge/route.ts'].map(path => `invoices/[id]/${path}`), 'payments/history/route.ts', 'payments/overview/route.ts', 'payments/retainers/route.ts', 'earnings/route.ts', 'earnings/series/route.ts', 'earnings/ytd/route.ts', 'earnings/brand-settings/route.ts', 'earnings/marketing-gmv/route.ts'];
+const routeFiles = ['brand-compensation/route.ts', 'brand-compensation/[id]/route.ts', 'invoices/route.ts', 'invoices/run/route.ts', 'invoices/bulk/route.ts', ...['route.ts', 'pdf/route.ts', 'share/route.ts', 'refresh/route.ts', 'email/route.ts', 'send/route.ts', 'nudge/route.ts'].map(path => `invoices/[id]/${path}`), 'payments/history/route.ts', 'payments/overview/route.ts', 'payments/retainers/route.ts', 'earnings/route.ts', 'earnings/series/route.ts', 'earnings/ytd/route.ts', 'earnings/brand-settings/route.ts', 'earnings/marketing-gmv/route.ts'];
 const routes = Object.fromEntries(routeFiles.map(path => [path, load(`src/app/api/${path}`, deps)]));
 const req = (method, body = {}) => new NextRequest('https://fixture.invalid/api/invoices', { method, ...(method === 'GET' ? {} : { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }) });
 for (const [path, route] of Object.entries(routes)) {
@@ -128,11 +134,13 @@ tables.team_members = [{ id: 'foreign-payee', tenant_id: 'b', is_archived: false
 tables.brand_compensation = [{ brand: 'alpha', tenant_id: 'a', team_member_id: 'own-payee', retainer: 100 }];
 tables.brand_settings = []; tables.creator_commission_rates = []; tables.marketing_gmv = [];
 let managedCalls = 0;
-const math = load('src/lib/finance/invoice-math.ts', { '@/lib/data/brand-registry-core': { expandSlugs: (_reg, brand) => [brand] } });
+const compensationHistory = load('src/lib/finance/compensation-history.ts', {});
+const math = load('src/lib/finance/invoice-math.ts', { '@/lib/data/brand-registry-core': { expandSlugs: (_reg, brand) => [brand] }, '@/lib/finance/compensation-history': compensationHistory });
 const earnings = load('src/lib/data/earnings.ts', {
   ...base,
   '@/lib/data/brand-registry': { getBrandRegistry: async () => ({ rows: [{ id: 'umbrella-id', slug: 'umbrella', is_umbrella: true }], childrenByParentId: new Map([['umbrella-id', [{ slug: 'alpha' }, { slug: 'beta' }]]]) }) },
   '@/lib/finance/invoice-math': math,
+  '@/lib/finance/compensation-history': compensationHistory,
   '@/lib/data/managed-gmv': { computeManagedGmv: async (_start, _end, slugs) => {
     managedCalls++; assert.deepEqual(Array.from(slugs), ['alpha']);
     return { storeSlugs: ['alpha'], labelByStore: new Map([['alpha', 'Alpha']]), byStoreCreator: new Map(), byStore: new Map() };
@@ -144,7 +152,7 @@ const ownEarnings = await earnings.getEarnings('2026-09', undefined, ['alpha'], 
 assert.equal(ownEarnings.teamMember.id, 'own-payee');
 assert.equal(ownEarnings.totals.retainers, 100);
 assert.deepEqual(Array.from(ownEarnings.brands, row => row.brand), ['alpha'], 'Child-only access must not generate an umbrella enrichment key');
-await assert.rejects(math.resolveCompensationModel(client, {}, 'alpha', 'foreign-payee', 'a', ['alpha']), /Payee unavailable/);
+await assert.rejects(math.resolveCompensationModel(client, {}, 'alpha', 'foreign-payee', 'a', ['alpha'], '2026-09'), /Payee unavailable/);
 let ledgerWrites = 0;
 const creation = load('src/lib/finance/create-invoice.ts', {
   '@/lib/data/earnings': earnings,
