@@ -21,6 +21,20 @@ assert.throws(() => validateClientSaveInput({ ...draft, terms: [term, term] }));
 const later = { ...term, effectiveMonth: "2026-09", monthlyRetainer: 999 };
 assert.equal(selectMonthTerms([later, term], "2026-08"), term);
 assert.equal(selectMonthTerms([later], "2026-08"), null);
+const approvedPeriodTerm: AgencyTerms = { ...term, monthlyRetainer: 5483.87, servicePeriod: { start: '2026-01-15', end: '2026-01-31' } };
+assert.deepEqual(validateClientSaveInput({ ...draft, terms: [approvedPeriodTerm] }).terms, [approvedPeriodTerm]);
+for (const servicePeriod of [null, {}, { start: '2026-01-15' }, { start: '2026-01-15', end: '2026-01-31', guessed: true },
+  { start: '2026-01-01', end: '2026-01-31' }, { start: '2026-01-15', end: '2026-01-30' },
+  { start: '2026-01-15', end: '2026-02-01' }, { start: '2026-01-31', end: '2026-01-15' }, { start: '2026-01-15', end: '2026-01-32' }]) {
+  assert.throws(() => validateClientSaveInput({ ...draft, terms: [{ ...approvedPeriodTerm, servicePeriod }] }));
+}
+assert.throws(() => validateClientSaveInput({ ...draft, serviceStart: null, terms: [approvedPeriodTerm] }));
+assert.equal(selectMonthTerms([{ ...term, effectiveMonth: '2025-12' }, approvedPeriodTerm], '2026-02'), null, 'A saved approved period never carries forward or falls back to older terms');
+assert.equal(selectMonthTerms([approvedPeriodTerm, { ...term, effectiveMonth: '2026-02', monthlyRetainer: 10000 }], '2026-02')?.monthlyRetainer, 10000);
+const approvedClient: ClientRecord = { ...saved, id, revision: 1, updatedAt: null, terms: [approvedPeriodTerm] };
+assert.equal(calculateServiceRevenue({ client: approvedClient, month: '2026-01', periodStart: '2026-01-15', periodEnd: '2026-01-31', gmvCents: 0, gmvComplete: true }).revenueCents, 548387, 'The saved actual approved fee is used verbatim without a second proration');
+assert.equal(calculateServiceRevenue({ client: approvedClient, month: '2026-01', periodStart: '2026-01-01', periodEnd: '2026-01-31', gmvCents: 0, gmvComplete: true }).status, 'review_required', 'Whole-month callers cannot silently use a partial-period approval');
+assert.equal(calculateServiceRevenue({ client: { ...approvedClient, serviceStart: '2026-01-16' }, month: '2026-01', periodStart: '2026-01-15', periodEnd: '2026-01-31', gmvCents: 0, gmvComplete: true }).status, 'review_required');
 const client: ClientRecord = { ...saved, id, revision: 1, updatedAt: null };
 const revenue = (patch: Partial<ClientRecord> = {}, rest = {}) => calculateServiceRevenue({ client: { ...client, ...patch }, month: "2026-08", periodStart: "2026-08-01", periodEnd: "2026-08-31", gmvCents: 100, gmvComplete: true, ...rest });
 assert.equal(revenue().status, "needs_setup");

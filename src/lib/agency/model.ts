@@ -1,3 +1,4 @@
+export type ServicePeriod = { start: string; end: string };
 /** Agency service terms only. Creator funding and individual payee earnings are separate. */
 export type AgencyTerms = {
   effectiveMonth: string;
@@ -9,6 +10,8 @@ export type AgencyTerms = {
   revShareTiers?: Array<{ upToGmv: number | null; percent: number }>;
   tierCalculation?: "unconfirmed" | "marginal" | "whole";
   gmvBasis?: "managed" | "agency_supported_affiliate";
+  /** Explicitly approved amounts for this effective month only; never prorated at runtime. */
+  servicePeriod?: ServicePeriod;
 };
 export type ClientRecord = {
   id: string;
@@ -53,6 +56,16 @@ export function agencyMonthBounds(month: string): { start: string; end: string }
   const [year, part] = month.split("-").map(Number);
   return { start: `${month}-01`, end: `${month}-${new Date(Date.UTC(year, part, 0)).getUTCDate()}` };
 }
+export function clientServicePeriod(client: Pick<ClientRecord, 'serviceStart' | 'serviceEnd'>, month: string): ServicePeriod | null {
+  const bounds = agencyMonthBounds(month);
+  if (!isAgencyDate(client.serviceStart) || (client.serviceEnd !== null && (!isAgencyDate(client.serviceEnd) || client.serviceEnd < client.serviceStart))) return null;
+  const start = client.serviceStart > bounds.start ? client.serviceStart : bounds.start;
+  const end = client.serviceEnd && client.serviceEnd < bounds.end ? client.serviceEnd : bounds.end;
+  return start <= end ? { start, end } : null;
+}
+export function servicePeriodMatches(period: ServicePeriod | undefined, expected: ServicePeriod | null): boolean {
+  return Boolean(period && expected && isAgencyDate(period.start) && isAgencyDate(period.end) && period.start === expected.start && period.end === expected.end);
+}
 function decimal(value: unknown, maximum: number, label: string): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > maximum ||
     Math.round(value * 100) / 100 !== value) fail(`Invalid ${label}; use at most two decimal places.`);
@@ -75,11 +88,18 @@ export function validateClientSaveInput(input: unknown): ClientSaveInput {
   if (!end && row.exitReason !== null) fail("An exit reason requires a service end.");
   if (!Array.isArray(row.terms) || row.terms.length > 240) fail("Invalid monthly terms.");
   const terms = (row.terms as unknown[]).map(value => {
-    const term = object(value, ["effectiveMonth", "monthlyRetainer", "revSharePercent", "feeModel", "revShareTiers", "tierCalculation", "gmvBasis", "managerComponent"], "terms");
+    const term = object(value, ["effectiveMonth", "monthlyRetainer", "revSharePercent", "feeModel", "revShareTiers", "tierCalculation", "gmvBasis", "managerComponent", "servicePeriod"], "terms");
     if (typeof term.effectiveMonth !== "string") fail("Invalid effective month.");
     agencyMonthBounds(term.effectiveMonth as string);
     if (!["fixed", "share", "additive", "minimum", "tiered", "components"].includes(term.feeModel as string)) fail("Invalid fee model.");
     const extra: Partial<AgencyTerms> = {};
+    if ('servicePeriod' in term) {
+      const period = object(term.servicePeriod, ['start', 'end'], 'approved service period');
+      const bounds = agencyMonthBounds(term.effectiveMonth as string);
+      if (!isAgencyDate(period.start) || !isAgencyDate(period.end) || period.start < bounds.start || period.end > bounds.end || period.start > period.end ||
+        !servicePeriodMatches({ start: period.start, end: period.end }, clientServicePeriod({ serviceStart: start, serviceEnd: end }, term.effectiveMonth as string))) fail('Approved service period must match the client service dates within its effective month.');
+      extra.servicePeriod = { start: period.start as string, end: period.end as string };
+    }
     if (term.feeModel === "components") {
       const component = object(term.managerComponent, ["monthlyRetainer", "revSharePercent", "feeModel"], "manager fee component");
       if (!["additive", "minimum"].includes(component.feeModel as string)) fail("Invalid manager component fee model.");
@@ -115,7 +135,8 @@ export function validateClientSaveInput(input: unknown): ClientSaveInput {
 }
 export function selectMonthTerms(terms: AgencyTerms[], month: string): AgencyTerms | null {
   agencyMonthBounds(month);
-  return terms.filter(term => term.effectiveMonth <= month).sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth))[0] ?? null;
+  const selected = terms.filter(term => term.effectiveMonth <= month).sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth))[0] ?? null;
+  return selected?.servicePeriod && selected.effectiveMonth !== month ? null : selected;
 }
 export type ServiceRevenueResult = {
   status: "calculated" | "needs_setup" | "needs_lifecycle" | "outside_service" | "review_required" | "missing_gmv";
@@ -148,8 +169,9 @@ export function calculateServiceRevenue(input: {
   if (!client.serviceStart) return unavailable("needs_lifecycle");
   if (client.serviceStart > bounds.end || (client.serviceEnd && client.serviceEnd < bounds.start)) return unavailable("outside_service");
   if (!terms) return unavailable("needs_setup");
-  if (!isAgencyDate(periodStart) || !isAgencyDate(periodEnd) || periodStart !== bounds.start || periodEnd !== bounds.end ||
-    client.serviceStart > bounds.start || (client.serviceEnd && client.serviceEnd < bounds.end)) return unavailable("review_required");
+  const calculationPeriod = terms.servicePeriod ?? bounds;
+  if (!isAgencyDate(periodStart) || !isAgencyDate(periodEnd) || periodStart !== calculationPeriod.start || periodEnd !== calculationPeriod.end ||
+    !servicePeriodMatches(calculationPeriod, clientServicePeriod(client, month))) return unavailable("review_required");
   const retainerCents = Math.round(terms.monthlyRetainer * 100);
   if (terms.feeModel === "fixed") return { status: "calculated", revenueCents: retainerCents, retainerCents, shareCents: null, terms };
   if (terms.feeModel === "tiered") {

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { agencyMonthBounds, isAgencyDate, type ClientRecord } from '@/lib/agency/model';
+import { agencyMonthBounds, isAgencyDate, selectMonthTerms, type ClientRecord } from '@/lib/agency/model';
 import { financeSettingsSchema, managerAllocations } from '@/lib/agency/finance-model';
 import { calculateRevenueTrueUp, sumRevenueTrueUps, type RevenueTrueUpRow, type RevenueTrueUpTotals, type RevenueFinanceRecord } from '@/lib/agency/revenue-model';
 
@@ -98,19 +98,42 @@ export async function loadAgencyRevenue(db: SupabaseClient, tenantId: string, pe
   const clients = clientResult.data as ClientRecord[];
   if (new Set(clients.map(client => client.id)).size !== clients.length
     || clients.some(client => !client.id || typeof client.name !== 'string' || !Array.isArray(client.brandIds) || client.brandIds.some(id => !brandIds.has(id)))) throw new Error('Agency client ownership could not be verified.');
-  const performance = performanceResult.data as Performance[];
-  if (hasClosedDates && (performance.length !== brandIds.size || new Set(performance.map(row => row.brand_id)).size !== brandIds.size || performance.some(row => !brandIds.has(row.brand_id)))) throw new Error('Complete agency performance could not be loaded.');
-  const expectedDays = hasClosedDates ? Number(period.throughDate.slice(8)) : 0;
-  const performanceByBrand = new Map(performance.map(row => [row.brand_id, row]));
-  const coverage = new Map<string, AgencyRevenueCoverage>(brands.map(brand => {
-    const row = performanceByBrand.get(brand.id);
-    if (row && (!Number.isInteger(row.recorded_days) || !Number.isInteger(row.source_recorded_days) || row.expected_days !== expectedDays
-      || row.recorded_days < 0 || row.source_recorded_days < row.recorded_days || row.source_recorded_days > expectedDays
-      || [row.recorded_through, row.latest_recorded_through].some(day => day !== null && (!isAgencyDate(day) || day < period.periodStart || day > period.throughDate)))) throw new Error('Agency source coverage could not be verified.');
-    return [brand.id, { brandId: brand.id, brandName: brand.display_name || brand.name, gmvCents: row ? finiteCents(row.managed_gmv, true) : null,
-      recordedDays: row?.recorded_days ?? 0, sourceRecordedDays: row?.source_recorded_days ?? 0, expectedDays,
-      recordedThrough: row?.recorded_through ?? null, latestRecordedThrough: row?.latest_recorded_through ?? null,
-      dailyCoverageComplete: row?.complete === true && row.recorded_days === expectedDays && row.recorded_through === period.throughDate }];
+  const coverageFor = (performance: Performance[], from: string, through: string) => {
+    const hasDates = through >= from;
+    if (hasDates && (performance.length !== brandIds.size || new Set(performance.map(row => row.brand_id)).size !== brandIds.size || performance.some(row => !brandIds.has(row.brand_id)))) throw new Error('Complete agency performance could not be loaded.');
+    const expectedDays = hasDates ? Number(through.slice(8)) - Number(from.slice(8)) + 1 : 0;
+    const performanceByBrand = new Map(performance.map(row => [row.brand_id, row]));
+    return new Map<string, AgencyRevenueCoverage>(brands.map(brand => {
+      const row = performanceByBrand.get(brand.id);
+      if (row && (!Number.isInteger(row.recorded_days) || !Number.isInteger(row.source_recorded_days) || row.expected_days !== expectedDays
+        || row.recorded_days < 0 || row.source_recorded_days < row.recorded_days || row.source_recorded_days > expectedDays
+        || [row.recorded_through, row.latest_recorded_through].some(day => day !== null && (!isAgencyDate(day) || day < from || day > through)))) throw new Error('Agency source coverage could not be verified.');
+      return [brand.id, { brandId: brand.id, brandName: brand.display_name || brand.name, gmvCents: row ? finiteCents(row.managed_gmv, true) : null,
+        recordedDays: row?.recorded_days ?? 0, sourceRecordedDays: row?.source_recorded_days ?? 0, expectedDays,
+        recordedThrough: row?.recorded_through ?? null, latestRecordedThrough: row?.latest_recorded_through ?? null,
+        dailyCoverageComplete: row?.complete === true && row.recorded_days === expectedDays && row.recorded_through === through }];
+    }));
+  };
+  const coverage = coverageFor(performanceResult.data as Performance[], period.periodStart, period.throughDate);
+  // Explicit saved service ranges require separately bounded source facts.
+  // The canonical range RPC also serves the existing month and MTD wrappers.
+  const rangesByClient = new Map<string, { start: string; end: string }>();
+  const uniqueRanges = new Map<string, { start: string; end: string }>();
+  for (const client of clients) {
+    const term = selectMonthTerms(client.terms, period.month);
+    const approved = term?.servicePeriod;
+    if (!approved || term.effectiveMonth !== period.month) continue;
+    if (!isAgencyDate(approved.start) || !isAgencyDate(approved.end) || approved.start < period.periodStart || approved.end > period.periodEnd || approved.start > approved.end) throw new Error('Agency service range could not be verified.');
+    const range = { start: approved.start, end: approved.end < period.throughDate ? approved.end : period.throughDate };
+    rangesByClient.set(client.id, range);
+    if (client.brandIds.length && (range.start !== period.periodStart || range.end !== period.throughDate)) uniqueRanges.set(`${range.start}:${range.end}`, range);
+  }
+  const rangedCoverage = new Map<string, Map<string, AgencyRevenueCoverage>>();
+  await Promise.all([...uniqueRanges].map(async ([key, range]) => {
+    if (range.end < range.start) { rangedCoverage.set(key, coverageFor([], range.start, range.end)); return; }
+    const result = await db.rpc('agency_business_range_performance', { p_tenant_id: tenantId, p_month: period.periodStart, p_from: range.start, p_through: range.end });
+    if (result.error || !Array.isArray(result.data)) throw new Error('Complete agency service-range GMV could not be loaded.');
+    rangedCoverage.set(key, coverageFor(result.data as Performance[], range.start, range.end));
   }));
   const finance = new Map<string, RevenueFinanceRecord>();
   for (const value of financeResult.data!) {
@@ -120,13 +143,17 @@ export async function loadAgencyRevenue(db: SupabaseClient, tenantId: string, pe
   }
   const managerNames = new Map(managerResult.data!.map(profile => [profile.user_id, profile.name?.trim() || null]));
   const rows = clients.map(client => {
-    const brandCoverage = client.brandIds.map(id => coverage.get(id)!);
+    const range = rangesByClient.get(client.id);
+    const sourceCoverage = range ? rangedCoverage.get(`${range.start}:${range.end}`) ?? coverage : coverage;
+    const brandCoverage = client.brandIds.map(id => sourceCoverage.get(id)!);
     const hasGmv = brandCoverage.length > 0 && brandCoverage.every(row => row.gmvCents !== null);
     const dates = brandCoverage.map(row => row.latestRecordedThrough);
     const recordedThrough = dates.length > 0 && dates.every(day => day !== null) ? [...dates as string[]].sort()[0] : null;
     const estimate = calculateRevenueTrueUp({ client, finance: finance.get(client.id) ?? null, month: period.month, throughDate: period.throughDate,
       gmv: { amountCents: hasGmv ? addCents(brandCoverage.map(row => row.gmvCents!)) : null, recordedThrough,
-        complete: hasClosedDates && hasGmv && brandCoverage.every(row => row.dailyCoverageComplete) } });
+        complete: hasClosedDates && hasGmv && brandCoverage.every(row => row.dailyCoverageComplete),
+        ...(range ? { periodStart: range.start, periodEnd: range.end } : {}),
+      } });
     const managerRecipients = estimate.managerTerms ? managerAllocations(estimate.managerTerms).map(recipient => ({ managerId: recipient.managerId, name: managerNames.get(recipient.managerId) ?? null })) : [];
     return { ...estimate, brandCoverage, managerRecipients };
   });

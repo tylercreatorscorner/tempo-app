@@ -160,4 +160,34 @@ await db.exec('reset role');
 for (const role of ['anon', 'authenticated']) { await db.exec(`set role ${role}`); await assert.rejects(save(componentDraft), /permission denied/); await db.exec('reset role'); }
 assert.equal((await db.query("select prosecdef from pg_proc where oid='agency_business_save_client(uuid,uuid,jsonb)'::regprocedure")).rows[0].prosecdef, false);
 console.log('PASS gross component SQL: strict component fields, old tier and snapshot preservation, scoped invoker writes and CAS');
+// Explicit partial-month amounts are saved without deriving or rewriting fees.
+const servicePeriodMigration = readdirSync('supabase/migrations').find(name => name.endsWith('_agency_explicit_service_periods.sql'));
+const oldComponentSnapshot = (await db.query('select snapshot from agency_business_client_revisions where client_id=$1 and revision=1', [componentClient.id])).rows[0].snapshot;
+await db.exec(readFileSync(`supabase/migrations/${servicePeriodMigration}`, 'utf8'));
+assert.deepEqual((await db.query('select snapshot from agency_business_client_revisions where client_id=$1 and revision=1', [componentClient.id])).rows[0].snapshot, oldComponentSnapshot, 'Adding explicit service periods never rewrites existing revisions');
+const approvedPeriod = { start: '2026-10-15', end: '2026-10-31' };
+const approvedTerm = { ...componentTerm, monthlyRetainer: 3838.71, revSharePercent: 3, managerComponent: { monthlyRetainer: 1645.16, revSharePercent: 2, feeModel: 'additive' }, servicePeriod: approvedPeriod };
+const restoreTerm = { ...componentTerm, effectiveMonth: '2026-11', monthlyRetainer: 7000, revSharePercent: 3, managerComponent: { monthlyRetainer: 3000, revSharePercent: 2, feeModel: 'additive' } };
+const approvedDraft = { ...componentDraft, name: 'Approved service period', serviceStart: '2026-10-15', terms: [approvedTerm, restoreTerm] };
+await db.exec('set role service_role');
+for (const servicePeriod of [null, [], {}, { start: approvedPeriod.start }, { ...approvedPeriod, extra: true },
+ { start: '2026-10-01', end: '2026-10-31' }, { start: '2026-10-15', end: '2026-11-01' },
+ { start: '2026-10-16', end: '2026-10-31' }, { start: '2026-10-15', end: '2026-10-30' },
+ { start: '2026-10-31', end: '2026-10-15' }, { start: '2026-10-15', end: '2026-10-32' },
+ { start: '2026-10-15', end: 123 }]) await assert.rejects(save({ ...approvedDraft, terms: [{ ...approvedTerm, servicePeriod }] }), /Invalid agency/);
+await assert.rejects(save({ ...approvedDraft, serviceStart: null }), /Invalid agency/);
+await assert.rejects(save({ ...approvedDraft, terms: [{ ...approvedTerm, effectiveMonth: '2026-11' }] }), /Invalid agency/);
+const approvedClient = await save(approvedDraft);
+assert.deepEqual(approvedClient.terms, [approvedTerm, restoreTerm]);
+assert.equal(approvedClient.terms[0].monthlyRetainer + approvedClient.terms[0].managerComponent.monthlyRetainer, 5483.87, 'Saved approved dollar fields remain exact, without a runtime proration method');
+await assert.rejects(save({ ...approvedDraft, id: approvedClient.id, expectedRevision: 1 }, id(2), id(21)), /changed/);
+await assert.rejects(save({ ...approvedDraft, id: approvedClient.id, expectedRevision: 0 }), /Invalid agency/);
+const periodRevision = await save({ ...approvedDraft, id: approvedClient.id, expectedRevision: 1, name: 'Approved service period updated' });
+assert.equal(periodRevision.revision, 2);
+await assert.rejects(save({ ...approvedDraft, id: approvedClient.id, expectedRevision: 1 }), /changed/);
+assert.deepEqual((await db.query('select snapshot from agency_business_client_revisions where client_id=$1 and revision=1', [approvedClient.id])).rows[0].snapshot, approvedClient);
+await db.exec('reset role');
+for (const role of ['anon', 'authenticated']) { await db.exec(`set role ${role}`); await assert.rejects(save(approvedDraft), /permission denied/); await assert.rejects(db.query('select agency_validate_service_period($1,$2,$3)', [approvedPeriod, '2026-10', approvedDraft]), /permission denied/); await db.exec('reset role'); }
+assert.equal((await db.query("select prosecdef from pg_proc where oid='agency_validate_service_period(jsonb,text,jsonb)'::regprocedure")).rows[0].prosecdef, false);
+console.log('PASS explicit client service-period SQL: strict exact lifecycle/month dates, actual approved fixed fields, November restoration, old JSON preservation, tenant/actor/CAS and immutable revisions');
 await db.close();

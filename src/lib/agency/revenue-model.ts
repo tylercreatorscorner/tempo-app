@@ -1,7 +1,7 @@
-import { agencyMonthBounds, calculateServiceRevenue, isAgencyDate, selectMonthTerms, type AgencyTerms, type ClientRecord } from './model';
-import { addDays, calculateManagerCompensation, managerAllocations, type FinanceRecord, type FinanceSettings, type ManagerTerms } from './finance-model';
+import { agencyMonthBounds, calculateServiceRevenue, clientServicePeriod, isAgencyDate, selectMonthTerms, servicePeriodMatches, type AgencyTerms, type ClientRecord } from './model';
+import { addDays, calculateManagerCompensation, managerAllocations, managerFor, type FinanceRecord, type FinanceSettings, type ManagerTerms } from './finance-model';
 
-export type RevenueTrueUpStatus = 'ready' | 'provisional' | 'review_required' | 'needs_setup' | 'outside_service';
+export type RevenueTrueUpStatus = 'ready' | 'provisional' | 'review_required' | 'needs_setup' | 'outside_service' | 'no_agency_fee';
 export type RevenueFinanceRecord = Pick<FinanceRecord, 'client_id' | 'revision'> & { settings: Pick<FinanceSettings, 'managerTerms' | 'termsReviewRequired'> };
 export interface RevenueTrueUpInput {
   client: ClientRecord;
@@ -9,7 +9,7 @@ export interface RevenueTrueUpInput {
   month: string;
   /** The requested last day of recorded GMV, never a projected month-end. */
   throughDate: string;
-  gmv: { amountCents: number | null; complete: boolean; recordedThrough: string | null };
+  gmv: { amountCents: number | null; complete: boolean; recordedThrough: string | null; periodStart?: string; periodEnd?: string };
 }
 export interface RevenueTrueUpRow {
   clientId: string;
@@ -43,6 +43,7 @@ export interface RevenueTrueUpTotals {
   provisionalCount: number;
   reviewCount: number;
   missingCount: number;
+  noAgencyFeeCount: number;
   complete: boolean;
 }
 
@@ -62,36 +63,51 @@ export function calculateRevenueTrueUp(input: RevenueTrueUpInput): RevenueTrueUp
   const noClosedDays = throughDate === addDays(bounds.start, -1);
   if (!isAgencyDate(throughDate) || (throughDate < bounds.start && !noClosedDays) || throughDate > bounds.end) throw new Error('Choose a through date within the service month.');
   if (finance && finance.client_id !== client.id) throw new Error('Finance settings do not belong to this client.');
-  const validGmv = noClosedDays ? gmv.amountCents === null : gmv.amountCents === null || (Number.isSafeInteger(gmv.amountCents) && gmv.amountCents >= 0);
-  const validRecordedDate = gmv.recordedThrough === null || (isAgencyDate(gmv.recordedThrough) && gmv.recordedThrough >= bounds.start && gmv.recordedThrough <= throughDate);
+  const agencyTerms = selectMonthTerms(client.terms, month);
+  const approvedPeriod = agencyTerms?.servicePeriod;
+  const dataStart = approvedPeriod?.start ?? bounds.start;
+  const dataEnd = approvedPeriod && approvedPeriod.end < throughDate ? approvedPeriod.end : throughDate;
+  const noClosedServiceDays = dataEnd < dataStart;
+  const validGmv = noClosedServiceDays ? gmv.amountCents === null : gmv.amountCents === null || (Number.isSafeInteger(gmv.amountCents) && gmv.amountCents >= 0);
+  const validRecordedDate = gmv.recordedThrough === null || (isAgencyDate(gmv.recordedThrough) && gmv.recordedThrough >= dataStart && gmv.recordedThrough <= dataEnd);
   const amountCents = validGmv && validRecordedDate ? gmv.amountCents : null;
-  const gmvComplete = amountCents !== null && gmv.complete && gmv.recordedThrough === throughDate;
+  const gmvComplete = amountCents !== null && gmv.complete && gmv.recordedThrough === dataEnd;
   const row: RevenueTrueUpRow = {
     clientId: client.id, clientName: client.name, month, throughDate, status: 'needs_setup', reasons: [],
     gmvCents: amountCents, recordedThrough: validRecordedDate ? gmv.recordedThrough : null, gmvComplete,
     coverage: amountCents === null ? 'missing' : gmvComplete ? 'complete' : 'partial', partialPeriod: throughDate < bounds.end,
-    feeCents: null, managerCents: null, retainedCents: null, agencyTerms: selectMonthTerms(client.terms, month),
-    managerTerms: finance?.settings.managerTerms.filter(term => term.effectiveMonth <= month).sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth))[0] ?? null, excludedFromTotals: true,
+    feeCents: null, managerCents: null, retainedCents: null, agencyTerms,
+    managerTerms: finance ? managerFor(finance.settings, month) : null, excludedFromTotals: true,
   };
   const stop = (status: RevenueTrueUpStatus, reason: string) => { row.status = status; row.reasons.push(reason); return row; };
   if (client.historical && !(client.serviceStart && client.serviceEnd && isAgencyDate(client.serviceStart) && isAgencyDate(client.serviceEnd) && client.serviceStart <= client.serviceEnd)) return stop('outside_service', 'Past agreement has no recorded service period for this month.');
   if (!client.serviceStart || !isAgencyDate(client.serviceStart)) return stop('needs_setup', 'Add the confirmed service start date.');
   if (client.serviceEnd && (!isAgencyDate(client.serviceEnd) || client.serviceEnd < client.serviceStart)) return stop('review_required', 'Review the recorded service dates.');
   if (client.serviceStart > bounds.end || (client.serviceEnd && client.serviceEnd < bounds.start)) return stop('outside_service', 'Outside the recorded service period.');
-  if (client.serviceStart > bounds.start || (client.serviceEnd && client.serviceEnd < bounds.end)) return stop('review_required', 'Partial service month requires an agreed fee; no automatic proration is applied.');
+  const expectedPeriod = clientServicePeriod(client, month);
+  const partialService = client.serviceStart > bounds.start || Boolean(client.serviceEnd && client.serviceEnd < bounds.end);
+  if (partialService && !servicePeriodMatches(approvedPeriod, expectedPeriod)) return stop('review_required', 'Partial service month requires an agreed fee; no automatic proration is applied.');
+  if (approvedPeriod && !servicePeriodMatches(approvedPeriod, expectedPeriod)) return stop('review_required', 'The approved fee period does not match the recorded service dates.');
+  if (row.managerTerms && ((partialService && !servicePeriodMatches(row.managerTerms.servicePeriod, expectedPeriod)) || (row.managerTerms.servicePeriod && !servicePeriodMatches(row.managerTerms.servicePeriod, expectedPeriod)))) return stop('review_required', 'Review the approved manager pay period for this service month.');
   if (finance?.settings.termsReviewRequired) return stop('review_required', 'Resolve the flagged agreement terms before including this client.');
   if (!row.agencyTerms) return stop('needs_setup', 'Add agency fee terms effective for this month.');
+  if (approvedPeriod && (gmv.periodStart !== dataStart || gmv.periodEnd !== dataEnd)) return stop('review_required', 'Recorded GMV must be verified for the exact approved service period.');
   if (!validGmv || !validRecordedDate) return stop('review_required', 'Review the recorded GMV amount and coverage dates.');
+  if (row.agencyTerms.feeModel === 'fixed' && row.agencyTerms.monthlyRetainer === 0 && row.agencyTerms.revSharePercent === 0 && row.managerTerms === null) {
+    row.feeCents = 0;
+    return stop('no_agency_fee', 'The effective agreement explicitly has no agency fee; manager pay is not recorded or assumed.');
+  }
 
-  if (noClosedDays) row.reasons.push('No completed source dates in this service month yet.');
+  if (noClosedServiceDays) row.reasons.push('No completed source dates in the approved service period yet.');
   else if (amountCents === null) row.reasons.push('Managed GMV is not recorded for this period.');
   else if (!gmvComplete) row.reasons.push('Recorded GMV coverage is partial; these amounts are provisional.');
-  if (row.partialPeriod) row.reasons.push('Full monthly fixed fees plus recorded GMV through the selected date; no month-end extrapolation.');
+  if (approvedPeriod) row.reasons.push(`Saved approved fixed amounts for ${approvedPeriod.start} through ${approvedPeriod.end}; no automatic proration.`);
+  else if (row.partialPeriod) row.reasons.push('Full monthly fixed fees plus recorded GMV through the selected date; no month-end extrapolation.');
   try {
     const independentFee = !needsAgencyGmv(row.agencyTerms);
     // Zero is supplied only when the fee is algebraically independent of GMV;
     // the reported GMV remains NULL rather than inventing zero source data.
-    const fee = calculateServiceRevenue({ client, month, periodStart: bounds.start, periodEnd: bounds.end,
+    const fee = calculateServiceRevenue({ client, month, periodStart: approvedPeriod?.start ?? bounds.start, periodEnd: approvedPeriod?.end ?? bounds.end,
       gmvCents: amountCents ?? (independentFee ? 0 : null), gmvComplete: amountCents !== null || independentFee });
     if (fee.status === 'calculated' && Number.isSafeInteger(fee.revenueCents) && fee.revenueCents! >= 0) row.feeCents = fee.revenueCents;
     else if (fee.status === 'review_required') return stop('review_required', 'Review the agency fee calculation, tier method, or contract GMV basis.');
@@ -111,7 +127,7 @@ export function calculateRevenueTrueUp(input: RevenueTrueUpInput): RevenueTrueUp
 
 /** A single matched cohort guarantees gross less manager pay equals retained. */
 export function sumRevenueTrueUps(rows: RevenueTrueUpRow[]): RevenueTrueUpTotals {
-  const included = rows.filter(row => !row.excludedFromTotals && row.feeCents !== null && row.managerCents !== null && row.retainedCents !== null && !['review_required', 'needs_setup', 'outside_service'].includes(row.status));
+  const included = rows.filter(row => !row.excludedFromTotals && row.feeCents !== null && row.managerCents !== null && row.retainedCents !== null && !['review_required', 'needs_setup', 'outside_service', 'no_agency_fee'].includes(row.status));
   const total = (field: 'feeCents' | 'managerCents' | 'retainedCents') => {
     if (!included.length) return null;
     const value = included.reduce((sum, row) => sum + BigInt(row[field]!), BigInt(0));
@@ -121,10 +137,11 @@ export function sumRevenueTrueUps(rows: RevenueTrueUpRow[]): RevenueTrueUpTotals
   return {
     feeCents: total('feeCents'), managerCents: total('managerCents'), retainedCents: total('retainedCents'), totalCount: rows.length,
     supportedCount: included.length, includedCount: included.length, excludedCount: rows.length - included.length,
-    partialCount: rows.filter(row => row.status !== 'outside_service' && (row.coverage === 'partial' || row.partialPeriod)).length,
+    partialCount: rows.filter(row => !['outside_service', 'no_agency_fee'].includes(row.status) && (row.coverage === 'partial' || row.partialPeriod)).length,
     provisionalCount: included.filter(row => row.status === 'provisional').length,
     reviewCount: rows.filter(row => row.status === 'review_required').length,
     missingCount: rows.filter(row => row.status === 'needs_setup').length,
-    complete: included.length > 0 && included.length === rows.filter(row => row.status !== 'outside_service').length && included.every(row => row.status === 'ready'),
+    noAgencyFeeCount: rows.filter(row => row.status === 'no_agency_fee').length,
+    complete: included.length > 0 && included.length === rows.filter(row => !['outside_service', 'no_agency_fee'].includes(row.status)).length && included.every(row => row.status === 'ready'),
   };
 }

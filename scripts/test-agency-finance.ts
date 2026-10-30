@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildInvoice, calculateManagerCompensation, emptyFinanceSettings, financeSettingsSchema, forecast, type AgencyInvoice, type ManagerTerms } from '../src/lib/agency/finance-model';
+import { buildInvoice, calculateManagerCompensation, emptyFinanceSettings, financeSettingsSchema, forecast, managerFor, type AgencyInvoice, type ManagerTerms } from '../src/lib/agency/finance-model';
 import type { ClientRecord } from '../src/lib/agency/model';
 const client: ClientRecord = { id: '00000000-0000-4000-8000-000000000010', revision: 1, name: 'Example', brandIds: [], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 1000, revSharePercent: 5, feeModel: 'additive' }] };
 const settings = { ...emptyFinanceSettings(), agencyName: 'Example Agency LLC', agencyAddress: '200 Example Avenue', paymentInstructions: 'Use the agreed bank transfer reference.', legalName: 'Example LLC', billingEmail: 'ap@example.com', billingAddress: 'Example address', managerTerms: [{ effectiveMonth: '2026-01', managerId: '00000000-0000-4000-8000-000000000020', fixedMonthly: 500, gmvPercent: 1, payoutDays: 7 as const }], forecastGmv: [{ month: '2026-09', amount: 100000 }] };
@@ -9,6 +9,15 @@ const legacy = { ...settings } as Record<string, unknown>;
 for (const key of ['billingCc', 'contractEffectiveDate', 'clientSignedDate', 'agencySignedDate', 'estimatedCampaignStart', 'terminationNoticeDays', 'termsReviewRequired', 'termsReviewNotes']) delete legacy[key];
 assert.equal(financeSettingsSchema.parse(legacy).termsReviewRequired, false, 'existing saved settings remain compatible');
 assert.equal(financeSettingsSchema.safeParse(settings).success, true);
+const approvedManager: ManagerTerms = { ...settings.managerTerms[0], effectiveMonth: '2026-10', fixedMonthly: 1645.16, gmvPercent: 2, servicePeriod: { start: '2026-10-15', end: '2026-10-31' } };
+assert.equal(financeSettingsSchema.safeParse({ ...settings, managerTerms: [approvedManager] }).success, true);
+assert.equal(calculateManagerCompensation(approvedManager, 0).totalCents, 164516, 'Approved partial fixed pay is not prorated a second time');
+assert.equal(managerFor({ managerTerms: [...settings.managerTerms, approvedManager] }, '2026-10')?.fixedMonthly, 1645.16);
+assert.equal(managerFor({ managerTerms: [...settings.managerTerms, approvedManager] }, '2026-11'), null, 'Expired manager period does not carry or fall back to an older arrangement');
+assert.equal(managerFor({ managerTerms: [approvedManager, { ...settings.managerTerms[0], effectiveMonth: '2026-11', fixedMonthly: 3000 }] }, '2026-11')?.fixedMonthly, 3000);
+for (const servicePeriod of [null, { start: '2026-10-15', end: '2026-11-01' }, { start: '2026-09-30', end: '2026-10-31' }, { start: '2026-10-31', end: '2026-10-15' }, { start: '2026-10-15', end: '2026-10-32' }, { start: '2026-10-15', end: '2026-10-31', guessed: true }]) {
+  assert.equal(financeSettingsSchema.safeParse({ ...settings, managerTerms: [{ ...approvedManager, servicePeriod }] }).success, false);
+}
 assert.equal(financeSettingsSchema.safeParse({ ...settings, netDays: -1 }).success, false);
 assert.equal(financeSettingsSchema.safeParse({ ...settings, signedDate: '2026-02-30' }).success, false);
 assert.equal(financeSettingsSchema.safeParse({ ...settings, managerTerms: [...settings.managerTerms, ...settings.managerTerms] }).success, false);

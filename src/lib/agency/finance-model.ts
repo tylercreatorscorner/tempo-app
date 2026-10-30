@@ -6,11 +6,17 @@ const month = z.string().regex(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/);
 const amount = z.number().finite().min(0).max(100000000).refine(n => Math.round(n * 100) / 100 === n, 'Use two decimal places');
 const text = (max: number) => z.string().trim().max(max);
 const compensationModel = z.enum(['additive', 'minimum']).default('additive');
+const servicePeriodSchema = z.object({ start: date, end: date }).strict();
 const managerAllocationSchema = z.object({ managerId: z.uuid(), fixedMonthly: amount, gmvPercent: amount.refine(n => n <= 100), compensationModel }).strict();
 const managerTermsSchema = z.object({ effectiveMonth: month, managerId: z.uuid(), fixedMonthly: amount,
   gmvPercent: amount.refine(n => n <= 100), payoutDays: z.literal(7), compensationModel,
   allocations: z.array(managerAllocationSchema).min(1).max(20).optional(),
+  servicePeriod: servicePeriodSchema.optional(),
 }).strict().superRefine((term, context) => {
+  if (term.servicePeriod) {
+    const bounds = agencyMonthBounds(term.effectiveMonth);
+    if (term.servicePeriod.start < bounds.start || term.servicePeriod.end > bounds.end || term.servicePeriod.start > term.servicePeriod.end) context.addIssue({ code: 'custom', message: 'Approved service period must be within its effective month' });
+  }
   if (!term.allocations?.length) return;
   if (new Set(term.allocations.map(row => row.managerId.toLowerCase())).size !== term.allocations.length) context.addIssue({ code: 'custom', message: 'Each pay recipient must be unique' });
   if (term.managerId.toLowerCase() !== term.allocations[0].managerId.toLowerCase()) context.addIssue({ code: 'custom', message: 'The lead manager must match the first allocation' });
@@ -45,7 +51,10 @@ export type InvoiceSnapshot = { clientName: string; billing: FinanceSettings; cl
 export type AgencyInvoice = { id: string; client_id: string; month: string; revision: number; status: 'draft' | 'issued' | 'paid' | 'void'; snapshot: InvoiceSnapshot; collected_on: string | null; manager_paid_on: string | null };
 export function addDays(day: string, days: number) { const value = new Date(`${day}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); }
 export function shiftMonth(value: string, offset: number) { const [y, m] = value.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + offset, 1)).toISOString().slice(0, 7); }
-export function managerFor(settings: FinanceSettings, month: string) { return settings.managerTerms.filter(t => t.effectiveMonth <= month).sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth))[0] ?? null; }
+export function managerFor(settings: Pick<FinanceSettings, 'managerTerms'>, month: string) {
+  const selected = settings.managerTerms.filter(t => t.effectiveMonth <= month).sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth))[0] ?? null;
+  return selected?.servicePeriod && selected.effectiveMonth !== month ? null : selected;
+}
 export function managerAllocations(term: ManagerTerms): ManagerAllocation[] { return term.allocations ?? [{ managerId: term.managerId, fixedMonthly: term.fixedMonthly, gmvPercent: term.gmvPercent, compensationModel: term.compensationModel ?? 'additive' }]; }
 export function calculateManagerCompensation(term: ManagerTerms, gmvCents: number) {
   const allocations = managerAllocations(term).map(row => ({ ...row, compensationModel: row.compensationModel ?? 'additive', amountCents: calculateFeeComponent(gmvCents, row.fixedMonthly, row.gmvPercent, row.compensationModel ?? 'additive').totalCents }));

@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const tenant = id(1), foreign = id(2);
 const owner = { userId: id(3), tenantId: tenant, role: 'owner', canViewFinance: true, brandScope: { kind: 'all' }, permissions: new Set(['reporting:read', 'earnings:read']) };
-let scope = owner, calls = [], failure = '', wrongCount = '', truncatePerformance = false, now = '2026-10-29T12:00:00Z';
+let scope = owner, calls = [], failure = '', wrongCount = '', truncatePerformance = false, truncateRange = false, now = '2026-10-29T12:00:00Z';
 const makeClient = (n, extra = {}) => ({ id: id(n), revision: 1, name: `Client ${n}`, brandIds: [id(n + 100)], serviceStart: '2026-01-01', serviceEnd: null, historical: false, exitReason: null, updatedAt: null,
   terms: [{ effectiveMonth: '2026-01', feeModel: 'additive', monthlyRetainer: 1000, revSharePercent: 4 }], ...extra });
 const clients = [makeClient(10), makeClient(11), makeClient(12), makeClient(13, { historical: true, serviceStart: null })];
@@ -53,8 +53,14 @@ const db = {
   },
   async rpc(name, args) {
     calls.push({ name, args });
-    assert.ok(['agency_business_list_clients', 'agency_business_period_performance'].includes(name), 'Only read-only RPCs are allowed');
+    assert.ok(['agency_business_list_clients', 'agency_business_period_performance', 'agency_business_range_performance'].includes(name), 'Only read-only RPCs are allowed');
     assert.equal(args.p_tenant_id, tenant);
+    if (name === 'agency_business_range_performance') {
+      const expected = Number(args.p_through.slice(8)) - Number(args.p_from.slice(8)) + 1;
+      const rows = performance.map(row => ({ ...row, managed_gmv: '10000', recorded_days: expected, source_recorded_days: expected, expected_days: expected,
+        recorded_through: args.p_through, latest_recorded_through: args.p_through, complete: true }));
+      return { data: truncateRange ? rows.slice(0, -1) : rows, error: failure === name ? { message: 'PRIVATE DATABASE ERROR' } : null };
+    }
     return { data: name === 'agency_business_list_clients' ? clients : truncatePerformance ? performance.slice(0, -1) : performance, error: failure === name ? { message: 'PRIVATE DATABASE ERROR' } : null };
   },
 };
@@ -126,6 +132,25 @@ tables.user_profiles[1].role = 'creator';
 assert.equal((await (await get()).json()).rows[0].managerRecipients[1].name, null, 'Ineligible or missing manager profile names remain unknown');
 tables.user_profiles[1].role = 'manager';
 
+const originalClient = clients[0], originalFinance = tables.agency_finance_settings[0];
+const servicePeriod = { start: '2026-10-15', end: '2026-10-31' };
+clients[0] = { ...originalClient, serviceStart: servicePeriod.start, terms: [{ effectiveMonth: '2026-10', feeModel: 'components', monthlyRetainer: 3838.71, revSharePercent: 3,
+  managerComponent: { monthlyRetainer: 1645.16, revSharePercent: 2, feeModel: 'additive' }, servicePeriod }] };
+tables.agency_finance_settings[0] = { ...originalFinance, manager_terms: [{ effectiveMonth: '2026-10', managerId: id(80), fixedMonthly: 1645.16, gmvPercent: 2, payoutDays: 7, servicePeriod }] };
+calls = [];
+const partialBody = await (await get()).json();
+const rangeCall = calls.find(call => call.name === 'agency_business_range_performance');
+assert.equal(rangeCall.args.p_from, '2026-10-15'); assert.equal(rangeCall.args.p_through, '2026-10-28');
+assert.equal(partialBody.rows[0].gmvCents, 1000000, 'The approved partial row uses range GMV, never the much larger prestart-inclusive month amount');
+assert.equal(partialBody.rows[0].brandCoverage[0].expectedDays, 14);
+assert.equal(partialBody.rows[0].feeCents, 598387); assert.equal(partialBody.rows[0].managerCents, 184516); assert.equal(partialBody.rows[0].retainedCents, 413871);
+assert.deepEqual(partialBody.cash, body.cash, 'Approved service ranges never change the separate calendar cash window');
+truncateRange = true; assert.equal((await get()).status, 503); truncateRange = false;
+failure = 'agency_business_range_performance'; assert.equal((await get()).status, 503); failure = '';
+clients[0] = { ...clients[0], brandIds: [] }; calls = [];
+assert.equal((await get()).status, 200); assert.ok(!calls.some(call => call.name === 'agency_business_range_performance'), 'An unlinked partial client makes no extra GMV query');
+clients[0] = originalClient; tables.agency_finance_settings[0] = originalFinance;
+
 const savedPerformance = performance;
 performance = performance.map(row => ({ ...row, expected_days: 30, recorded_days: 30, source_recorded_days: 30, recorded_through: '2026-09-30', latest_recorded_through: '2026-09-30', complete: true }));
 assert.equal((await (await get('month=2026-09')).json()).throughDate, '2026-09-30');
@@ -140,3 +165,4 @@ assert.equal(dataModule.revenuePeriod(null, new Date('2026-11-01T02:00:00Z')).mo
 assert.equal(dataModule.revenuePeriod(null, new Date('2026-11-02T02:00:00Z')).throughDate, '2026-10-31', 'Yesterday uses Chicago calendar arithmetic across DST');
 console.log('PASS actual agency revenue route + model: leadership gate, tenant scope, server-owned closed-day cutoff, matched estimates and separate recorded cash');
 console.log('PASS unavailable/truncated reads, missing GMV/cash, agreement review, no invoice/payment writes, no billing leakage and first-day/DST boundaries');
+console.log('PASS approved partial service rows use exact date-bounded GMV, preserve cash scope, and fail closed on incomplete range reads');

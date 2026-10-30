@@ -1,7 +1,7 @@
 // Fictional, local-only revenue source. No authenticated or production requests.
 import { createRoot } from 'react-dom/client';
 import { AgencyRevenueWorkspace } from '../../src/app/(admin)/agency/revenue/workspace';
-import { agencyMonthBounds, type AgencyTerms, type ClientRecord } from '../../src/lib/agency/model';
+import { agencyMonthBounds, selectMonthTerms, type AgencyTerms, type ClientRecord } from '../../src/lib/agency/model';
 import { calculateRevenueTrueUp, sumRevenueTrueUps, type RevenueFinanceRecord } from '../../src/lib/agency/revenue-model';
 import type { AgencyRevenueResponse } from '../../src/lib/data/agency-revenue';
 
@@ -16,18 +16,23 @@ const sources: Array<{ client: ClientRecord; finance: RevenueFinanceRecord | nul
   { client: { id: id(5), revision: 1, name: 'Meridian Essentials', brandIds: [id(105)], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 6000, revSharePercent: 4, feeModel: 'additive' }] }, finance: null, gmv: 10287432 },
   { client: { id: id(6), revision: 1, name: 'Aster Home', brandIds: [id(106)], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [components(2500, 2, 3000, 3)] }, finance: { client_id: id(6), revision: 1, settings: { termsReviewRequired: false, managerTerms: [{ effectiveMonth: '2026-01', managerId: id(22), fixedMonthly: 3000, gmvPercent: 3, payoutDays: 7 }] } }, gmv: null },
   { client: { id: id(8), revision: 1, name: 'Low-volume Pilot', brandIds: [id(108)], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 1000, revSharePercent: 0, feeModel: 'fixed' }] }, finance: { client_id: id(8), revision: 1, settings: { termsReviewRequired: false, managerTerms: [{ effectiveMonth: '2026-01', managerId: id(22), fixedMonthly: 1500, gmvPercent: 0, payoutDays: 7 }] } }, gmv: 0 },
+  { client: { id: id(9), revision: 1, name: 'Pacific Collective', brandIds: [id(109)], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 2000, revSharePercent: 0, feeModel: 'fixed' }, { effectiveMonth: '2026-10', monthlyRetainer: 0, revSharePercent: 0, feeModel: 'fixed' }] }, finance: null, gmv: null },
+  { client: { id: id(10), revision: 1, name: 'Lumen Nutrition', brandIds: [id(110)], serviceStart: '2026-10-15', serviceEnd: null, exitReason: null, updatedAt: null, terms: [{ ...components(3838.71, 3, 1645.16, 2), effectiveMonth: '2026-10', servicePeriod: { start: '2026-10-15', end: '2026-10-31' } }, { ...components(7000, 3, 3000, 2), effectiveMonth: '2026-11' }] }, finance: { client_id: id(10), revision: 1, settings: { termsReviewRequired: false, managerTerms: [{ effectiveMonth: '2026-10', managerId: id(20), fixedMonthly: 1645.16, gmvPercent: 2, payoutDays: 7, servicePeriod: { start: '2026-10-15', end: '2026-10-31' } }, { effectiveMonth: '2026-11', managerId: id(20), fixedMonthly: 3000, gmvPercent: 2, payoutDays: 7 }] } }, gmv: 18000000 },
   { client: { id: id(7), revision: 1, name: 'October Studio', brandIds: [id(107)], serviceStart: '2026-11-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [] }, finance: null, gmv: null },
 ];
 function fixture(month: string): AgencyRevenueResponse {
   const scenario = new URLSearchParams(window.location.search).get('scenario');
   const noClosedDates = scenario === 'first-day' && month === '2026-10';
   const bounds = agencyMonthBounds(month), throughDate = noClosedDates ? '2026-09-30' : month === '2026-10' ? '2026-10-28' : bounds.end;
-  const expectedDays = noClosedDates ? 0 : Number(throughDate.slice(8));
-  const rows = sources.filter(source => scenario !== 'negative' || source.client.id === id(8)).map(source => {
+  const rows = sources.filter(source => (scenario !== 'negative' || source.client.id === id(8)) && (scenario !== 'no-agency-fee' || source.client.id === id(9)) && (scenario !== 'approved-period' || source.client.id === id(10))).map(source => {
     if (noClosedDates) source = { ...source, gmv: null };
+    const servicePeriod = selectMonthTerms(source.client.terms, month)?.servicePeriod;
+    const periodStart = servicePeriod?.start ?? bounds.start;
+    const periodEnd = servicePeriod && servicePeriod.end < throughDate ? servicePeriod.end : throughDate;
+    const expectedDays = noClosedDates || periodEnd < periodStart ? 0 : Number(periodEnd.slice(8)) - Number(periodStart.slice(8)) + 1;
     const recordedDays = source.gmv === null ? 0 : source.partial ? expectedDays - 2 : expectedDays;
     const recordedThrough = source.gmv === null ? null : source.partial ? `${month}-${String(expectedDays - 1).padStart(2, '0')}` : throughDate;
-    return { ...calculateRevenueTrueUp({ client: source.client, finance: source.finance, month, throughDate, gmv: { amountCents: source.gmv, complete: !source.partial && source.gmv !== null, recordedThrough } }), managerRecipients: source.finance ? managerNames.filter(manager => source.finance!.settings.managerTerms.some(term => (term.allocations ?? [term]).some(recipient => recipient.managerId === manager.managerId))) : [], brandCoverage: [{ brandId: source.client.brandIds[0], brandName: source.client.name, gmvCents: source.gmv, recordedDays, sourceRecordedDays: recordedDays, expectedDays, recordedThrough, latestRecordedThrough: recordedThrough, dailyCoverageComplete: !source.partial && source.gmv !== null }] };
+    return { ...calculateRevenueTrueUp({ client: source.client, finance: source.finance, month, throughDate, gmv: { amountCents: source.gmv, complete: !source.partial && source.gmv !== null, recordedThrough, periodStart, periodEnd } }), managerRecipients: source.finance ? managerNames.filter(manager => source.finance!.settings.managerTerms.some(term => (term.allocations ?? [term]).some(recipient => recipient.managerId === manager.managerId))) : [], brandCoverage: [{ brandId: source.client.brandIds[0], brandName: source.client.name, gmvCents: source.gmv, recordedDays, sourceRecordedDays: recordedDays, expectedDays, recordedThrough, latestRecordedThrough: recordedThrough, dailyCoverageComplete: !source.partial && source.gmv !== null }] };
   });
   return { month, periodStart: bounds.start, periodEnd: bounds.end, throughDate, asOfDate: noClosedDates ? '2026-10-01' : '2026-10-29', rows, totals: sumRevenueTrueUps(rows), cash: noClosedDates ? { collectedCents: null, managerPaidCents: null, retainedCashCents: null, collectedCount: 0, managerPaidCount: 0, complete: false } : { collectedCents: 2184000, managerPaidCents: 850000, retainedCashCents: 1334000, collectedCount: 2, managerPaidCount: 1, complete: true }, warnings: noClosedDates ? ['No completed source dates in this service month yet.'] : ['Daily coverage describes source presence in every expected store; it does not verify every sale in an export.'] };
 }
