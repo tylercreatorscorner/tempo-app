@@ -32,6 +32,7 @@ function load(path) {
     if (name === '@/lib/auth/workspace-scope-types') return {};
     if (name === '@/lib/auth/can') return { can: (s, screen, level) => s.permissions.has(`${screen}:${level}`) };
     if (name === '@/lib/agency/finance-model') return load('src/lib/agency/finance-model.ts');
+    if (name === '@/lib/agency/creator-billing' || name === './creator-billing') return load('src/lib/agency/creator-billing.ts');
     if (name === '@/lib/agency/model' || name === './model') return load('src/lib/agency/model.ts');
     if (name.includes('permissions')) return { can: (s, screen, level) => s.permissions.has(`${screen}:${level}`) };
     return require(name);
@@ -80,6 +81,42 @@ for (const action of ['collect', 'pay']) {
   assert.equal((await post({ action, id: id(8), expectedRevision: 3, date: '2026-01-12' })).status, 200, 'existing historical obligations still reach the guarded transition RPC');
   assert.equal(calls.find(c => c.name === 'agency_finance_write').args.p_action, action);
 }
+const creatorRate = { monthlyFee: 500, maxCreators: 50, monthlyBudgetCap: 100000 };
+const billingPeriod = { month: '2025-12', rosterConfirmed: true, headcountApproval: '', budgetApproval: '', creators: [
+  { id: id(50), handle: '@FIXTURE', activeFrom: '2025-12-01', activeThrough: null, approved: true, onboarded: true, tapAuthorized: true, tier: 'L4' },
+] };
+const creatorClient = { ...historicalClient, historical: false, revision: 3, serviceStart: '2025-12-15', brandIds: [], terms: [{ effectiveMonth: '2025-12', feeModel: 'per_creator', monthlyRetainer: 0, revSharePercent: 0, creatorRate }] };
+const creatorSettings = { ...settings, agencyName: 'Fixture Agency', agencyAddress: 'Fixture', paymentInstructions: 'Fixture only', legalName: 'Fixture Client', billingEmail: 'fixture@example.invalid', billingAddress: 'Fixture', managerTerms: [{ effectiveMonth: '2025-12', managerId: id(20), fixedMonthly: 100, gmvPercent: 0, payoutDays: 7, servicePeriod: { start: '2025-12-15', end: '2025-12-31' } }], creatorBillingPeriods: [billingPeriod] };
+rpcRows.agency_business_list_clients = { data: [creatorClient], error: null };
+rows.agency_finance_settings = [{ client_id: id(3), revision: 4, settings: creatorSettings }];
+rpcRows.agency_finance_write = { data: { revision: 1 }, error: null };
+calls = [];
+assert.equal((await post({ action: 'draft', clientId: id(3), month: '2025-12' })).status, 200);
+const creatorDraft = calls.find(c => c.name === 'agency_finance_write').args.p_payload.snapshot;
+assert.equal(creatorDraft.feeCents, 27419); assert.equal(creatorDraft.creatorBilling.result.stipendCents, 191935);
+assert.equal(creatorDraft.managerCents, 10000); assert.equal(creatorDraft.gmvCents, null);
+assert.equal(creatorDraft.creatorBilling.settingsRevision, 4); assert.equal(creatorDraft.creatorBilling.period.creators[0].handle, 'fixture');
+assert.ok(!calls.some(c => ['agency_business_month_performance', 'agency_business_range_performance'].includes(c.name)), 'Per-creator sourcing and fixed manager pay require no invented GMV or source query');
+for (const overrides of [{ managerTerms: [] }, { managerTerms: [{ ...creatorSettings.managerTerms[0], servicePeriod: undefined }] }, { creatorBillingPeriods: [{ ...billingPeriod, rosterConfirmed: false }] }, { termsReviewRequired: true }, { billingEmail: '' }]) {
+  rows.agency_finance_settings = [{ client_id: id(3), revision: 4, settings: { ...creatorSettings, ...overrides } }]; calls = [];
+  assert.equal((await post({ action: 'draft', clientId: id(3), month: '2025-12' })).status, 400);
+  assert.ok(!calls.some(c => c.name === 'agency_finance_write'), 'Missing pay, unapproved partial pay, unconfirmed roster and billing/review blockers cannot reserve an invoice');
+}
+rows.agency_finance_settings = [{ client_id: id(3), revision: 4, settings: creatorSettings }];
+calls = [];
+const legacyCreatorSettings = { ...creatorSettings }; delete legacyCreatorSettings.creatorBillingPeriods;
+assert.equal((await post({ action: 'settings', clientId: id(3), expectedRevision: 4, settings: legacyCreatorSettings })).status, 200);
+assert.equal(Object.hasOwn(calls.find(c => c.name === 'agency_finance_write').args.p_payload.settings, 'creatorBillingPeriods'), false, 'Old settings caller omission remains distinct from an explicit ledger clear');
+calls = [];
+assert.equal((await post({ action: 'settings', clientId: id(3), expectedRevision: 4, settings: { ...creatorSettings, creatorBillingPeriods: [] } })).status, 200);
+assert.deepEqual(calls.find(c => c.name === 'agency_finance_write').args.p_payload.settings.creatorBillingPeriods, []);
+const annualLedger = Array.from({ length: 12 }, (_, index) => ({ ...billingPeriod, month: `2025-${String(index + 1).padStart(2, '0')}`, creators: Array.from({ length: 50 }, (_, creatorIndex) => ({ ...billingPeriod.creators[0], id: id(100 + creatorIndex), handle: `fixture${creatorIndex}` })) }));
+const annualBody = { action: 'settings', clientId: id(3), expectedRevision: 4, settings: { ...creatorSettings, creatorBillingPeriods: annualLedger } };
+assert.ok(JSON.stringify(annualBody).length > 100000);
+assert.equal((await post(annualBody)).status, 200, 'A normal year of 50 monthly creators can be saved within the bounded request size');
+calls = [];
+assert.equal((await finance.POST(new NextRequest(`${origin}/api/agency/finance`, { method: 'POST', headers: { origin }, body: ' '.repeat(4000001) }))).status, 413);
+assert.ok(!calls.some(c => c.name === 'agency_finance_write'));
 rows.agency_contracts = [{ storage_path: 'tenant/client/file.pdf', name: 'signed.pdf' }]; calls = [];
 assert.equal((await contracts.GET(new NextRequest(`${origin}/api/agency/contracts?id=${id(9)}`))).status, 200);
 assert.equal(calls.find(c => c.seconds).seconds, 60); assert.ok(calls.find(c => c.table).filters.some(([k, v]) => k === 'tenant_id' && v === owner.tenantId));

@@ -1,0 +1,22 @@
+import { type InvoiceSnapshot } from '@/lib/agency/finance-model';
+import { PrintInvoice } from './print';
+
+/** Client-facing rendering of the stored invoice snapshot only. */
+export function AgencyInvoiceDocument({ invoice }: { invoice: { id: string; month: string; status: string; snapshot: InvoiceSnapshot } }) {
+  const data = invoice, snap = invoice.snapshot;
+  const creatorBilling = snap.creatorBilling;
+  const money = (cents: number | null) => cents === null ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+  // Only client-facing amounts and billing fields are rendered; manager compensation stays private.
+  return <article id="client-invoice" style={{ maxWidth: 800, margin: '32px auto', padding: 40, background: 'white', color: '#172329' }}>
+    <PrintInvoice /><h1 style={{ fontSize: 32, marginBottom: 24 }}>Agency service invoice</h1>
+    <h2>{snap.billing.agencyName}</h2><p style={{ whiteSpace: 'pre-line' }}>{snap.billing.agencyAddress}</p>
+    <p>Invoice {data.id.toUpperCase()} · {data.status.toUpperCase()}</p><p>Invoice date: {snap.issuedDate} · Due: {snap.dueDate}</p>
+    <h2 style={{ marginTop: 32, fontSize: 20 }}>Bill to</h2><p>{snap.billing.legalName}</p><p style={{ whiteSpace: 'pre-line' }}>{snap.billing.billingAddress}</p><p>{snap.billing.billingContact} · {snap.billing.billingEmail}</p>
+    {snap.billing.purchaseOrder && <p>PO / reference: {snap.billing.purchaseOrder}</p>}
+    <hr style={{ margin: '32px 0' }} /><p>Agency services · {data.month}</p>
+    {creatorBilling && <section style={{ marginTop: 20 }}><h2 style={{ fontSize: 18, marginBottom: 10 }}>Agency sourcing fees</h2><p style={{ fontSize: 12, marginBottom: 12 }}>Saved creator roster for {data.month}, through {creatorBilling.result.throughDate}. Active days are inclusive and use {creatorBilling.result.daysInMonth} calendar days in this month.</p><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}><thead><tr><th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #d7dce1' }}>Creator</th><th style={{ textAlign: 'right', padding: 8, borderBottom: '1px solid #d7dce1' }}>Eligible active days</th><th style={{ textAlign: 'right', padding: 8, borderBottom: '1px solid #d7dce1' }}>Agency sourcing fee</th></tr></thead><tbody>{creatorBilling.result.creators.map(creator => <tr key={creator.id}><td style={{ padding: 8, borderBottom: '1px solid #e8ebee' }}>@{creator.handle}{!creator.eligible && <small style={{ display: 'block' }}>Not eligible for sourcing fees</small>}</td><td style={{ textAlign: 'right', padding: 8, borderBottom: '1px solid #e8ebee' }}>{creator.activeDays} / {creatorBilling.result.daysInMonth}</td><td style={{ textAlign: 'right', padding: 8, borderBottom: '1px solid #e8ebee' }}>{money(creator.sourceFeeCents)}</td></tr>)}{!creatorBilling.result.creators.length && <tr><td colSpan={3} style={{ padding: 8 }}>Confirmed empty creator roster.</td></tr>}</tbody></table></section>}
+    <h2 style={{ fontSize: 28, marginTop: 20 }}>Agency amount due: {money(snap.feeCents)}</h2>
+    <p>Payment terms: {snap.billing.netDays} days.</p><p style={{ marginTop: 32, whiteSpace: 'pre-line' }}>{snap.billing.paymentInstructions}</p>
+    {creatorBilling && <section style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #d7dce1', breakBefore: 'auto' }}><h2 style={{ fontSize: 18 }}>Creator funding schedule · separate from agency income</h2><p style={{ fontSize: 12, marginBlock: 12 }}>Creator stipends are separately invoiced by accounting. This schedule is excluded from the agency amount due above and records no payment.</p><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}><thead><tr><th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #d7dce1' }}>Creator</th><th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #d7dce1' }}>Tier</th><th style={{ textAlign: 'right', padding: 8, borderBottom: '1px solid #d7dce1' }}>Creator stipend</th></tr></thead><tbody>{creatorBilling.result.creators.map(creator => <tr key={creator.id}><td style={{ padding: 8 }}>@{creator.handle}</td><td style={{ padding: 8 }}>{creator.tier}</td><td style={{ textAlign: 'right', padding: 8 }}>{money(creator.stipendCents)}</td></tr>)}</tbody></table><p style={{ marginTop: 12, fontSize: 13 }}>Separate creator funding schedule total: <strong>{money(creatorBilling.result.stipendCents)}</strong></p></section>}
+  </article>;
+}

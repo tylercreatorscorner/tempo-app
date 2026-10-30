@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { agencyMonthBounds, isAgencyDate, selectMonthTerms, type ClientRecord } from '@/lib/agency/model';
+import { agencyMonthBounds, clientServicePeriod, isAgencyDate, selectMonthTerms, type ClientRecord } from '@/lib/agency/model';
 import { financeSettingsSchema, managerAllocations } from '@/lib/agency/finance-model';
 import { calculateRevenueTrueUp, sumRevenueTrueUps, type RevenueTrueUpRow, type RevenueTrueUpTotals, type RevenueFinanceRecord } from '@/lib/agency/revenue-model';
 
@@ -83,7 +83,7 @@ export async function loadAgencyRevenue(db: SupabaseClient, tenantId: string, pe
   const [directory, clientResult, financeResult, performanceResult, cashResult, managerResult] = await Promise.all([
     db.from('brands_v2').select('id,name,display_name', { count: 'exact' }).eq('tenant_id', tenantId).is('parent_brand_id', null).order('id').limit(10000),
     db.rpc('agency_business_list_clients', { p_tenant_id: tenantId }),
-    db.from('agency_finance_settings').select('client_id,revision,manager_terms:settings->managerTerms,terms_review_required:settings->termsReviewRequired', { count: 'exact' }).eq('tenant_id', tenantId).limit(10000),
+    db.from('agency_finance_settings').select('client_id,revision,manager_terms:settings->managerTerms,terms_review_required:settings->termsReviewRequired,creator_billing_periods:settings->creatorBillingPeriods', { count: 'exact' }).eq('tenant_id', tenantId).limit(10000),
     hasClosedDates ? db.rpc('agency_business_period_performance', { p_tenant_id: tenantId, p_month: period.periodStart, p_through: period.throughDate }) : Promise.resolve({ data: [], error: null }),
     hasClosedDates ? db.from('agency_client_invoices').select('status,collected_on,manager_paid_on,fee_cents:snapshot->>feeCents,manager_cents:snapshot->>managerCents', { count: 'exact' }).eq('tenant_id', tenantId).eq('status', 'paid')
       .or(`and(collected_on.gte.${period.periodStart},collected_on.lte.${period.throughDate}),and(manager_paid_on.gte.${period.periodStart},manager_paid_on.lte.${period.throughDate})`).limit(10000)
@@ -121,8 +121,8 @@ export async function loadAgencyRevenue(db: SupabaseClient, tenantId: string, pe
   const uniqueRanges = new Map<string, { start: string; end: string }>();
   for (const client of clients) {
     const term = selectMonthTerms(client.terms, period.month);
-    const approved = term?.servicePeriod;
-    if (!approved || term.effectiveMonth !== period.month) continue;
+    const approved = term?.servicePeriod ?? (term?.feeModel === 'per_creator' ? clientServicePeriod(client, period.month) : null);
+    if (!approved || (term?.servicePeriod && term.effectiveMonth !== period.month)) continue;
     if (!isAgencyDate(approved.start) || !isAgencyDate(approved.end) || approved.start < period.periodStart || approved.end > period.periodEnd || approved.start > approved.end) throw new Error('Agency service range could not be verified.');
     const range = { start: approved.start, end: approved.end < period.throughDate ? approved.end : period.throughDate };
     rangesByClient.set(client.id, range);
@@ -139,7 +139,8 @@ export async function loadAgencyRevenue(db: SupabaseClient, tenantId: string, pe
   for (const value of financeResult.data!) {
     if (!value.client_id || finance.has(value.client_id) || (value.manager_terms != null && !Array.isArray(value.manager_terms)) || (value.terms_review_required != null && typeof value.terms_review_required !== 'boolean')) throw new Error('Agency finance terms could not be verified.');
     const managerTerms = financeSettingsSchema.shape.managerTerms.parse(value.manager_terms ?? []);
-    finance.set(value.client_id, { client_id: value.client_id, revision: value.revision, settings: { managerTerms, termsReviewRequired: value.terms_review_required === true } });
+    const creatorBillingPeriods = financeSettingsSchema.shape.creatorBillingPeriods.parse(value.creator_billing_periods ?? []);
+    finance.set(value.client_id, { client_id: value.client_id, revision: value.revision, settings: { managerTerms, creatorBillingPeriods, termsReviewRequired: value.terms_review_required === true } });
   }
   const managerNames = new Map(managerResult.data!.map(profile => [profile.user_id, profile.name?.trim() || null]));
   const rows = clients.map(client => {

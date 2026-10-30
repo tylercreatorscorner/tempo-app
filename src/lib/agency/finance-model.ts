@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { agencyMonthBounds, calculateFeeComponent, calculateServiceRevenue, isAgencyDate, type ClientRecord } from './model';
+import { agencyMonthBounds, calculateFeeComponent, calculateServiceRevenue, clientServicePeriod, isAgencyDate, selectMonthTerms, servicePeriodMatches, type ClientRecord } from './model';
+import { calculateCreatorBilling, creatorBillingPeriodSchema, creatorBillingPeriodsSchema, type CreatorBillingSnapshot } from './creator-billing';
 
 const date = z.string().refine(isAgencyDate, 'Enter a valid date');
 const month = z.string().regex(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/);
@@ -39,6 +40,7 @@ export const financeSettingsSchema = z.object({
   noticeDays: z.number().int().min(0).max(365).nullable(), autoRenew: z.enum(['unknown', 'yes', 'no']),
   notes: text(4000),
   managerTerms: z.array(managerTermsSchema).max(240).refine(rows => new Set(rows.map(r => r.effectiveMonth)).size === rows.length, 'Each manager effective month must be unique'),
+  creatorBillingPeriods: creatorBillingPeriodsSchema.default([]),
   forecastGmv: z.array(z.object({ month, amount }).strict()).max(36)
     .refine(rows => new Set(rows.map(r => r.month)).size === rows.length, 'Each forecast month must be unique'),
 }).strict();
@@ -47,7 +49,8 @@ export const emptyFinanceSettings = (): FinanceSettings => financeSettingsSchema
 export type FinanceRecord = { client_id: string; revision: number; settings: FinanceSettings };
 export type InvoiceSnapshot = { clientName: string; billing: FinanceSettings; clientRevision: number; settingsRevision: number;
   agencyTerms: NonNullable<ReturnType<typeof calculateServiceRevenue>['terms']>; manager: FinanceSettings['managerTerms'][number];
-  gmvCents: number; feeCents: number; managerCents: number; issuedDate: string; dueDate: string; expectedDate: string };
+  gmvCents: number | null; feeCents: number; managerCents: number; issuedDate: string; dueDate: string; expectedDate: string;
+  creatorBilling?: CreatorBillingSnapshot };
 export type AgencyInvoice = { id: string; client_id: string; month: string; revision: number; status: 'draft' | 'issued' | 'paid' | 'void'; snapshot: InvoiceSnapshot; collected_on: string | null; manager_paid_on: string | null };
 export function addDays(day: string, days: number) { const value = new Date(`${day}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); }
 export function shiftMonth(value: string, offset: number) { const [y, m] = value.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + offset, 1)).toISOString().slice(0, 7); }
@@ -56,29 +59,50 @@ export function managerFor(settings: Pick<FinanceSettings, 'managerTerms'>, mont
   return selected?.servicePeriod && selected.effectiveMonth !== month ? null : selected;
 }
 export function managerAllocations(term: ManagerTerms): ManagerAllocation[] { return term.allocations ?? [{ managerId: term.managerId, fixedMonthly: term.fixedMonthly, gmvPercent: term.gmvPercent, compensationModel: term.compensationModel ?? 'additive' }]; }
-export function calculateManagerCompensation(term: ManagerTerms, gmvCents: number) {
-  const allocations = managerAllocations(term).map(row => ({ ...row, compensationModel: row.compensationModel ?? 'additive', amountCents: calculateFeeComponent(gmvCents, row.fixedMonthly, row.gmvPercent, row.compensationModel ?? 'additive').totalCents }));
+export function calculateManagerCompensation(term: ManagerTerms, gmvCents: number | null) {
+  const recipients = managerAllocations(term);
+  if (gmvCents === null && recipients.some(row => row.gmvPercent !== 0)) throw new Error('Complete managed GMV is required for the manager pay arrangement.');
+  const allocations = recipients.map(row => ({ ...row, compensationModel: row.compensationModel ?? 'additive', amountCents: calculateFeeComponent(gmvCents ?? 0, row.fixedMonthly, row.gmvPercent, row.compensationModel ?? 'additive').totalCents }));
   const totalCents = allocations.reduce((sum, row) => sum + row.amountCents, 0);
   if (!Number.isSafeInteger(totalCents)) throw new Error('Manager amount exceeds supported limits.');
   return { totalCents, allocations };
 }
 export function readiness(settings: FinanceSettings) { return Boolean(settings.legalName && settings.billingEmail && settings.billingAddress); }
-export function buildInvoice(client: ClientRecord, record: FinanceRecord, month: string, gmvCents: number, issuedDate: string): InvoiceSnapshot {
+export function buildInvoice(client: ClientRecord, record: FinanceRecord, month: string, gmvCents: number | null, issuedDate: string): InvoiceSnapshot {
   if (client.historical) throw new Error('Past agreements are kept for history. Reactivate this client before preparing a new invoice.');
   if (record.settings.termsReviewRequired) throw new Error('Review the contract differences and confirm the billing agreement before preparing an invoice.');
   if (!readiness(record.settings)) throw new Error('Complete the legal name, billing email, and billing address first.');
   if (!record.settings.agencyName || !record.settings.agencyAddress || !record.settings.paymentInstructions) throw new Error('Add the issuing agency name, address, and payment instructions before invoicing.');
   const bounds = agencyMonthBounds(month);
-  const fee = calculateServiceRevenue({ client, month, periodStart: bounds.start, periodEnd: bounds.end, gmvCents, gmvComplete: true });
+  const terms = selectMonthTerms(client.terms, month);
   const manager = managerFor(record.settings, month);
   if (!manager) throw new Error('Add a manager pay arrangement for this service month.');
-  if (fee.status !== 'calculated' || fee.revenueCents === null || !fee.terms) throw new Error('Review service dates and agency terms. Partial service months require manual review.');
-  if (!Number.isSafeInteger(gmvCents) || gmvCents < 0) throw new Error('Complete managed GMV is required.');
+  let feeCents: number;
+  let creatorBilling: CreatorBillingSnapshot | undefined;
+  if (terms?.feeModel === 'per_creator') {
+    const servicePeriod = clientServicePeriod(client, month);
+    const partialService = servicePeriod && (servicePeriod.start !== bounds.start || servicePeriod.end !== bounds.end);
+    if (!servicePeriod || (partialService && !servicePeriodMatches(manager.servicePeriod, servicePeriod))
+      || (manager.servicePeriod && !servicePeriodMatches(manager.servicePeriod, servicePeriod))) throw new Error('Review the approved manager pay period for this service month.');
+    if (!terms.creatorRate) throw new Error('Add the per-creator sourcing rate.');
+    const rawPeriod = (record.settings.creatorBillingPeriods ?? []).find(value => value.month === month) ?? null;
+    const period = rawPeriod ? creatorBillingPeriodSchema.parse(rawPeriod) : null;
+    const result = calculateCreatorBilling({ client, month, throughDate: bounds.end, rate: terms.creatorRate, period });
+    if (result.blocked || result.feeCents === null || !period) throw new Error(result.reasons.join(' ') || 'Confirm the creator billing ledger before invoicing.');
+    feeCents = result.feeCents; creatorBilling = { settingsRevision: record.revision, period, result };
+    if (managerAllocations(manager).every(row => row.gmvPercent === 0)) gmvCents = null;
+  } else {
+    const fee = calculateServiceRevenue({ client, month, periodStart: bounds.start, periodEnd: bounds.end, gmvCents, gmvComplete: true });
+    if (fee.status !== 'calculated' || fee.revenueCents === null || !fee.terms) throw new Error('Review service dates and agency terms. Partial service months require manual review.');
+    if (gmvCents === null || !Number.isSafeInteger(gmvCents) || gmvCents < 0) throw new Error('Complete managed GMV is required.');
+    feeCents = fee.revenueCents;
+  }
+  if (!terms) throw new Error('Add agency terms for this service month.');
   const managerCents = calculateManagerCompensation(manager, gmvCents).totalCents;
   if (!Number.isSafeInteger(managerCents)) throw new Error('Manager amount exceeds supported limits.');
   const dueDate = addDays(issuedDate, record.settings.netDays);
   return { clientName: client.name, billing: record.settings, clientRevision: client.revision, settingsRevision: record.revision,
-    agencyTerms: fee.terms, manager, gmvCents, feeCents: fee.revenueCents, managerCents, issuedDate, dueDate,
+    agencyTerms: terms, manager, gmvCents, feeCents, managerCents, ...(creatorBilling ? { creatorBilling } : {}), issuedDate, dueDate,
     expectedDate: addDays(dueDate, record.settings.collectionDelayDays) };
 }
 export type CashEvent = { clientId: string; clientName: string; month: string; source: 'Invoice' | 'Draft' | 'Estimate'; receiptDate: string | null; payoutDate: string | null; receiptCents: number; payoutCents: number; overdue: boolean };
@@ -102,15 +126,21 @@ export function forecast(clients: ClientRecord[], records: FinanceRecord[], invo
       const month = shiftMonth(today.slice(0, 7), offset), bounds = agencyMonthBounds(month);
       if (client.serviceStart && (client.serviceStart > bounds.end || (client.serviceEnd && client.serviceEnd < bounds.start))) continue;
       if (invoices.some(i => i.client_id === client.id && i.month === month && i.status !== 'void')) continue;
+      const creatorFee = selectMonthTerms(client.terms, month)?.feeModel === 'per_creator';
+      const manager = record ? managerFor(record.settings, month) : null;
+      const needsGmv = !creatorFee || Boolean(manager && managerAllocations(manager).some(recipient => recipient.gmvPercent !== 0));
+      const ledger = record?.settings.creatorBillingPeriods?.find(period => period.month === month);
       const gmv = record?.settings.forecastGmv.find(f => f.month === month);
-      if (record && !gmv) {
+      if (record && ((needsGmv && !gmv) || (creatorFee && !ledger?.rosterConfirmed))) {
         const scheduledInvoice = `${shiftMonth(month, 1)}-${String(record.settings.invoiceDay).padStart(2, '0')}`;
         const expectedReceipt = addDays(scheduledInvoice, record.settings.netDays + record.settings.collectionDelayDays + delay);
         if (expectedReceipt > addDays(today, 90)) continue;
       }
-      if (!record || !gmv) { missing.push(`${client.name} · ${month}: add a GMV estimate`); continue; }
+      if (!record) { missing.push(`${client.name} · ${month}: ${creatorFee ? 'add finance settings and confirm the actual creator roster' : 'add a GMV estimate'}`); continue; }
+      if (creatorFee && !ledger?.rosterConfirmed) { missing.push(`${client.name} · ${month}: confirm the actual creator roster for this service month`); continue; }
+      if (needsGmv && !gmv) { missing.push(`${client.name} · ${month}: add a GMV estimate${creatorFee ? ' for manager pay' : ''}`); continue; }
       try {
-        const s = buildInvoice(client, record, month, Math.round(gmv.amount * 100), `${shiftMonth(month, 1)}-${String(record.settings.invoiceDay).padStart(2, '0')}`);
+        const s = buildInvoice(client, record, month, needsGmv && gmv ? Math.round(gmv.amount * 100) : null, `${shiftMonth(month, 1)}-${String(record.settings.invoiceDay).padStart(2, '0')}`);
         const expected = addDays(s.expectedDate, delay), receiptDate = expected < today ? today : expected;
         events.push({ clientId: client.id, clientName: client.name, month, source: 'Estimate', receiptDate, payoutDate: addDays(receiptDate, 7), receiptCents: s.feeCents, payoutCents: s.managerCents, overdue: expected < today });
       } catch (error) { missing.push(`${client.name} · ${month}: ${(error as Error).message}`); }

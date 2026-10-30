@@ -1,10 +1,13 @@
+import type { CreatorRate } from './creator-billing';
+
 export type ServicePeriod = { start: string; end: string };
 /** Agency service terms only. Creator funding and individual payee earnings are separate. */
 export type AgencyTerms = {
   effectiveMonth: string;
   monthlyRetainer: number;
   revSharePercent: number;
-  feeModel: "fixed" | "share" | "additive" | "minimum" | "tiered" | "components";
+  feeModel: "fixed" | "share" | "additive" | "minimum" | "tiered" | "components" | "per_creator";
+  creatorRate?: CreatorRate;
   /** Gross client fee = CC additive component plus this independently rounded component. */
   managerComponent?: { monthlyRetainer: number; revSharePercent: number; feeModel: "additive" | "minimum" };
   revShareTiers?: Array<{ upToGmv: number | null; percent: number }>;
@@ -88,11 +91,16 @@ export function validateClientSaveInput(input: unknown): ClientSaveInput {
   if (!end && row.exitReason !== null) fail("An exit reason requires a service end.");
   if (!Array.isArray(row.terms) || row.terms.length > 240) fail("Invalid monthly terms.");
   const terms = (row.terms as unknown[]).map(value => {
-    const term = object(value, ["effectiveMonth", "monthlyRetainer", "revSharePercent", "feeModel", "revShareTiers", "tierCalculation", "gmvBasis", "managerComponent", "servicePeriod"], "terms");
+    const term = object(value, ["effectiveMonth", "monthlyRetainer", "revSharePercent", "feeModel", "revShareTiers", "tierCalculation", "gmvBasis", "managerComponent", "servicePeriod", "creatorRate"], "terms");
     if (typeof term.effectiveMonth !== "string") fail("Invalid effective month.");
     agencyMonthBounds(term.effectiveMonth as string);
-    if (!["fixed", "share", "additive", "minimum", "tiered", "components"].includes(term.feeModel as string)) fail("Invalid fee model.");
+    if (!["fixed", "share", "additive", "minimum", "tiered", "components", "per_creator"].includes(term.feeModel as string)) fail("Invalid fee model.");
     const extra: Partial<AgencyTerms> = {};
+    if (term.feeModel === 'per_creator') {
+      const rate = object(term.creatorRate, ['monthlyFee', 'maxCreators', 'monthlyBudgetCap'], 'creator rate');
+      if (!Number.isSafeInteger(rate.maxCreators) || (rate.maxCreators as number) < 1 || (rate.maxCreators as number) > 10000 || term.monthlyRetainer !== 0 || term.revSharePercent !== 0) fail('Per-creator billing requires a valid creator rate and zero flat/GMV fees.');
+      extra.creatorRate = { monthlyFee: decimal(rate.monthlyFee, 100000000, 'monthly creator sourcing fee'), maxCreators: rate.maxCreators as number, monthlyBudgetCap: decimal(rate.monthlyBudgetCap, 100000000, 'monthly creator budget cap') };
+    } else if ('creatorRate' in term) fail('Creator rates require the per-creator fee model.');
     if ('servicePeriod' in term) {
       const period = object(term.servicePeriod, ['start', 'end'], 'approved service period');
       const bounds = agencyMonthBounds(term.effectiveMonth as string);
@@ -169,6 +177,9 @@ export function calculateServiceRevenue(input: {
   if (!client.serviceStart) return unavailable("needs_lifecycle");
   if (client.serviceStart > bounds.end || (client.serviceEnd && client.serviceEnd < bounds.start)) return unavailable("outside_service");
   if (!terms) return unavailable("needs_setup");
+  // Actual creator-ledger input is required. Existing GMV-only callers must
+  // never turn the sourcing fee or the separate TAP into a GMV percentage.
+  if (terms.feeModel === 'per_creator') return unavailable('needs_setup');
   const calculationPeriod = terms.servicePeriod ?? bounds;
   if (!isAgencyDate(periodStart) || !isAgencyDate(periodEnd) || periodStart !== calculationPeriod.start || periodEnd !== calculationPeriod.end ||
     !servicePeriodMatches(calculationPeriod, clientServicePeriod(client, month))) return unavailable("review_required");
