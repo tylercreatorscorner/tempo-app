@@ -26,9 +26,23 @@ Available but incomplete daily GMV can produce a clearly provisional estimate. C
 
 Recorded collections and manager payments are a separate cash section, attributed by their actual recorded cash dates within the selected calendar period, regardless of the invoice service month. Only agency invoice payment records in Tempo contribute; individual-payee invoices, creator funding, off-platform accounting receipts, and bank balances are not inferred. This is separate from the 13-week collections forecast below, which continues to use explicit future GMV estimates and payment timing.
 
+### Known components and invoice review
+
+Known saved fixed fees remain visible when GMV or invoice approval is pending. The Revenue headline sums the same matched clients for known fees, known manager pay, and their difference. Pending GMV shares remain unknown, never zero; that difference is the known CC portion before overhead, not a guaranteed minimum or final profit. Complete calculation subtotals remain separate from known-component totals. A known agency fee without manager pay is visible on its client row but cannot enter a matched fee/pay/net subtotal. Showing an estimate does not clear contract review or approve an invoice.
+
+### Per-creator sourcing agreements
+
+A `per_creator` agreement saves its monthly sourcing rate, creator limit, and combined monthly sourcing-plus-stipend cap. Dr. G uses $500 per active, approved creator, a 50-creator limit without written approval, and a $100,000 combined monthly cap. The separate 22% platform TAP rate is never an invoiced agency GMV percentage.
+
+Client finance stores a reviewed ledger for each calendar month, with creator handles, active dates, tier, approval, onboarding, and TAP authorization. All three eligibility requirements must hold. The active interval is clipped to the client's confirmed service dates, calendar month, and selected closed-day cutoff. Each creator's sourcing fee and separate tier stipend are independently prorated by calendar days in that month and rounded to cents. Month-end exposure is checked against headcount/budget limits even in a mid-month estimate. Written exceptions are saved with the ledger.
+
+An unreviewed or missing roster is unknown. A deliberately confirmed empty roster is a verified zero-activity period. Creator funding remains separate from agency service income, receivables, manager pay, and recorded agency cash. Completed-month agency invoice snapshots preserve the exact reviewed ledger, source revisions, rates, and calculated sourcing/stipend breakdown. Later edits cannot rewrite an issued snapshot. The normal billing, contract-review, lifecycle, and compensation gates still apply; per-creator sourcing itself does not require GMV. Any manager GMV share requires independently verified GMV within the actual service dates.
+
 ## Forecast rules
 
 The 13-week forecast uses rolling seven-day buckets from today in America/Chicago. Open invoices (including explicitly labeled drafts) replace estimates for the same client/month. Paid invoices contribute no future receipt, but unpaid manager obligations remain. Manager pay dates use actual collection where available; scenario delay changes only uncollected amounts. Overdue obligations appear in the first bucket. The detail schedule preserves dates outside the horizon, excluded from totals. Net cash is before overhead and is not profit or a bank balance.
+
+Per-creator sourcing forecasts use the confirmed monthly creator ledger. A GMV-independent fixed manager arrangement does not require a fabricated GMV estimate. Missing/unconfirmed ledgers produce a creator-roster prompt; a GMV-dependent manager arrangement still requires its explicitly labeled GMV estimate. Creator stipends remain outside agency receipt forecasts.
 
 Future fees use recorded effective terms and explicit monthly GMV estimates. No automatic proration, growth extrapolation, or unverified contract interpretation is used. The schedule includes the prior unbilled month and current/next three service months. Older unbilled periods need invoice preparation to enter the schedule.
 

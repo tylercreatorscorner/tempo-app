@@ -76,7 +76,7 @@ function load(path) {
       if (name === '@/lib/supabase/server') return { createAdminClient: async () => { calls.push({ admin: true }); return db; } };
       if (name === '@/lib/auth/permissions') return { can: (s, screen, level) => s.permissions.has(`${screen}:${level}`) };
       const aliases = { '@/lib/agency/access': 'src/lib/agency/access.ts', '@/lib/agency/model': 'src/lib/agency/model.ts', './model': 'src/lib/agency/model.ts',
-        '@/lib/agency/finance-model': 'src/lib/agency/finance-model.ts', './finance-model': 'src/lib/agency/finance-model.ts',
+        '@/lib/agency/finance-model': 'src/lib/agency/finance-model.ts', './finance-model': 'src/lib/agency/finance-model.ts', './creator-billing': 'src/lib/agency/creator-billing.ts',
         '@/lib/agency/revenue-model': 'src/lib/agency/revenue-model.ts', '@/lib/data/agency-revenue': 'src/lib/data/agency-revenue.ts' };
       return name in aliases ? load(aliases[name]) : require(name);
     },
@@ -103,7 +103,8 @@ assert.equal(body.rows[0].gmvCents, 10000000); assert.equal(body.rows[0].recorde
 assert.equal(body.rows[0].feeCents, 500000); assert.equal(body.rows[0].managerCents, 150000); assert.equal(body.rows[0].retainedCents, 350000);
 assert.deepEqual(body.rows[0].managerRecipients, [{ managerId: id(80), name: 'Manager A' }, { managerId: id(81), name: 'Manager B' }]);
 assert.equal(body.rows[1].gmvCents, null); assert.equal(body.rows[1].feeCents, null);
-assert.equal(body.rows[2].status, 'review_required'); assert.equal(body.rows[2].feeCents, null);
+assert.equal(body.rows[2].status, 'partial_estimate'); assert.equal(body.rows[2].feeCents, null);
+assert.equal(body.rows[2].knownFeeCents,100000); assert.equal(body.rows[2].knownManagerCents,50000); assert.equal(body.rows[2].billingReviewRequired,true);
 assert.equal(body.rows[3].status, 'outside_service'); assert.equal(body.totals.includedCount, 1);
 assert.equal(body.totals.feeCents - body.totals.managerCents, body.totals.retainedCents);
 assert.deepEqual(body.cash, { collectedCents: 30000, managerPaidCents: 22000, retainedCashCents: 8000, collectedCount: 1, managerPaidCount: 2, complete: true }, 'Cash-date totals include older service invoices and exclude open-day, draft and foreign rows');
@@ -111,7 +112,7 @@ assert.ok(calls.filter(call => call.table).every(call => call.filters.some(([ope
 const performanceCall = calls.find(call => call.name === 'agency_business_period_performance');
 assert.equal(performanceCall.args.p_month, '2026-10-01'); assert.equal(performanceCall.args.p_through, '2026-10-28');
 const financeCall = calls.find(call => call.table === 'agency_finance_settings');
-assert.equal(financeCall.columns, 'client_id,revision,manager_terms:settings->managerTerms,terms_review_required:settings->termsReviewRequired');
+assert.equal(financeCall.columns, 'client_id,revision,manager_terms:settings->managerTerms,terms_review_required:settings->termsReviewRequired,creator_billing_periods:settings->creatorBillingPeriods');
 assert.equal(calls.find(call => call.table === 'user_profiles').columns, 'user_id,name', 'Manager names use only the minimal tenant-scoped profile projection');
 assert.ok(!JSON.stringify(body).includes('PRIVATE'), 'Billing addresses, payment instructions and provider internals never reach the response');
 assert.ok(calls.every(call => !call.insert && !call.update && !call.delete), 'The endpoint never creates or changes financial records');
@@ -149,6 +150,20 @@ truncateRange = true; assert.equal((await get()).status, 503); truncateRange = f
 failure = 'agency_business_range_performance'; assert.equal((await get()).status, 503); failure = '';
 clients[0] = { ...clients[0], brandIds: [] }; calls = [];
 assert.equal((await get()).status, 200); assert.ok(!calls.some(call => call.name === 'agency_business_range_performance'), 'An unlinked partial client makes no extra GMV query');
+clients[0] = { ...originalClient, serviceStart: '2026-10-15', terms: [{ effectiveMonth: '2026-10', feeModel: 'per_creator', monthlyRetainer: 0, revSharePercent: 0, creatorRate: { monthlyFee: 500, maxCreators: 50, monthlyBudgetCap: 100000 } }] };
+tables.agency_finance_settings[0] = { ...originalFinance, manager_terms: [{ effectiveMonth: '2026-10', managerId: id(80), fixedMonthly: 0, gmvPercent: 2, payoutDays: 7, servicePeriod }],
+  creator_billing_periods: [{ month: '2026-10', rosterConfirmed: true, headcountApproval: '', budgetApproval: '', creators: [{ id: id(90), handle: 'example.creator', activeFrom: '2026-10-15', activeThrough: null, approved: true, onboarded: true, tapAuthorized: true, tier: 'L2' }] }] };
+calls = [];
+const creatorBody = await (await get()).json();
+assert.equal(calls.find(call => call.name === 'agency_business_range_performance').args.p_from, '2026-10-15');
+assert.equal(creatorBody.rows[0].knownFeeCents, 22581, 'Agency sourcing uses 14/31 creator days, not GMV');
+assert.equal(creatorBody.rows[0].knownManagerCents, 20000, 'Manager share uses only the service range, excluding prestart GMV');
+assert.equal(creatorBody.rows[0].knownRetainedCents, 2581);
+assert.deepEqual(creatorBody.cash, body.cash, 'Creator billing never changes calendar cash facts');
+tables.agency_finance_settings[0].creator_billing_periods = [{ ...tables.agency_finance_settings[0].creator_billing_periods[0], rosterConfirmed: false }];
+assert.equal((await (await get()).json()).rows[0].knownFeeCents, null, 'A saved but unreviewed creator ledger does not fabricate zero fees');
+tables.agency_finance_settings[0].creator_billing_periods = 'malformed';
+assert.equal((await get()).status, 503, 'Malformed private ledgers fail closed before returning financial output');
 clients[0] = originalClient; tables.agency_finance_settings[0] = originalFinance;
 
 const savedPerformance = performance;

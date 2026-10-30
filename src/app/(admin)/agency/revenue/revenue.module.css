@@ -139,3 +139,5 @@
 .noFeeRecord small { font-size: 10px; line-height: 1.5; color: var(--muted-foreground); }
 
 .table .servicePeriod { margin-top: 7px; color: var(--foreground); font-size: 10px; line-height: 1.5; }
+
+.knownNote { padding: 10px 20px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 10px; line-height: 1.6; }

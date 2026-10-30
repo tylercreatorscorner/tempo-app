@@ -1,8 +1,9 @@
 import { agencyMonthBounds, calculateServiceRevenue, clientServicePeriod, isAgencyDate, selectMonthTerms, servicePeriodMatches, type AgencyTerms, type ClientRecord } from './model';
 import { addDays, calculateManagerCompensation, managerAllocations, managerFor, type FinanceRecord, type FinanceSettings, type ManagerTerms } from './finance-model';
+import { calculateCreatorBilling, type CreatorBillingResult } from './creator-billing';
 
-export type RevenueTrueUpStatus = 'ready' | 'provisional' | 'review_required' | 'needs_setup' | 'outside_service' | 'no_agency_fee';
-export type RevenueFinanceRecord = Pick<FinanceRecord, 'client_id' | 'revision'> & { settings: Pick<FinanceSettings, 'managerTerms' | 'termsReviewRequired'> };
+export type RevenueTrueUpStatus = 'ready' | 'provisional' | 'partial_estimate' | 'review_required' | 'needs_setup' | 'outside_service' | 'no_agency_fee';
+export type RevenueFinanceRecord = Pick<FinanceRecord, 'client_id' | 'revision'> & { settings: Pick<FinanceSettings, 'managerTerms' | 'termsReviewRequired'> & Partial<Pick<FinanceSettings, 'creatorBillingPeriods'>> };
 export interface RevenueTrueUpInput {
   client: ClientRecord;
   finance: RevenueFinanceRecord | null;
@@ -26,6 +27,15 @@ export interface RevenueTrueUpRow {
   feeCents: number | null;
   managerCents: number | null;
   retainedCents: number | null;
+  /** Confirmed saved components plus calculable recorded share. These are not full totals while pending. */
+  knownFeeCents: number | null;
+  knownManagerCents: number | null;
+  knownRetainedCents: number | null;
+  knownIncludedInTotals: boolean;
+  feePending: boolean;
+  managerPending: boolean;
+  billingReviewRequired: boolean;
+  creatorBilling: CreatorBillingResult | null;
   agencyTerms: AgencyTerms | null;
   managerTerms: ManagerTerms | null;
   /** Headline amounts always use the same cohort for gross, pay, and retained. */
@@ -44,11 +54,16 @@ export interface RevenueTrueUpTotals {
   reviewCount: number;
   missingCount: number;
   noAgencyFeeCount: number;
+  knownFeeCents: number | null;
+  knownManagerCents: number | null;
+  knownRetainedCents: number | null;
+  knownIncludedCount: number;
+  pendingCount: number;
   complete: boolean;
 }
 
 function needsAgencyGmv(terms: AgencyTerms): boolean {
-  if (terms.feeModel === 'fixed') return false;
+  if (terms.feeModel === 'fixed' || terms.feeModel === 'per_creator') return false;
   if (terms.feeModel === 'tiered') return true;
   return terms.revSharePercent !== 0 || (terms.feeModel === 'components' && (terms.managerComponent?.revSharePercent ?? 0) !== 0);
 }
@@ -57,7 +72,7 @@ function needsAgencyGmv(terms: AgencyTerms): boolean {
  * Full monthly fixed fees accompany recorded GMV; there is no daily proration
  * and no extrapolation of partial-period GMV into a month-end forecast.
  */
-export function calculateRevenueTrueUp(input: RevenueTrueUpInput): RevenueTrueUpRow {
+function calculateExactRevenueTrueUp(input: RevenueTrueUpInput): RevenueTrueUpRow {
   const { client, finance, month, throughDate, gmv } = input;
   const bounds = agencyMonthBounds(month);
   const noClosedDays = throughDate === addDays(bounds.start, -1);
@@ -65,8 +80,9 @@ export function calculateRevenueTrueUp(input: RevenueTrueUpInput): RevenueTrueUp
   if (finance && finance.client_id !== client.id) throw new Error('Finance settings do not belong to this client.');
   const agencyTerms = selectMonthTerms(client.terms, month);
   const approvedPeriod = agencyTerms?.servicePeriod;
-  const dataStart = approvedPeriod?.start ?? bounds.start;
-  const dataEnd = approvedPeriod && approvedPeriod.end < throughDate ? approvedPeriod.end : throughDate;
+  const sourcePeriod = agencyTerms?.feeModel === 'per_creator' ? clientServicePeriod(client, month) : approvedPeriod;
+  const dataStart = sourcePeriod?.start ?? bounds.start;
+  const dataEnd = sourcePeriod && sourcePeriod.end < throughDate ? sourcePeriod.end : throughDate;
   const noClosedServiceDays = dataEnd < dataStart;
   const validGmv = noClosedServiceDays ? gmv.amountCents === null : gmv.amountCents === null || (Number.isSafeInteger(gmv.amountCents) && gmv.amountCents >= 0);
   const validRecordedDate = gmv.recordedThrough === null || (isAgencyDate(gmv.recordedThrough) && gmv.recordedThrough >= dataStart && gmv.recordedThrough <= dataEnd);
@@ -78,6 +94,8 @@ export function calculateRevenueTrueUp(input: RevenueTrueUpInput): RevenueTrueUp
     coverage: amountCents === null ? 'missing' : gmvComplete ? 'complete' : 'partial', partialPeriod: throughDate < bounds.end,
     feeCents: null, managerCents: null, retainedCents: null, agencyTerms,
     managerTerms: finance ? managerFor(finance.settings, month) : null, excludedFromTotals: true,
+    knownFeeCents: null, knownManagerCents: null, knownRetainedCents: null, knownIncludedInTotals: false,
+    feePending: true, managerPending: true, billingReviewRequired: finance?.settings.termsReviewRequired === true, creatorBilling: null,
   };
   const stop = (status: RevenueTrueUpStatus, reason: string) => { row.status = status; row.reasons.push(reason); return row; };
   if (client.historical && !(client.serviceStart && client.serviceEnd && isAgencyDate(client.serviceStart) && isAgencyDate(client.serviceEnd) && client.serviceStart <= client.serviceEnd)) return stop('outside_service', 'Past agreement has no recorded service period for this month.');
@@ -125,12 +143,115 @@ export function calculateRevenueTrueUp(input: RevenueTrueUpInput): RevenueTrueUp
   return row;
 }
 
+/** Invoice review and missing variable inputs must not conceal confirmed fee components.
+ * Exact totals remain separate; the known-component headline always uses one matched cohort.
+ */
+export function calculateRevenueTrueUp(input: RevenueTrueUpInput): RevenueTrueUpRow {
+  const row = calculateExactRevenueTrueUp(input);
+  const { client, month, throughDate, finance, gmv } = input;
+  const term = row.agencyTerms;
+  if (row.status === 'outside_service' || row.status === 'no_agency_fee' || !client.serviceStart || !isAgencyDate(client.serviceStart) || !term) return row;
+  const bounds = agencyMonthBounds(month), service = clientServicePeriod(client, month);
+  if (!service || (client.serviceEnd && (!isAgencyDate(client.serviceEnd) || client.serviceEnd < client.serviceStart))) return row;
+  const creatorFee = term.feeModel === 'per_creator';
+  if (row.billingReviewRequired && term.feeModel === 'fixed' && term.monthlyRetainer === 0 && term.revSharePercent === 0 && row.managerTerms === null) return row;
+  if (row.status === 'review_required' && !row.billingReviewRequired && !creatorFee) return row;
+  if (term.feeModel === 'tiered' && (!['marginal', 'whole'].includes(term.tierCalculation ?? '') || term.gmvBasis !== 'managed')) return row;
+  const partialService = service.start !== bounds.start || service.end !== bounds.end;
+  if (!creatorFee && partialService && !servicePeriodMatches(term.servicePeriod, service)) return row;
+  if (term.servicePeriod && !servicePeriodMatches(term.servicePeriod, service)) return row;
+  const sourcePeriod = creatorFee ? service : term.servicePeriod;
+  const sourceStart = sourcePeriod?.start ?? bounds.start;
+  const sourceEnd = sourcePeriod && sourcePeriod.end < throughDate ? sourcePeriod.end : throughDate;
+  if (!creatorFee && ((gmv.amountCents !== null && (!Number.isSafeInteger(gmv.amountCents) || gmv.amountCents < 0)) ||
+    (gmv.recordedThrough !== null && (!isAgencyDate(gmv.recordedThrough) || gmv.recordedThrough < sourceStart || gmv.recordedThrough > sourceEnd)) ||
+    (term.servicePeriod && (gmv.periodStart !== sourceStart || gmv.periodEnd !== sourceEnd)))) return row;
+
+  const cents = (amount: number) => {
+    const result = Math.round(amount * 100);
+    if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(result)) throw new Error('Invalid saved fixed amount.');
+    return result;
+  };
+  try {
+    // A contract review can hold GMV attribution/invoicing while its saved fixed amounts remain known.
+    if (creatorFee) {
+      if (!term.creatorRate) return row;
+      row.creatorBilling = calculateCreatorBilling({ client, month, throughDate, rate: term.creatorRate,
+        period: finance?.settings.creatorBillingPeriods?.find(period => period.month === month) ?? null });
+      row.reasons = row.reasons.filter(reason => !/Partial service month requires|Resolve the flagged agreement|Managed GMV is not recorded|Full monthly fixed fees/.test(reason));
+      row.reasons.push(...row.creatorBilling.reasons);
+      row.knownFeeCents = row.creatorBilling.blocked ? null : row.creatorBilling.feeCents;
+      row.feePending = row.creatorBilling.blocked || row.knownFeeCents === null;
+      if (!row.billingReviewRequired && !row.feePending) row.feeCents = row.knownFeeCents;
+    } else if (row.feeCents !== null) {
+      row.knownFeeCents = row.feeCents;
+      row.feePending = false;
+    } else if (term.feeModel === 'fixed' || term.feeModel === 'additive' || term.feeModel === 'tiered') {
+      row.knownFeeCents = cents(term.monthlyRetainer);
+      row.feePending = needsAgencyGmv(term);
+    } else if (term.feeModel === 'components' && term.managerComponent?.feeModel === 'additive') {
+      row.knownFeeCents = cents(term.monthlyRetainer) + cents(term.managerComponent.monthlyRetainer);
+      row.feePending = needsAgencyGmv(term);
+    }
+    const manager = row.managerTerms;
+    const managerPeriodValid = manager && (!partialService || servicePeriodMatches(manager.servicePeriod, service)) &&
+      (!manager.servicePeriod || servicePeriodMatches(manager.servicePeriod, service));
+    if (managerPeriodValid) {
+      const allocations = managerAllocations(manager);
+      const managerNeedsGmv = allocations.some(allocation => allocation.gmvPercent !== 0);
+      const managerGmvVerified = !creatorFee || (gmv.periodStart === sourceStart && gmv.periodEnd === sourceEnd &&
+        (gmv.recordedThrough === null || (isAgencyDate(gmv.recordedThrough) && gmv.recordedThrough >= sourceStart && gmv.recordedThrough <= sourceEnd)));
+      if (row.managerCents !== null) { row.knownManagerCents = row.managerCents; row.managerPending = false; }
+      else if (!managerNeedsGmv || (!row.billingReviewRequired && row.gmvCents !== null && managerGmvVerified)) {
+        row.knownManagerCents = calculateManagerCompensation(manager, row.gmvCents ?? 0).totalCents;
+        row.managerPending = false;
+        if (creatorFee && !row.billingReviewRequired) row.managerCents = row.knownManagerCents;
+      } else if (allocations.every(allocation => (allocation.compensationModel ?? 'additive') === 'additive')) {
+        row.knownManagerCents = allocations.reduce((sum, allocation) => sum + cents(allocation.fixedMonthly), 0);
+        row.managerPending = true;
+      }
+    }
+    if (row.billingReviewRequired) {
+      row.reasons = row.reasons.filter(reason => !/Resolve the flagged agreement/.test(reason));
+      row.reasons.push('Invoice approval remains pending. Confirmed fee components are shown separately from unresolved amounts.');
+    }
+    if (row.knownFeeCents !== null && row.knownManagerCents !== null) {
+      if (!Number.isSafeInteger(row.knownFeeCents) || !Number.isSafeInteger(row.knownManagerCents)) throw new Error('Known amounts exceed supported limits.');
+      row.knownRetainedCents = row.knownFeeCents - row.knownManagerCents;
+      row.knownIncludedInTotals = true;
+    }
+    if (creatorFee && row.creatorBilling?.blocked) {
+      row.status = row.creatorBilling.rosterConfirmed ? 'review_required' : 'needs_setup';
+      row.feeCents = null; row.retainedCents = null; row.excludedFromTotals = true;
+    } else if (creatorFee && row.feeCents !== null && row.managerCents !== null) {
+      row.retainedCents = row.feeCents - row.managerCents;
+      row.excludedFromTotals = false;
+      const managerNeedsGmv = row.managerTerms && managerAllocations(row.managerTerms).some(allocation => allocation.gmvPercent !== 0);
+      row.status = row.partialPeriod || row.billingReviewRequired || (managerNeedsGmv && !row.gmvComplete) ? 'provisional' : 'ready';
+    } else if (row.knownFeeCents !== null || row.knownManagerCents !== null) {
+      if (row.feePending || row.managerPending || row.billingReviewRequired) row.status = 'partial_estimate';
+    }
+    if (row.managerTerms === null && !row.reasons.some(reason => /manager pay arrangement/.test(reason))) row.reasons.push('Add a manager pay arrangement effective for this month.');
+  } catch {
+    row.knownFeeCents = null; row.knownManagerCents = null; row.knownRetainedCents = null; row.knownIncludedInTotals = false;
+    row.status = 'review_required'; row.reasons.push('Review the saved component amounts or creator billing inputs.');
+  }
+  return row;
+}
+
 /** A single matched cohort guarantees gross less manager pay equals retained. */
 export function sumRevenueTrueUps(rows: RevenueTrueUpRow[]): RevenueTrueUpTotals {
   const included = rows.filter(row => !row.excludedFromTotals && row.feeCents !== null && row.managerCents !== null && row.retainedCents !== null && !['review_required', 'needs_setup', 'outside_service', 'no_agency_fee'].includes(row.status));
   const total = (field: 'feeCents' | 'managerCents' | 'retainedCents') => {
     if (!included.length) return null;
     const value = included.reduce((sum, row) => sum + BigInt(row[field]!), BigInt(0));
+    if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER)) throw new Error('Revenue totals exceed supported limits.');
+    return Number(value);
+  };
+  const known = rows.filter(row => row.knownIncludedInTotals && row.knownFeeCents !== null && row.knownManagerCents !== null && row.knownRetainedCents !== null && !['outside_service', 'no_agency_fee'].includes(row.status));
+  const knownTotal = (field: 'knownFeeCents' | 'knownManagerCents' | 'knownRetainedCents') => {
+    if (!known.length) return null;
+    const value = known.reduce((sum, row) => sum + BigInt(row[field]!), BigInt(0));
     if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER)) throw new Error('Revenue totals exceed supported limits.');
     return Number(value);
   };
@@ -142,6 +263,9 @@ export function sumRevenueTrueUps(rows: RevenueTrueUpRow[]): RevenueTrueUpTotals
     reviewCount: rows.filter(row => row.status === 'review_required').length,
     missingCount: rows.filter(row => row.status === 'needs_setup').length,
     noAgencyFeeCount: rows.filter(row => row.status === 'no_agency_fee').length,
+    knownFeeCents: knownTotal('knownFeeCents'), knownManagerCents: knownTotal('knownManagerCents'), knownRetainedCents: knownTotal('knownRetainedCents'),
+    knownIncludedCount: known.length,
+    pendingCount: rows.filter(row => !['outside_service', 'no_agency_fee'].includes(row.status) && (row.feePending || row.managerPending || row.billingReviewRequired)).length,
     complete: included.length > 0 && included.length === rows.filter(row => !['outside_service', 'no_agency_fee'].includes(row.status)).length && included.every(row => row.status === 'ready'),
   };
 }
