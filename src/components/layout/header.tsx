@@ -92,13 +92,13 @@ function labelFromPath(pathname: string): string {
   return seg.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function DashboardScopeIdentity() {
+function StudioScopeIdentity({ pendingLabel }: { pendingLabel: string }) {
   const { brand, brandLabel, isFiltered, isPending } = useGlobalBrand();
   const meta = useBrandMeta();
-  return <div className={studioStyles.scopeIdentity} aria-label="Current dashboard brand scope">
+  return <div className={studioStyles.scopeIdentity} aria-label="Current workspace brand scope">
     {isFiltered ? <BrandPortrait name={brandLabel} source={meta.logo(brand)} color={meta.color(brand)} size={24} /> : <AllBrandsPortrait size={24} />}
     <strong className={studioStyles.scopeName}>{brandLabel}</strong>
-    <span className={studioStyles.scopeDescription}>{isPending ? 'Updating dashboard…' : 'Brand workspace'}</span>
+    <span className={studioStyles.scopeDescription}>{isPending ? `Updating ${pendingLabel}…` : 'Brand workspace'}</span>
   </div>;
 }
 
@@ -153,7 +153,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
         </div>
 
         {/* Breadcrumb */}
-        {studio ? <DashboardScopeIdentity /> : <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+        {studio ? <StudioScopeIdentity pendingLabel={pathname === '/roster' ? 'creators' : 'dashboard'} /> : <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
           <span className={styles.tenantLabel} title={tenantName}>{tenantName ?? 'Tempo'}</span>
           <span className={styles.breadcrumbSeparator} aria-hidden="true">/</span>
           {isCreatorDetail && (

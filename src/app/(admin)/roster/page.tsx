@@ -1,47 +1,45 @@
 'use client';
 import { InterfaceIcon } from '@/components/ui/interface-icon';
-import { SegmentedControl } from '@/components/ui/segmented';
 import RosterLoading from './loading';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { LatestRequest } from '@/lib/latest-request';
 
-import { useState, useEffect, useCallback, useRef, Suspense, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
 import { RosterSegmentControls } from '@/components/segments/roster-segment-controls';
 import rosterLayout from '@/components/roster/roster-layout.module.css';
 import { NewVideoGmvCard } from '@/components/dashboard/new-video-gmv';
 import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
-  UserPlus, Search, Users, UserCheck, X,
-  ChevronLeft, ChevronRight, ChevronDown, ExternalLink, Loader2,
-  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload, FileDown, Calendar, AlertTriangle,
+  Users, X,
+  ChevronDown, ExternalLink, Loader2,
+  Pencil, Check, Plus, Trash2, Upload, FileDown, AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { DATE_PRESETS, type DatePreset } from '@/lib/data/date-utils';
-import { CustomRangePopover } from '@/components/dashboard/custom-range-popover';
 import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
-import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { SearchInput } from '@/components/ui/search-input';
-import { CreatorGroupControls } from '@/components/roster/creator-group-controls';
 import { ProductTagPicker, ProductFilterSelect } from '@/components/roster/product-tag-picker';
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
-import { PageHeader } from '@/components/ui/page-header';
-import { Button } from '@/components/ui/button';
-import { EmptyState } from '@/components/ui/empty-state';
-import { Badge } from '@/components/ui/badge';
-import { ScrollFade } from '@/components/ui/scroll-fade';
-import { InfoTooltip } from '@/components/ui/info-tooltip';
 
+import { DropdownMenu, Popover } from 'radix-ui';
+import { RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { DateRangePicker } from '@/components/dashboard/date-range-picker';
+import { CreatorOverviewDrawer } from '@/components/roster/creator-drawer';
+import { StudioRosterTable } from '@/components/roster/studio-roster-table';
+import { RosterTagsProvider, RosterTagFilter, RosterTagEditor } from '@/components/roster/studio-tag-controls';
+import type { Creator, BrandChild } from '@/components/roster/types';
+import type { RosterStudioData } from '@/lib/roster/studio-types';
+import { useNavigationPending } from '@/components/layout/navigation-pending';
 const PAGE_SIZE = 50;
 
 // Compact chip labels for the period presets (the card header is narrow).
@@ -60,81 +58,6 @@ const fmtShortDate = (s: string) => {
   return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y.slice(2)}`;
 };
 
-type CreatorHealth = 'healthy' | 'behind' | 'silent' | 'churned' | 'affiliate' | 'no_data' | 'not_assessed';
-
-interface Creator {
-  id: string;
-  real_name: string | null;
-  brand: string | null;
-  status: string | null;
-  retainer: number | null;
-  monthly_post_requirement: number | null;
-  discord_name: string | null;
-  discord_avatar: string | null;
-  notes: string | null;
-  created_at: string | null;
-  // FK to creators_v2. Null for unmanaged universe rows; set for managed.
-  creator_id: string | null;
-  // Canonical handle list (from tiktok_accounts via the API, primary first,
-  // unlimited). account_1..5 stay for back-compat; new code reads `handles`.
-  handles: string[];
-  account_1: string | null;
-  account_2: string | null;
-  account_3: string | null;
-  account_4: string | null;
-  account_5: string | null;
-  // ── Perf signals (added by /api/roster) ──
-  // Period-driven: changes when the period selector moves.
-  gmv_period: number;
-  // Per-(data brand slug) GMV split for the same period. Empty object when
-  // there's no data. Powers the side-panel "Revenue by store" section, the
-  // row's store-mix indicator, and the LeeFar Nutrition/Supplements sub-pill.
-  gmv_by_store: Record<string, number>;
-  // Distinct posts over the selected period — drives the Posts column.
-  posts_period: number;
-  // Rolling 7-day distinct video count — legacy, unused by the simple page.
-  posts_7d: number;
-  last_post_date: string | null;
-  // When the creator joined the roster (joined_at ?? created_at). Null for unmanaged.
-  joined: string | null;
-  health: CreatorHealth;
-  // Period-driven: gmv_period ÷ retainer, null when retainer is 0.
-  roi_period: number | null;
-  // Per-day GMV series over the selected window (roster sparkline). Page-only.
-  spark?: number[];
-  spark_posts?: number[];
-  gmv_delta?: number | null;
-  posts_delta?: number | null;
-  level?: number | null;
-  // ── Messaging signals ──
-  last_message_at: string | null;
-  unread_count: number;
-  // True for managed_creators rows; false for unmanaged universe candidates
-  // (returned only when ?include=all). Drives the row's action cell + cell-by-cell
-  // dimming for fields that don't apply to unmanaged creators.
-  is_managed: boolean;
-  // Resolved product tags (key + display name). Empty = no specific product.
-  product_tags: { key: string; name: string }[];
-  creator_tags?: string[];
-  // All-Brands collapse: parent row spanning multiple brands; `brands` holds the
-  // per-brand children (one managed contract each).
-  grouped?: boolean;
-  brands?: BrandChild[];
-}
-
-// One per-brand child under a collapsed creator parent (All-Brands view).
-interface BrandChild {
-  brand: string | null;
-  row_id: string;
-  gmv_period: number;
-  posts_period: number;
-  // Null when the viewer can't see finance — cells render "—", never $0.
-  retainer: number | null;
-  roi_period: number | null;
-  last_post_date: string | null;
-  health: CreatorHealth;
-}
-
 /** Primary handle — first in the canonical list, falls back to legacy account_1. */
 function primaryHandle(c: Creator): string | null {
   return c.handles?.[0] ?? c.account_1 ?? null;
@@ -150,12 +73,6 @@ function RosterMetric({ label, value, trend, detail, featured = false }: {
       {detail && <span>{detail}</span>}
     </p>}
   </div>;
-}
-
-/** Handles beyond the primary, for the "+N" badge. */
-function extraHandles(c: Creator): string[] {
-  if (c.handles && c.handles.length > 1) return c.handles.slice(1);
-  return [c.account_2, c.account_3, c.account_4, c.account_5].filter(Boolean) as string[];
 }
 
 function StatusBadge({ status }: { status: string | null }) {
@@ -175,509 +92,6 @@ function StatusBadge({ status }: { status: string | null }) {
     <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md ${cls}`}>
       {status}
     </span>
-  );
-}
-
-// ─── Perf-cell presentational helpers ─────────────────────────────────────
-//
-// These render the new performance columns on the Managed Roster table.
-// Health drives the row-level color story; the other helpers are about
-// fast scanning ("at a glance, is this creator on track?").
-
-
-function LastPostCell({ date }: { date: string | null }) {
-  if (!date) return <span className="text-muted-foreground">—</span>;
-  const ms = Date.now() - new Date(date + 'T00:00:00Z').getTime();
-  const days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
-  const cls =
-    days >= 30 ? 'text-red-600 font-semibold'
-    : days >= 14 ? 'text-orange-600 font-semibold'
-    : days >= 7 ? 'text-muted-foreground'
-    : 'text-muted-foreground';
-  const label = days === 0 ? 'today' : days === 1 ? '1d ago' : `${days}d ago`;
-  return <span className={`text-xs ${cls}`}>{label}</span>;
-}
-
-/**
- * Posts/7D badge — color-coded thresholds matching the old Netlify dashboard.
- * 0 = red (silent), 1-3 = orange, 4-5 = yellow, 6-9 = green, 10+ = blue.
- */
-
-/**
- * Join Date cell — shows the managed_creators.created_at as a short date.
- * Returns em-dash for unmanaged or missing values.
- */
-function JoinDateCell({ date }: { date: string | null }) {
-  if (!date) return <span className="text-muted-foreground">—</span>;
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return <span className="text-muted-foreground">—</span>;
-  const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  return <span className="text-xs text-muted-foreground tabular-nums">{label}</span>;
-}
-
-/**
- * StoreMixIndicator — small letter badge next to the brand pill showing
- * which store(s) generated this creator's GMV in the current period.
- *
- * Today this is LeeFar-specific (two stores: Nutrition / Supplements). It's
- * shaped to extend — any future umbrella brand with multiple stores can drop
- * its store slugs into MULTI_STORE_BRANDS below and the component picks it up.
- */
-
-
-// Searchable brand selector — replaces the wall-of-pills pattern. Renders
-// a single button showing the current selection; click opens a popover
-// with a search box + scrollable brand list. Designed for rosters with
-// 20+ brands where pills would wrap to multiple rows.
-function BrandSelect({
-  value, options, onChange,
-}: {
-  value: string; // 'all' or a brand slug
-  options: { slug: string; name: string; color?: string }[];
-  onChange: (slug: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [portalReady, setPortalReady] = useState(false);
-  const [anchorRect, setAnchorRect] = useState<{ left: number; top: number; width: number } | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const listScrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { setPortalReady(true); }, []);
-
-  // Recompute popover position when it opens, on resize, and when the page
-  // scrolls — keeps the popover anchored under the button at all times.
-  useEffect(() => {
-    if (!open) return;
-    const updateRect = () => {
-      const r = buttonRef.current?.getBoundingClientRect();
-      if (r) setAnchorRect({ left: r.left, top: r.bottom + 4, width: r.width });
-    };
-    updateRect();
-    window.addEventListener('resize', updateRect);
-    window.addEventListener('scroll', updateRect, true); // capture scrolls in any container
-    return () => {
-      window.removeEventListener('resize', updateRect);
-      window.removeEventListener('scroll', updateRect, true);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (
-        wrapperRef.current && !wrapperRef.current.contains(t)
-        && popoverRef.current && !popoverRef.current.contains(t)
-      ) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    setTimeout(() => inputRef.current?.focus(), 0);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  // Document-level wheel listener in CAPTURE phase. This is the only
-  // approach we've found that reliably blocks page scroll under all
-  // browser quirks: the capture-phase listener fires before the event
-  // reaches any element, preventDefault is honored (non-passive), and
-  // it doesn't depend on refs being attached at the right tick. When
-  // the wheel target is inside the popover, we scroll the list manually
-  // and consume the event; otherwise we let it through.
-  useEffect(() => {
-    if (!open) return;
-    const onWheel = (e: WheelEvent) => {
-      const popover = popoverRef.current;
-      const list = listScrollRef.current;
-      if (!popover || !list) return;
-      if (!popover.contains(e.target as Node)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      list.scrollTop += e.deltaY;
-    };
-    document.addEventListener('wheel', onWheel, { capture: true, passive: false });
-    return () => document.removeEventListener('wheel', onWheel, { capture: true });
-  }, [open]);
-
-  const current = value === 'all'
-    ? { slug: 'all', name: 'All brands', color: undefined as string | undefined }
-    : options.find(o => o.slug === value) ?? { slug: value, name: value, color: undefined };
-
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? options.filter(o => o.name.toLowerCase().includes(q) || o.slug.toLowerCase().includes(q))
-    : options;
-
-  return (
-    <div ref={wrapperRef} className="relative inline-block">
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center gap-2 px-3.5 py-[9px] rounded-md border border-border bg-card text-[13.5px] font-medium text-[var(--foreground)] transition-colors hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25 min-w-[180px]"
-      >
-        {current.slug !== 'all' && (
-          <span
-            className="h-2.5 w-2.5 rounded-full inline-block flex-shrink-0"
-            style={{ backgroundColor: current.color ?? 'var(--muted-foreground)' }}
-          />
-        )}
-        <span className="flex-1 text-left truncate">{current.name}</span>
-        <span className="text-[10px] font-normal text-muted-foreground">
-          {value === 'all' ? `${options.length}` : ''}
-        </span>
-        <svg className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-        </svg>
-      </button>
-
-      {open && portalReady && anchorRect && createPortal(
-        // Portal to <body> so the popover escapes <main class="animate-fade-in">
-        // (which creates a stacking context that traps z-30 inside the page
-        // subtree and causes wheel events to chain to the page scroll
-        // container). With fixed positioning + body parent, wheel events
-        // fire against the popover whose nearest scrollable ancestor IS
-        // itself — no chaining possible.
-        <div
-          ref={popoverRef}
-          style={{
-            position: 'fixed',
-            left: anchorRect.left,
-            top: anchorRect.top,
-            minWidth: Math.max(288, anchorRect.width),
-          }}
-          className="z-[60] rounded-xl border border-border bg-card shadow-lg flex flex-col max-h-96"
-        >
-          <div className="p-2 border-b border-border bg-card">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                ref={inputRef}
-                type="text"
-                placeholder="Search brands…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
-              />
-            </div>
-          </div>
-          <div ref={listScrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-1">
-            <button
-              type="button"
-              onClick={() => { onChange('all'); setOpen(false); setQuery(''); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
-                value === 'all' ? 'bg-primary/10 text-[var(--primary)] font-semibold' : 'text-foreground'
-              }`}
-            >
-              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="flex-1">All brands</span>
-              <span className="text-[10px] text-muted-foreground">{options.length}</span>
-              {value === 'all' && <Check className="h-3.5 w-3.5" />}
-            </button>
-            {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-xs text-muted-foreground text-center">No brands match &quot;{query}&quot;</p>
-            ) : filtered.map((b) => (
-              <button
-                type="button"
-                key={b.slug}
-                onClick={() => { onChange(b.slug); setOpen(false); setQuery(''); }}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
-                  value === b.slug ? 'bg-primary/10 text-[var(--primary)] font-semibold' : 'text-foreground'
-                }`}
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full inline-block flex-shrink-0"
-                  style={{ backgroundColor: b.color ?? 'var(--muted-foreground)' }}
-                />
-                <span className="flex-1 truncate">{b.name}</span>
-                {value === b.slug && <Check className="h-3.5 w-3.5" />}
-              </button>
-            ))}
-          </div>
-        </div>,
-        document.body,
-      )}
-    </div>
-  );
-}
-
-// Period selector — a compact DROPDOWN (trigger + menu of presets + a custom
-// range), matching the dashboard's DateRangePicker but driven by the roster's
-// local state, not the URL. Presets come from the shared resolveDateRange engine
-// so every surface speaks the same [start, end] windows. (Was a pill bar — Tyler
-// prefers dropdowns; all the roster filters are dropdowns now.)
-function PeriodSelector({
-  preset, customStart, customEnd, onPreset, onCustom,
-}: {
-  preset: DatePreset;
-  customStart: string | null;
-  customEnd: string | null;
-  onPreset: (p: DatePreset) => void;
-  onCustom: (start: string, end: string) => void;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const isCustom = preset === 'custom' && !!customStart && !!customEnd;
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setMenuOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [menuOpen]);
-
-  const currentLabel = isCustom && customStart && customEnd
-    ? `${fmtShortDate(customStart)} – ${fmtShortDate(customEnd)}`
-    : DATE_PRESETS.find((p) => p.value === preset)?.label ?? 'Last 7 Days';
-
-  return (
-    <div className="relative" ref={rootRef}>
-      <button
-        type="button"
-        onClick={() => setMenuOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        className="inline-flex min-w-[150px] items-center justify-between gap-1.5 rounded-md border border-border bg-card px-3.5 py-[9px] text-[13.5px] font-medium text-foreground transition-colors hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
-      >
-        <span className="inline-flex items-center gap-1.5 truncate tabular-nums">
-          <Calendar className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-          <span className="truncate">{currentLabel}</span>
-        </span>
-        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {menuOpen && (
-        <div role="menu" className="absolute left-0 z-30 mt-2 w-48 overflow-hidden rounded-xl border border-border bg-card p-1 shadow-[var(--pulse-elev-2)]">
-          {DATE_PRESETS.map((p) => {
-            const active = !isCustom && preset === p.value;
-            return (
-              <button
-                key={p.value}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                onClick={() => { onPreset(p.value); setMenuOpen(false); }}
-                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted'}`}
-              >
-                {p.label}
-                {active && <Check className="h-3.5 w-3.5" />}
-              </button>
-            );
-          })}
-          <div className="my-1 h-px bg-border" />
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => { setPickerOpen(true); setMenuOpen(false); }}
-            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isCustom ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted'}`}
-          >
-            <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Custom range…</span>
-            {isCustom && <Check className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      )}
-
-      {pickerOpen && (
-        <CustomRangePopover
-          initialStart={customStart}
-          initialEnd={customEnd}
-          onApply={(s, e) => { onCustom(s, e); setPickerOpen(false); }}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-
-function RoiCell({ roi }: { roi: number | null }) {
-  if (roi === null) return <span className="text-xs text-muted-foreground">—</span>;
-  const cls =
-    roi >= 2 ? 'text-green-500 font-semibold'
-    : roi >= 1 ? 'text-green-600'
-    : roi >= 0.5 ? 'text-orange-600'
-    : 'text-red-600 font-semibold';
-  return <span className={`text-xs tabular-nums ${cls}`}>{roi.toFixed(1)}x</span>;
-}
-
-// Per-row health indicator — a small colour-coded dot that ties to the Triage
-// chips above. Colours match those chips. no_data (unmanaged / no signal) renders
-// an invisible spacer so every row's avatar stays column-aligned.
-const HEALTH_DOT_META: Record<CreatorHealth, { color: string; label: string } | null> = {
-  healthy:   { color: 'var(--pulse-pos)',        label: 'Healthy' },
-  behind:    { color: 'var(--pulse-warn)',       label: 'Behind pace' },
-  silent:    { color: 'var(--pulse-neg)',        label: 'Silent 14d+' },
-  affiliate: { color: 'var(--muted-foreground)', label: 'Affiliate-only — $0 retainer, no post commitment' },
-  churned:   { color: 'var(--muted-foreground)', label: 'Churned' },
-  no_data:   null,
-  not_assessed: {color: '#a1a1aa', label: 'Review agreement period'},
-};
-function HealthDot({ health }: { health: CreatorHealth }) {
-  const meta = HEALTH_DOT_META[health];
-  if (!meta) return <span className="h-2 w-2 flex-shrink-0" aria-hidden />;
-  return (
-    <span
-      className="h-2 w-2 flex-shrink-0 rounded-full"
-      style={{ backgroundColor: meta.color }}
-      title={meta.label}
-      aria-label={meta.label}
-    />
-  );
-}
-
-// Health triage as a DROPDOWN (Tyler prefers dropdowns over the old chip row).
-// The menu keeps the at-a-glance value the chips had — a coloured dot + live
-// count per bucket — and the trigger shows the active filter. 'all' clears it.
-// low_roi is a derived filter (roi<1), the rest are deriveHealth states.
-const HEALTH_FILTER_OPTS: { key: string; label: string; color: string }[] = [
-  { key: 'behind',    label: 'Behind pace',    color: 'var(--pulse-warn)' },
-  { key: 'silent',    label: 'Silent 14d+',    color: 'var(--pulse-neg)' },
-  { key: 'low_roi',   label: 'Low ROI',        color: '#F97316' },
-  { key: 'healthy',   label: 'Healthy',        color: 'var(--pulse-pos)' },
-  { key: 'affiliate', label: 'Affiliate-only', color: 'var(--muted-foreground)' },
-];
-function HealthFilterMenu({
-  value, counts, onChange,
-}: {
-  value: string;
-  counts: { healthy: number; behind: number; silent: number; low_roi: number; affiliate: number };
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-  const active = HEALTH_FILTER_OPTS.find((o) => o.key === value);
-  const countFor = (k: string) => (counts as unknown as Record<string, number>)[k] ?? 0;
-
-  return (
-    <div className="relative" ref={rootRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="inline-flex min-w-[150px] items-center justify-between gap-1.5 rounded-md border border-border bg-card px-3.5 py-[9px] text-[13.5px] font-medium text-foreground transition-colors hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
-      >
-        <span className="inline-flex items-center gap-1.5 truncate">
-          {active && <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: active.color }} />}
-          <span className="truncate">{active ? active.label : 'Health: All'}</span>
-        </span>
-        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div role="menu" className="absolute left-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-border bg-card p-1 shadow-[var(--pulse-elev-2)]">
-          <button
-            type="button"
-            role="menuitemradio"
-            aria-checked={value === 'all'}
-            onClick={() => { onChange('all'); setOpen(false); }}
-            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${value === 'all' ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted'}`}
-          >
-            <span className="inline-flex items-center gap-2"><Globe className="h-3.5 w-3.5 text-muted-foreground" /> All health</span>
-            {value === 'all' && <Check className="h-3.5 w-3.5" />}
-          </button>
-          <div className="my-1 h-px bg-border" />
-          {HEALTH_FILTER_OPTS.map((o) => {
-            const isActive = value === o.key;
-            return (
-              <button
-                key={o.key}
-                type="button"
-                role="menuitemradio"
-                aria-checked={isActive}
-                onClick={() => { onChange(o.key); setOpen(false); }}
-                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted'}`}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: o.color }} />
-                  {o.label}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="tabular-nums text-muted-foreground">{countFor(o.key)}</span>
-                  {isActive && <Check className="h-3.5 w-3.5 text-[var(--primary)]" />}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ExtraAccountsBadge({ creator }: { creator: Creator }) {
-  const extras = extraHandles(creator);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  if (extras.length === 0) return null;
-  return (
-    <div className="relative inline-block ml-1.5" ref={ref}>
-      <button
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-[var(--primary)] hover:bg-primary/10 transition-colors"
-      >
-        +{extras.length}
-      </button>
-      {open && (
-        <div className="absolute z-50 top-full left-0 mt-1 bg-card border border-border rounded-xl shadow-lg p-2 min-w-[160px]">
-          {extras.map((h) => (
-            <a
-              key={h}
-              href={`https://tiktok.com/@${h}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block px-2 py-1.5 text-xs text-[var(--primary)] hover:bg-primary/10 rounded-lg transition-colors"
-              onClick={(e) => e.stopPropagation()}
-            >
-              @{h}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// (ACCOUNT_KEYS removed — handle storage moved to tiktok_accounts; the
-// account_1..5 columns are only a backward-compat fallback now.)
-
-
-function SkeletonRow({ cols }: { cols: number }) {
-  return (
-    <tr>
-      {Array.from({ length: cols }).map((_, i) => (
-        <td key={i} className="px-5 py-3.5">
-          {i === 0 ? <div className="flex items-center gap-3 motion-safe:animate-pulse"><div className="h-10 w-10 rounded-full bg-primary/10"/><div className="space-y-2"><div className="h-2.5 w-24 rounded bg-muted"/><div className="h-2 w-16 rounded bg-muted"/></div></div> : <div className="h-2.5 w-16 rounded bg-muted motion-safe:animate-pulse"/>}
-        </td>
-      ))}
-    </tr>
   );
 }
 
@@ -1109,14 +523,7 @@ function CreatorPanel({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Discord</p>
                 <div className="flex items-center gap-2">
-                  {creator.discord_avatar && (
-                    <img
-                      src={creator.discord_avatar}
-                      alt=""
-                      className="h-7 w-7 rounded-full ring-2 ring-border"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  )}
+                  <CreatorPortrait creatorId={creator.creator_id} name={creator.discord_name || creator.real_name || 'Creator'} source={creator.discord_avatar} className="h-7 w-7 rounded-full" />
                   <span className="text-sm text-foreground">{creator.discord_name || '—'}</span>
                 </div>
               </div>
@@ -1425,62 +832,14 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 // The action cell renders "+ Add to roster" for unmanaged rows.
 
 // Prior-period % change badge (green up / red down). Hidden when unknown.
-function DeltaBadge({ value }: { value?: number | null }) {
-  if (value == null || !Number.isFinite(value)) return null;
-  const up = value >= 0;
-  return (
-    <span className={`text-[10px] font-semibold ${up ? 'text-green-600' : 'text-red-500'}`}>
-      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>}{Math.abs(Math.round(value)).toLocaleString()}%
-    </span>
-  );
-}
-
-// Creator level L1–L7 (from trailing-30-day GMV). Managed rows only.
-const LEVEL_BANDS: { level: number; range: string }[] = [
-  { level: 1, range: '$0 – 5K' },
-  { level: 2, range: '$5K – 25K' },
-  { level: 3, range: '$25K – 60K' },
-  { level: 4, range: '$60K – 150K' },
-  { level: 5, range: '$150K – 400K' },
-  { level: 6, range: '$400K – 1.5M' },
-  { level: 7, range: '$1.5M+' },
-];
-function LevelBadge({ level }: { level?: number | null }) {
-  if (!level) return null;
-  // Radix tooltip (via InfoTooltip) rather than a native title: the badge is
-  // cryptic on its own, so the explanation should be discoverable and styled,
-  // not a slow browser tooltip. The creator's own band is emphasised.
-  return (
-    <InfoTooltip
-      label={
-        <div className="space-y-1">
-          <p className="font-semibold">Creator level · trailing-30-day GMV</p>
-          <ul className="space-y-0.5">
-            {LEVEL_BANDS.map((b) => (
-              <li key={b.level} className={b.level === level ? 'font-bold text-background' : 'text-background/70'}>
-                L{b.level} &nbsp;{b.range}
-              </li>
-            ))}
-          </ul>
-        </div>
-      }
-    >
-      <span className="ml-1.5 cursor-help text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 align-middle">
-        L{level}
-      </span>
-    </InfoTooltip>
-  );
-}
-
-// Discord profile picture next to the name (falls back to a colored initial).
 function CreatorAvatar({ creator }: { creator: Creator }) {
   return <CreatorPortrait creatorId={creator.creator_id} source={creator.discord_avatar} name={creator.real_name || creator.handles?.[0] || creator.account_1 || '?'} className={rosterLayout.avatar} />;
 }
 function RosterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { startNav } = useNavigationPending();
   const brand = searchParams.get('brand') || 'all';
-  const showBrandColumn = brand === 'all';
   const { brands: brandOptions } = useBrandList();
   const brandMeta = useBrandMeta();
 
@@ -1489,7 +848,7 @@ function RosterContent() {
     if (next === 'all') params.delete('brand');
     else params.set('brand', next);
     const qs = params.toString();
-    router.push(qs ? `?${qs}` : '?');
+    startNav(() => router.push(qs ? `/roster?${qs}` : '/roster'));
   };
 
   // All / Managed / Unmanaged view. Managed is the default; the page doubles
@@ -1505,15 +864,11 @@ function RosterContent() {
   // totals even while a filter is active. See deriveHealth in /api/roster.
   const [health, setHealth] = useState<string>('all');
   const [healthCounts, setHealthCounts] = useState({ healthy: 0, behind: 0, silent: 0, low_roi: 0, affiliate: 0 });
-  const showManagedTag = view !== 'managed';
-  const showAddAction = view !== 'managed';
 
   const [roster, setRoster] = useState<Creator[]>([]);
-  const [sparkDays, setSparkDays] = useState<string[]>([]);
   const [segFilters, setSegFilters] = useState<{ name: string; min_gmv: number | null; max_gmv: number | null; min_posts: number | null } | null>(null);
   const [total, setTotal] = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
-  const [totalManaged, setTotalManaged] = useState(0);
   const [summary, setSummary] = useState<{ affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number; total_retainer: number | null } | null>(null);
   const [loading, setLoading] = useState(true);
   // A failed roster load must NOT read as "0 creators / $0". Track it and render
@@ -1528,9 +883,9 @@ function RosterContent() {
 
   // Period selector drives the GMV column, ROI, Posts, and the top Total GMV.
   // The Total Retainers figure is the fixed monthly commitment (not period-driven).
-  const [preset, setPreset] = useState<DatePreset>('last7');
-  const [customStart, setCustomStart] = useState<string | null>(null);
-  const [customEnd, setCustomEnd] = useState<string | null>(null);
+  const [preset, setPreset] = useState<DatePreset>(() => DATE_PRESETS.some(p => p.value === searchParams.get('range')) ? searchParams.get('range') as DatePreset : 'last7');
+  const [customStart, setCustomStart] = useState<string | null>(searchParams.get('start'));
+  const [customEnd, setCustomEnd] = useState<string | null>(searchParams.get('end'));
   const isCustomPeriod = preset === 'custom' && !!customStart && !!customEnd;
   // The API resolves the actual [start, end] window from these (shared engine);
   // the client just needs the preset + raw custom dates for the request + labels.
@@ -1543,6 +898,19 @@ function RosterContent() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
+  const [editingCreator, setEditingCreator] = useState<Creator | null>(null);
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [managedSelection, setManagedSelection] = useState<Set<string>>(new Set());
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const [resolvedPeriod, setResolvedPeriod] = useState<{start:string;end:string} | null>(null);
+  const [loadedCoreScope, setLoadedCoreScope] = useState('');
+  const coreScope = JSON.stringify([brand,preset,customStart,customEnd]);
+  const [studioRows, setStudioRows] = useState<Record<string,RosterStudioData>>({});
+  const [studioLoading, setStudioLoading] = useState(false);
+  const [studioError, setStudioError] = useState(false);
+  const studioCache = useRef(new Map<string,{at:number;rows:Record<string,RosterStudioData>}>());
   // Expanded creator groups (All-Brands collapse). Keyed by the parent row id.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpand = (id: string) => setExpanded((prev) => {
@@ -1556,6 +924,11 @@ function RosterContent() {
     id: child.row_id,
     brand: child.brand,
     retainer: child.retainer,
+    monthly_post_requirement: child.studio?.agreement.requiredPosts ?? null,
+    gmv_delta: null,
+    posts_delta: null,
+    creator_tags: [],
+    joined: null,
     gmv_period: child.gmv_period,
     posts_period: child.posts_period,
     roi_period: child.roi_period,
@@ -1563,6 +936,7 @@ function RosterContent() {
     health: child.health,
     grouped: false,
     brands: undefined,
+    studio: child.studio,
   });
   const [addModalPrefill, setAddModalPrefill] = useState<{ account_1?: string; brand?: string } | null>(null);
 
@@ -1582,11 +956,6 @@ function RosterContent() {
     if (sortBy === col) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortBy(col); setSortDir(col === 'real_name' ? 'asc' : 'desc'); }
   };
-  const SortIcon = ({ col }: { col: SortCol }) => {
-    if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
-    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
-  };
-
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
 
@@ -1640,12 +1009,12 @@ function RosterContent() {
         setLoadError(false);
         setHasLoadedOnce(true);
         setRoster(json.data || []);
-        setSparkDays(json.spark_days || []);
+        setResolvedPeriod(json.period ?? null);
+        setLoadedCoreScope(coreScope);
         setTotal(json.total || 0);
         // Managed GMV + summary are computed page-1 only (period/brand-level, not
         // page-level). Persist them across pagination instead of zeroing the cards.
         if (json.total_gmv_period != null) setTotalGmvPeriod(json.total_gmv_period);
-        setTotalManaged(json.total_managed ?? 0);
         // Health counts are over the FULL managed set (unaffected by the active
         // health filter), so the triage chips always show totals.
         setHealthCounts({
@@ -1666,7 +1035,7 @@ function RosterContent() {
       },
       settled: () => setLoading(false),
     });
-  }, [brand, view, search, productFilter, groupFilter, creatorView, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters, summaryContext]);
+  }, [brand, view, search, productFilter, groupFilter, creatorView, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters, summaryContext, coreScope]);
 
   useEffect(() => {
     void fetchRoster(true);
@@ -1677,6 +1046,7 @@ function RosterContent() {
   const [exporting, setExporting] = useState(false);
   const handleExport = useCallback(async (format: 'csv' | 'xlsx') => {
     setExporting(true);
+    setExportError('');
     try {
       const params = new URLSearchParams({ sort: sortBy, dir: sortDir, range: preset, all: '1' });
       if (isCustomPeriod && customStart && customEnd) { params.set('start', customStart); params.set('end', customEnd); }
@@ -1687,7 +1057,12 @@ function RosterContent() {
       if(groupFilter.brand===brand){for(const tag of groupFilter.tags)params.append('tag',tag);params.set('tag_mode',groupFilter.mode);}
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
+      if (health !== 'all') params.set('health', health);
+      if (segFilters?.min_gmv != null) params.set('min_gmv', String(segFilters.min_gmv));
+      if (segFilters?.max_gmv != null) params.set('max_gmv', String(segFilters.max_gmv));
+      if (segFilters?.min_posts != null) params.set('min_posts', String(segFilters.min_posts));
       const res = await fetch(`/api/roster?${params}`);
+      if (!res.ok) throw new Error('Export could not be prepared.');
       const json = await res.json();
       // Keep exports self-describing: a custom window labels the columns with the
       // actual dates rather than the literal "Custom".
@@ -1701,8 +1076,8 @@ function RosterContent() {
         Products: (c.product_tags ?? []).map((t) => t.name).join(', '),
         Status: c.status ?? '',
         // Blank (not 0) when withheld/unset — an exported $0 would be fabricated.
-        Retainer: c.retainer ?? '',
-        'Posts/mo target': c.monthly_post_requirement ?? '',
+        'Current retainer': c.retainer ?? '',
+        'Current posts/mo target': c.monthly_post_requirement ?? '',
         [`Posts (${exportPeriodTag})`]: c.posts_period ?? 0,
         'Last post': c.last_post_date ?? '',
         Joined: c.joined ?? '',
@@ -1716,10 +1091,11 @@ function RosterContent() {
       else void downloadXlsx(`${fname}.xlsx`, [{ name: 'Creators', rows }]);
     } catch (err) {
       console.error('Export failed:', err);
+      setExportError('Could not export the roster. Please try again.');
     } finally {
       setExporting(false);
     }
-  }, [brand, view, search, productFilter, groupFilter, creatorView, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta]);
+  }, [brand, view, search, productFilter, groupFilter, creatorView, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta, health, segFilters]);
 
   // Reset to page 1 when scope/sort/period change.
   useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, preset, customStart, customEnd, productFilter]);
@@ -1732,24 +1108,17 @@ function RosterContent() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // ── Multi-select over unmanaged candidates (All / Unmanaged views) ──
-  const selectableOnPage = roster.filter((c) => !c.is_managed && primaryHandle(c));
-  const allOnPageSelected = selectableOnPage.length > 0 && selectableOnPage.every((c) => selected.has(c.id));
-  const someOnPageSelected = selectableOnPage.some((c) => selected.has(c.id));
   const toggleSelect = (c: Creator) => {
-    setSelected((prev) => {
-      const next = new Map(prev);
-      if (next.has(c.id)) next.delete(c.id);
-      else next.set(c.id, { handle: primaryHandle(c) ?? '', name: c.real_name });
-      return next;
-    });
+    if (c.is_managed) {
+      if (brand === 'all' || c.grouped) return;
+      setManagedSelection(prev => { const next=new Set(prev); if(next.has(c.id)) next.delete(c.id); else next.add(c.id); return next; });
+    } else setSelected(prev => { const next=new Map(prev); if(next.has(c.id)) next.delete(c.id); else next.set(c.id,{handle:primaryHandle(c) ?? '',name:c.real_name}); return next; });
   };
   const toggleSelectAllPage = () => {
-    setSelected((prev) => {
-      const next = new Map(prev);
-      if (allOnPageSelected) selectableOnPage.forEach((c) => next.delete(c.id));
-      else selectableOnPage.forEach((c) => next.set(c.id, { handle: primaryHandle(c) ?? '', name: c.real_name }));
-      return next;
-    });
+    const selectable=roster.filter(c=>!c.grouped && (!c.is_managed || brand!=='all'));
+    const all=selectable.length>0 && selectable.every(c=>c.is_managed?managedSelection.has(c.id):selected.has(c.id));
+    setManagedSelection(prev=>{const next=new Set(prev); for(const c of selectable.filter(c=>c.is_managed)) {if(all)next.delete(c.id);else next.add(c.id);}return next;});
+    setSelected(prev=>{const next=new Map(prev);for(const c of selectable.filter(c=>!c.is_managed)){if(all)next.delete(c.id);else next.set(c.id,{handle:primaryHandle(c)??'',name:c.real_name});}return next;});
   };
   const openBulkFromSelection = () => {
     const rows: BulkRow[] = Array.from(selected.values())
@@ -1758,12 +1127,6 @@ function RosterContent() {
     setBulkInitialRows(rows);
     setBulkOpen(true);
   };
-
-  // Total column count for skeleton rows. The select + action columns both
-  // appear only in the non-managed views (showAddAction).
-  // Column count for skeleton/empty spans. Creator (name+handle merged) = 1,
-  // then optional brand/managed, 6 metric cols, and (checkbox + action) when adding.
-  const cols = 1 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 2 : 0);
 
   // Segments: apply a picked segment's filters to the roster, and snapshot the
   // current filters for saving. Threshold filters (min/max GMV, min posts) live
@@ -1802,487 +1165,107 @@ function RosterContent() {
   // last-good values and shows the stale banner instead.)
   const kpiFailed = loadError && !hasLoadedOnce;
 
-  return (
+  const coreMatches = loadedCoreScope === coreScope;
+  const studioIds = useMemo(() => roster.flatMap(c => c.grouped ? (c.brands ?? []).map(b=>b.row_id) : c.is_managed ? [c.id] : []).filter(id=>/^\d+$/.test(id)).sort(), [roster]);
+  const studioKey = coreMatches && resolvedPeriod ? JSON.stringify([studioIds,resolvedPeriod.end,brand]) : '';
+  useEffect(() => {
+    if (!studioKey || !resolvedPeriod || !studioIds.length) { setStudioLoading(false); return; }
+    const cached=studioCache.current.get(studioKey);
+    if(cached && Date.now()-cached.at<60_000){setStudioRows(cached.rows);setStudioLoading(false);setStudioError(false);return;}
+    const controller=new AbortController();
+    setStudioRows({});setStudioLoading(true);setStudioError(false);
+    void (async()=>{
+      try {
+        const result:Record<string,RosterStudioData>={};
+        for(let index=0;index<studioIds.length;index+=100){
+          const params=new URLSearchParams({ids:studioIds.slice(index,index+100).join(','),asOf:resolvedPeriod.end});
+          const response=await fetch(`/api/roster/studio?${params}`,{signal:controller.signal});
+          if(!response.ok)throw new Error('Creator details unavailable');
+          const data=await response.json();
+          for(const row of data.rows ?? [])result[row.id]=row.studio;
+        }
+        if(controller.signal.aborted)return;
+        if(studioCache.current.size>=8)studioCache.current.delete(studioCache.current.keys().next().value!);
+        studioCache.current.set(studioKey,{at:Date.now(),rows:result});setStudioRows(result);
+      }catch(error){if(!controller.signal.aborted){console.error('Roster details:',error);setStudioError(true);}}
+      finally{if(!controller.signal.aborted)setStudioLoading(false);}
+    })();
+    return()=>controller.abort();
+  },[studioKey,studioIds,resolvedPeriod]);
+  useEffect(()=>{setSelectedCreator(null);setEditingCreator(null);setManagedSelection(new Set());setTagIds([]);},[brand,preset,customStart,customEnd]);
+  const displayRoster=useMemo(()=>coreMatches?roster.map(c=>({...c,studio:studioRows[c.id],brands:c.brands?.map(b=>({...b,studio:studioRows[b.row_id]}))})):[],[roster,studioRows,coreMatches]);
+  const overviewCreator=selectedCreator?{...selectedCreator,studio:studioRows[selectedCreator.id]??selectedCreator.studio}:null;
+  const tableLoading=loading || (!coreMatches && !loadError);
+  const monthLabel=coreMatches && resolvedPeriod ? new Date(`${resolvedPeriod.end}T12:00:00Z`).toLocaleDateString('en-US',{month:'short',timeZone:'UTC'}):'Monthly';
+  const clearFilters=()=>{setSearchInput('');setSearch('');setHealth('all');setProductFilter('');setSegFilters(null);setView('managed');setCreatorView('creators');setGroupFilter({brand,tags:[],mode:'any'});setPage(1);};
+  const activeFilters=Boolean(searchInput || health!=='all' || productFilter || segFilters || view!=='managed' || (groupFilter.brand===brand && groupFilter.tags.length));
+  const invalidateDetails=()=>{studioCache.current.clear();void fetchRoster();};
+  const sortOptions=[{value:'gmv_period:desc',label:'GMV: highest first'},{value:'gmv_period:asc',label:'GMV: lowest first'},{value:'real_name:asc',label:'Name: A to Z'},{value:'real_name:desc',label:'Name: Z to A'},{value:'posts_period:desc',label:'Published: most first'},{value:'posts_period:asc',label:'Published: fewest first'},{value:'retainer:desc',label:'Retainer: highest first'},{value:'retainer:asc',label:'Retainer: lowest first'},{value:'last_post_date:desc',label:'Last post: newest first'},{value:'last_post_date:asc',label:'Last post: oldest first'},{value:'joined:desc',label:'Joined: newest first'},{value:'joined:asc',label:'Joined: oldest first'},{value:'roi_period:desc',label:'GMV / retainer: highest first'},{value:'roi_period:asc',label:'GMV / retainer: lowest first'}];
+  const changeView=(next:'creators'|'top'|'elite')=>{setCreatorView(next);setPage(1);setSearchInput('');setSearch('');setHealth('all');setProductFilter('');setSegFilters(null);setView('managed');setGroupFilter({brand,tags:[],mode:'any'});setSortBy(next==='creators'?'real_name':'gmv_period');setSortDir(next==='creators'?'asc':'desc');};
+
+  return <RosterTagsProvider brand={brand}>
     <div className={rosterLayout.page}>
-      {/* Header */}
-      <PageHeader
-        title={
-          <span className="flex items-center gap-2">
-            Roster
-            {totalManaged > 0 && (
-              <span className="text-sm font-semibold text-muted-foreground">· {totalManaged.toLocaleString()} managed</span>
-            )}
-          </span>
-        }
-        actions={
-          <div className={rosterLayout.scope}>
-            <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
-            <PeriodSelector preset={preset} customStart={customStart} customEnd={customEnd}
-              onPreset={(p) => { setPreset(p); setCustomStart(null); setCustomEnd(null); }}
-              onCustom={(s, e) => { setPreset('custom'); setCustomStart(s); setCustomEnd(e); }} />
-            <Button variant="outline" size="sm" onClick={() => { setBulkInitialRows(null); setBulkOpen(true); }}>
-              <Upload className="h-4 w-4" />
-              Bulk add
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => setAddModalPrefill({ brand: brand !== 'all' ? brand : '' })}>
-              <UserPlus className="h-4 w-4" />
-              Add creator
-            </Button>
-          </div>
-        }
-      />
-
-      <div className={rosterLayout.overview}>
-        <dl className={rosterLayout.metrics} aria-label="Roster performance">
-          <RosterMetric label="Affiliate GMV" value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(affiliateGmv)} trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined} detail={periodLabel}/>
-          <RosterMetric label="Managed GMV" featured value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(totalGmvPeriod)} trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined} detail={periodLabel}/>
-          <RosterMetric label="Managed share" value={kpiFailed ? '—' : affiliateGmv > 0 ? `${((totalGmvPeriod / affiliateGmv) * 100).toFixed(0)}%` : '—'} detail={affiliateGmv > 0 ? `${fmt(totalGmvPeriod)} of ${fmt(affiliateGmv)}` : undefined}/>
-          <RosterMetric label="Monthly retainers" value={kpiFailed ? '—' : loading && !summary ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)} detail={totalRetainer != null ? 'Current commitments' : undefined}/>
-          <RosterMetric label="GMV / retainer · 30d" value={kpiFailed ? '—' : totalRetainer == null ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'} detail={totalRetainer != null && totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}/>
-        </dl>
-        <div className={rosterLayout.videoSummary}><NewVideoGmvCard compact brand={brand} range={preset} start={customStart} end={customEnd} showCreators /></div>
+      <header className={rosterLayout.header}>
+        <div><h1>Creators</h1><p>A clear view of every creator, their work, and the next conversation.</p></div>
+        <div className={rosterLayout.headerActions}>
+          <DropdownMenu.Root><DropdownMenu.Trigger className={rosterLayout.button} disabled={exporting || tableLoading || !displayRoster.length}>{exporting?<Loader2 size={15} className="animate-spin"/>:<FileDown size={15}/>}Export roster<ChevronDown size={14}/></DropdownMenu.Trigger>
+            <DropdownMenu.Portal><DropdownMenu.Content className={rosterLayout.filterPanel} align="end" sideOffset={7} collisionPadding={12}>
+              <DropdownMenu.Item onSelect={()=>void handleExport('csv')}>Download CSV</DropdownMenu.Item><DropdownMenu.Item onSelect={()=>void handleExport('xlsx')}>Download Excel</DropdownMenu.Item>
+            </DropdownMenu.Content></DropdownMenu.Portal>
+          </DropdownMenu.Root>
+          <button type="button" className={rosterLayout.primaryButton} onClick={()=>setAddModalPrefill({brand:brand!=='all'?brand:''})}><Plus size={15}/>Add creator</button>
+        </div>
+      </header>
+      <div className={rosterLayout.tabsRow}>
+        <div className={rosterLayout.tabs} role="tablist" aria-label="Creator views" onKeyDown={event=>{
+          if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+          event.preventDefault();
+          const values=['creators','top','elite'] as const;
+          const current=values.indexOf(creatorView);
+          const next=event.key==='Home'?0:event.key==='End'?2:(current+(event.key==='ArrowRight'?1:2))%3;
+          changeView(values[next]);
+          (event.currentTarget.querySelectorAll('[role=tab]')[next] as HTMLButtonElement)?.focus();
+        }}>{([{value:'creators',label:'Creators'},{value:'top',label:'Top creators'},{value:'elite',label:'Elites'}] as const).map(tab=><button key={tab.value} type="button" id={`roster-tab-${tab.value}`} role="tab" aria-controls="roster-results" tabIndex={creatorView===tab.value?0:-1} aria-selected={creatorView===tab.value} className={creatorView===tab.value?rosterLayout.activeTab:undefined} onClick={()=>changeView(tab.value)}>{tab.label}</button>)}</div>
+        <div className={rosterLayout.freshness}><span>{tableLoading?'Updating creators…':coreMatches&&resolvedPeriod?`Selected dates through ${fmtShortDate(resolvedPeriod.end)}`:'Creator directory'}</span><button type="button" aria-label="Refresh creators" disabled={loading} onClick={invalidateDetails}><RefreshCw size={14} className={loading?'animate-spin':undefined}/></button></div>
       </div>
-
-      <section className={rosterLayout.directory} aria-label="Creator directory">
-      <div className={rosterLayout.directoryTabs}>
-        <SegmentedControl ariaLabel="Creator views" value={creatorView} options={[{value:'creators',label:'Creators'},{value:'top',label:'Top Creators'},{value:'elite',label:'Elite'}]} onValueChange={next=>{setCreatorView(next);setPage(1);setSearchInput('');setSearch('');setHealth('all');setProductFilter('');setSegFilters(null);setView('managed');setGroupFilter({brand,tags:[],mode:'any'});setSortBy(next==='creators'?'real_name':'gmv_period');setSortDir(next==='creators'?'asc':'desc');}}/>
-        {creatorView==='top'&&<span className="text-xs text-muted-foreground">Managed creators ranked by GMV for the selected period.</span>}
-        {creatorView==='elite'&&<span className="text-xs text-muted-foreground">{brand==='all'?'Select a brand to see its Elite creators.':'Creators tagged Elite for this brand.'}</span>}
-      </div>
-      {/* Table toolbar — all DROPDOWNS (Tyler prefers them to pills). Search leads
-          (the primary tool, grows to fill), then the filter dropdowns (View +
-          Health replace the old segmented control + triage chip row; the Health
-          menu keeps the per-bucket counts + colour dots the chips had), then
-          Segments + export at the end. Wraps at narrow widths. */}
-      <div className={rosterLayout.toolbar}>
-        <SearchInput className="min-w-[180px] flex-1 sm:w-auto" aria-label="Search creators" placeholder="Search creators…" value={searchInput} onChange={e=>setSearchInput(e.target.value)} onClear={()=>setSearchInput('')}/>
-        <ChoiceMenu compact label="Creator view" value={view} options={[{value:'all',label:'All creators'},{value:'managed',label:'Managed'},{value:'unmanaged',label:'Unmanaged'}]} onChange={value=>{setCreatorView('creators');setGroupFilter({brand,tags:[],mode:'any'});setView(value as View);if(value!=='managed')setHealth('all');setPage(1);}}/>
-        {view === 'managed' && (
-          <HealthFilterMenu value={health} counts={healthCounts} onChange={(v) => { setHealth(v); setPage(1); }} />
-        )}
-        <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
-      {brand !== 'all' && <CreatorGroupControls key={brand} brand={brand} rows={roster} loading={loading} selected={creatorView==='elite'?['elite']:groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onFilter={(tags,mode)=>{setCreatorView('creators');setGroupFilter({brand,tags,mode});setPage(1);}} onSaved={()=>{void fetchRoster();}} />}
-        <details className="relative ml-auto"><summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-medium">More</summary><div className="absolute right-0 top-full z-30 mt-2 flex min-w-56 flex-wrap gap-2 rounded-xl border border-border bg-card p-3 shadow-lg"><RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="md"
-            onClick={() => handleExport('csv')}
-            disabled={exporting || loading || roster.length === 0 || (creatorView==='elite'&&brand==='all')}
-            title="Export the current view to CSV"
-          >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} CSV
-          </Button>
-          <Button
-            variant="outline"
-            size="md"
-            onClick={() => handleExport('xlsx')}
-            disabled={exporting || loading || roster.length === 0 || (creatorView==='elite'&&brand==='all')}
-            title="Export the current view to Excel"
-          >
-            <FileDown className="h-4 w-4" /> Excel
-          </Button>
+      <section id="roster-results" role="tabpanel" aria-labelledby={`roster-tab-${creatorView}`}>
+        <div className={rosterLayout.toolbar}>
+          <SearchInput className={rosterLayout.search} aria-label="Search creators" placeholder="Search creators or handles" value={searchInput} onChange={e=>setSearchInput(e.target.value)} onClear={()=>setSearchInput('')}/>
+          <ChoiceMenu compact label="Brand" value={brand} options={[{value:'all',label:'All Brands'},...brandOptions.map(b=>({value:b.slug,label:b.name}))]} onChange={setBrand}/>
+          <DateRangePicker appearance="studio" label="Roster period" value={preset} customRange={{start:customStart,end:customEnd}} displayRange={coreMatches&&resolvedPeriod?resolvedPeriod:undefined} onPresetChange={p=>{setPreset(p);if(p!=='custom'){setCustomStart(null);setCustomEnd(null);}}} onCustomChange={(start,end)=>{setPreset('custom');setCustomStart(start);setCustomEnd(end);}}/>
+          <RosterTagFilter selected={creatorView==='elite'?['elite']:groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onChange={(tags,mode)=>{setCreatorView('creators');setGroupFilter({brand,tags,mode});setPage(1);}}/>
+          <Popover.Root open={filtersOpen} onOpenChange={setFiltersOpen}><Popover.Trigger className={rosterLayout.moreTrigger}><SlidersHorizontal size={14}/><span>More filters</span>{health!=='all'||productFilter||view!=='managed'||segFilters?<i aria-label="Additional filters active"/>:null}</Popover.Trigger>
+            <Popover.Portal><Popover.Content className={rosterLayout.filterPanel} align="end" sideOffset={7} collisionPadding={12} data-lenis-prevent>
+              <div className={rosterLayout.filterHeading}><strong>Creator filters</strong><Popover.Close aria-label="Close filters"><X size={15}/></Popover.Close></div>
+              <div className={rosterLayout.filterGroup}><span>Roster membership</span><ChoiceMenu compact label="Roster membership" value={view} options={[{value:'managed',label:'Managed creators'},{value:'all',label:'All creators'},{value:'unmanaged',label:'Unmanaged creators'}]} onChange={next=>{setView(next as View);setCreatorView('creators');setPage(1);if(next!=='managed')setHealth('all');}}/></div>
+              {view==='managed'&&<div className={rosterLayout.filterGroup}><span>Activity health</span><ChoiceMenu compact label="Activity health" value={health} options={[{value:'all',label:'All activity'},{value:'healthy',label:`Healthy (${healthCounts.healthy})`},{value:'behind',label:`Behind (${healthCounts.behind})`},{value:'silent',label:`Silent (${healthCounts.silent})`},{value:'low_roi',label:`Low GMV / retainer (${healthCounts.low_roi})`},{value:'affiliate',label:`Affiliate (${healthCounts.affiliate})`}]} onChange={next=>{setHealth(next);setPage(1);}}/></div>}
+              <div className={rosterLayout.filterGroup}><span>Product</span><ProductFilterSelect brand={brand} value={productFilter} onChange={next=>{setProductFilter(next);setPage(1);}}/></div>
+              <div className={rosterLayout.filterGroup}><span>Saved segments</span><RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment}/></div>
+              <div className={rosterLayout.filterFooter}><button type="button" onClick={()=>{setBulkInitialRows(null);setBulkOpen(true);setFiltersOpen(false);}}><Upload size={14}/>Bulk add creators</button><button type="button" onClick={clearFilters}>Reset filters</button></div>
+            </Popover.Content></Popover.Portal>
+          </Popover.Root>
+          {activeFilters&&<button type="button" className={rosterLayout.textButton} onClick={clearFilters}>Clear filters</button>}
         </div>
-        </div></details>
-      </div>
-
-      {/* Active segment chip — indicates applied filters (incl. hidden thresholds) */}
-      {segFilters && (
-        <div className="flex items-center gap-2 -mt-1">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary/10 text-[var(--primary)] border border-primary/10">
-            Segment: {segFilters.name}
-            <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-foreground" aria-label="Clear segment"><InterfaceIcon name="error" className="size-3.5"/></button>
-          </span>
-        </div>
-      )}
-
-      {/* Multi-select action bar — appears once candidates are checked */}
-
-
-      {selected.size > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/10 px-4 py-2.5">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            {selected.size} selected
-          </span>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setSelected(new Map())}>
-              Clear
-            </Button>
-            <Button variant="primary" size="sm" onClick={openBulkFromSelection}>
-              <Plus className="h-4 w-4" />
-              Add {selected.size} to roster
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* A stale-data banner when a refetch failed but we still have last-good
-          rows on screen — so the numbers below are visibly "as of last load,"
-          never silently wrong. */}
-      {loadError && roster.length > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn)]/10 px-4 py-2.5 text-[13px] text-foreground">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--pulse-warn)]" />
-          <span>Couldn’t refresh — showing the last loaded data.</span>
-          <button onClick={() => fetchRoster()} className="ml-auto font-semibold text-primary hover:underline">Retry</button>
-        </div>
-      )}
-
-      {/* Table */}
-      {creatorView==='elite'&&brand==='all' ? <EmptyState icon={<Users className="h-8 w-8"/>} title="Choose a brand" description="Elite membership is specific to each brand. Choose a brand above to view its Elite creators."/> : !loading && roster.length === 0 ? (
-        loadError ? (
-          <EmptyState
-            icon={<AlertTriangle className="h-8 w-8" />}
-            title="Couldn’t load the roster"
-            description="Something went wrong fetching creators. This is a load error, not an empty roster — retry or reload the page."
-            action={
-              <button
-                onClick={() => fetchRoster()}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-              >
-                Retry
-              </button>
-            }
-          />
-        ) : (
-          <EmptyState
-            icon={<Users className="h-8 w-8" />}
-            title="No creators found"
-            description={search ? 'Try a different search.' : undefined}
-          />
-        )
-      ) : (
-        <div className={rosterLayout.tableCard} aria-busy={loading}>
-          {/* Indeterminate load bar — shows on first load AND every refetch
-              (brand / period / sort / page change), even with rows on screen.
-              Gated by showLoadBar (150ms delay) so fast loads don't flash it. */}
-          <TableLoadBar active={showLoadBar} />
-          {loading && <div role="status" className="flex items-center gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs text-muted-foreground"><Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin"/>{roster.length ? 'Updating creators · showing previous results' : 'Loading creator performance…'}</div>}
-          {/* ScrollFade: 8 columns overflow ~1,440px, so ROI/Joined sit off the
-              right edge. The edge fade announces the sideways scroll instead of
-              leaving the page's headline metric silently hidden. */}
-          <ScrollFade className={`transition-opacity duration-200 ${showLoadBar && roster.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
-            <table className={rosterLayout.table}>
-              <thead>
-                <tr className="border-b border-border bg-secondary">
-                  {showAddAction && (
-                    <th className="w-10 px-5 py-3.5">
-                      <input
-                        type="checkbox"
-                        aria-label="Select all unmanaged on this page"
-                        className="h-4 w-4 rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/40 cursor-pointer accent-[var(--primary)]"
-                        checked={allOnPageSelected}
-                        ref={(el) => { if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected; }}
-                        disabled={selectableOnPage.length === 0}
-                        onChange={toggleSelectAllPage}
-                      />
-                    </th>
-                  )}
-                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
-                    <button onClick={() => toggleSort('real_name')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Creator <SortIcon col="real_name" />
-                    </button>
-                  </th>
-                  {showBrandColumn && <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">Brand</th>}
-                  {showManagedTag && <th className="text-center px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">Managed</th>}
-                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
-                    <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      GMV ({periodShort}) <SortIcon col="gmv_period" />
-                    </button>
-                  </th>
-                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
-                    <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Posts ({periodShort}) <SortIcon col="posts_period" />
-                    </button>
-                  </th>
-                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
-                    <button onClick={() => toggleSort('last_post_date')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Last post <SortIcon col="last_post_date" />
-                    </button>
-                  </th>
-                  <th className="text-right px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
-                    <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Retainer <SortIcon col="retainer" />
-                    </button>
-                  </th>
-                  <th className="text-right px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
-                    <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      GMV / fee <SortIcon col="roi_period" />
-                    </button>
-                  </th>
-                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
-                    <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Joined <SortIcon col="joined" />
-                    </button>
-                  </th>
-                  {showAddAction && <th className="px-5 py-3.5" />}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonRow key={i} cols={cols} />
-                ))}
-                {roster.map((c) => {
-                  const primary = primaryHandle(c);
-                  const isGroup = !!c.grouped;
-                  const isOpen = isGroup && expanded.has(c.id);
-                  // The row IS a control (opens details / expands a group / adds an
-                  // unmanaged creator). Give it button semantics + keyboard activation
-                  // so it's not mouse-only.
-                  const activateRow = () => {
-                    if (isGroup) { toggleExpand(c.id); return; }
-                    if (c.is_managed) setSelectedCreator(c);
-                    else setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' });
-                  };
-                  const who = primary ? `@${primary}` : 'creator';
-                  const rowLabel = isGroup
-                    ? `${isOpen ? 'Collapse' : 'Expand'} ${who}`
-                    : c.is_managed ? `Open details for ${who}` : `Add ${who}`;
-                  return (
-                    <Fragment key={c.id}>
-                    <tr
-                      role="button"
-                      tabIndex={0}
-                      aria-label={rowLabel}
-                      aria-expanded={isGroup ? isOpen : undefined}
-                      className={`transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/50 ${c.is_managed ? 'hover:bg-secondary' : 'bg-muted/30 hover:bg-muted/50'} ${isOpen ? 'bg-secondary' : ''}`}
-                      onClick={activateRow}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateRow(); }
-                      }}
-                    >
-                      {showAddAction && (
-                        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                          {!c.is_managed && primary && (
-                            <input
-                              type="checkbox"
-                              aria-label={`Select @${primary}`}
-                              className="h-4 w-4 rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/40 cursor-pointer accent-[var(--primary)]"
-                              checked={selected.has(c.id)}
-                              onChange={() => toggleSelect(c)}
-                            />
-                          )}
-                        </td>
-                      )}
-                      <td data-label="Creator" className="px-5 py-3.5">
-                        <div className={rosterLayout.person}>
-                          {isGroup && (
-                            <span className="text-muted-foreground flex-shrink-0" aria-hidden>
-                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </span>
-                          )}
-                          {c.is_managed && <HealthDot health={c.health} />}
-                          <CreatorAvatar creator={c} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1 font-semibold text-[13.5px] text-[var(--foreground)]">
-                              <span className="truncate">
-                                {c.real_name
-                                  ? c.real_name
-                                  : primary
-                                    ? (
-                                      <a
-                                        href={`https://tiktok.com/@${primary}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="hover:text-primary hover:underline"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        @{primary}
-                                      </a>
-                                    )
-                                    : <span className="text-muted-foreground font-normal">—</span>}
-                              </span>
-                              <LevelBadge level={c.level} />
-                            </div>
-                            {c.real_name && primary ? (
-                              <span className="flex items-center gap-1">
-                                <a
-                                  href={`https://tiktok.com/@${primary}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[11.5px] text-muted-foreground hover:text-primary hover:underline truncate"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  @{primary}
-                                </a>
-                                <ExtraAccountsBadge creator={c} />
-                              </span>
-                            ) : !c.real_name && primary ? (
-                              <ExtraAccountsBadge creator={c} />
-                            ) : null}
-                            {brand !== 'all' && !!c.creator_tags?.length && <div className="mt-1 flex max-w-64 flex-wrap gap-1">{c.creator_tags.map(tag=><span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium capitalize text-primary">{tag}</span>)}</div>}
-                            {(c.product_tags ?? []).length > 0 && (
-                              <div className="flex flex-wrap items-center gap-1 mt-1">
-                                {(c.product_tags ?? []).slice(0, 3).map((t) => (
-                                  <Badge key={t.key} variant="accent" size="sm">{t.name}</Badge>
-                                ))}
-                                {(c.product_tags ?? []).length > 3 && (
-                                  <span className="text-[10px] text-muted-foreground self-center">+{(c.product_tags ?? []).length - 3}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      {showBrandColumn && (
-                        <td data-label="Brand" className="px-5 py-3.5">
-                          {isGroup ? (
-                            <Badge variant="accent">{c.brands?.length ?? 0} brands</Badge>
-                          ) : c.brand ? (
-                            <BrandIdentity brand={c.brand} label={brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand)} />
-                          ) : <span className="text-muted-foreground">—</span>}
-                        </td>
-                      )}
-                      {showManagedTag && (
-                        <td className="px-5 py-3.5 text-center">
-                          {c.is_managed ? (
-                            <Badge variant="positive"><UserCheck className="h-3 w-3" /> Managed</Badge>
-                          ) : (
-                            <Badge variant="neutral"><UserX className="h-3 w-3" /> Unmanaged</Badge>
-                          )}
-                        </td>
-                      )}
-                      <td data-label="GMV" className="px-5 py-3.5">
-                        <div className={rosterLayout.signal}>
-                          <SparklineCell data={c.spark} days={sparkDays} color="var(--primary)" width={96} height={30} format={fmt} />
-                          <div className="text-right min-w-[72px]">
-                            <div className="tabular-nums font-semibold text-[var(--foreground)]">
-                              {(c.gmv_period || 0) > 0 ? fmt(c.gmv_period) : <span className="text-muted-foreground font-normal">—</span>}
-                            </div>
-                            <DeltaBadge value={c.gmv_delta} />
-                          </div>
-                        </div>
-                      </td>
-                      <td data-label="Posts" className="px-5 py-3.5">
-                        <div className={rosterLayout.signal}>
-                          <SparklineCell data={c.spark_posts} days={sparkDays} color="var(--pulse-pos)" variant="bars" width={96} height={30} format={(v) => `${v} post${v === 1 ? '' : 's'}`} />
-                          <div className="text-right min-w-[36px]">
-                            <div className="tabular-nums text-foreground">{c.posts_period || 0}</div>
-                            <DeltaBadge value={c.posts_delta} />
-                          </div>
-                        </div>
-                      </td>
-                      <td data-label="Last post" className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
-                      <td data-label="Retainer" className="px-5 py-3.5 text-right font-semibold text-[var(--foreground)]">
-                        {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-muted-foreground font-normal">—</span>}
-                      </td>
-                      <td data-label="GMV / fee" className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
-                      <td data-label="Joined" className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
-                      {showAddAction && (
-                        <td className="px-5 py-3.5 text-right">
-                          {!c.is_managed && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' }); }}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border border-primary/15 bg-primary/10 text-[var(--primary)] hover:bg-primary/10 transition-colors whitespace-nowrap"
-                            >
-                              <Plus className="h-3 w-3" /> Add to roster
-                            </button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                    {isOpen && c.brands?.map((child) => {
-                      const childLabel = brandOptions.find((b) => b.slug === child.brand)?.name
-                        || (child.brand ? brandMeta.label(child.brand) : null)
-                        || child.brand?.replace(/_/g, ' ') || '—';
-                      return (
-                        <tr
-                          key={`${c.id}:${child.brand ?? 'none'}`}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`Open ${childLabel} details`}
-                          className="bg-muted/60 hover:bg-muted/70 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/50"
-                          onClick={(e) => { e.stopPropagation(); openChild(c, child); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChild(c, child); } }}
-                        >
-                          {showAddAction && <td />}
-                          <td data-label="Creator" className="px-5 py-2.5">
-                            <div className="flex items-center gap-2 pl-8">
-                              <span className="truncate text-sm font-medium text-foreground"><BrandIdentity brand={child.brand || ''} label={childLabel} /></span>
-                            </div>
-                          </td>
-                          {showBrandColumn && <td className="px-5 py-2.5" />}
-                          {showManagedTag && <td className="px-5 py-2.5" />}
-                          <td data-label="GMV" className="px-5 py-2.5">
-                            <div className={rosterLayout.signal}>
-                              <div className="w-[88px] flex-shrink-0" aria-hidden />
-                              <div className="text-right min-w-[72px]">
-                                <span className="tabular-nums font-semibold text-sm text-[var(--foreground)]">
-                                  {(child.gmv_period || 0) > 0 ? fmt(child.gmv_period) : <span className="text-muted-foreground font-normal">—</span>}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td data-label="Posts" className="px-5 py-2.5">
-                            <div className={rosterLayout.signal}>
-                              <div className="w-[88px] flex-shrink-0" aria-hidden />
-                              <div className="text-right min-w-[36px]">
-                                <span className="tabular-nums text-sm text-muted-foreground">{child.posts_period || 0}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td data-label="Last post" className="px-5 py-2.5"><LastPostCell date={child.last_post_date} /></td>
-                          <td data-label="Retainer" className="px-5 py-2.5 text-right font-semibold text-sm text-[var(--foreground)]">
-                            {child.retainer != null && child.retainer > 0 ? fmt(child.retainer) : <span className="text-muted-foreground font-normal">—</span>}
-                          </td>
-                          <td data-label="GMV / fee" className="px-5 py-2.5 text-right"><RoiCell roi={child.roi_period} /></td>
-                          <td className="px-5 py-2.5" />
-                          {showAddAction && <td className="px-5 py-2.5" />}
-                        </tr>
-                      );
-                    })}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </ScrollFade>
-
-          {/* Pagination */}
-          <div className={rosterLayout.pagination}>
-            <p className="text-xs text-muted-foreground tabular-nums">{total.toLocaleString()} total · page {page} of {totalPages}</p>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                aria-label="Previous page"
-                className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="grid h-8 min-w-8 place-items-center rounded-lg bg-primary px-2 text-xs font-semibold tabular-nums text-primary-foreground">{page}</span>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                aria-label="Next page"
-                className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+        {segFilters&&<div className={rosterLayout.activeFilters}><span>Segment: {segFilters.name}</span><button type="button" onClick={()=>setSegFilters(null)} aria-label="Clear segment"><X size={13}/></button></div>}
+        <div className={rosterLayout.resultBar}><p role="status">{tableLoading?'Loading creator results…':!coreMatches||loadError&&!hasLoadedOnce?'Creator results unavailable':`${total.toLocaleString()} ${view==='managed'?'managed ':''}creators`}{creatorView==='top'?' · Ranked by GMV':creatorView==='elite'?' · Tagged Elite':''}</p><ChoiceMenu compact triggerClassName={rosterLayout.sortControl} label="Sort creators" value={`${sortBy}:${sortDir}`} options={sortOptions} onChange={value=>{const [key,dir]=value.split(':');setSortBy(key as SortCol);setSortDir(dir as 'asc'|'desc');if(creatorView==='top')setCreatorView('creators');}}/></div>
+        {(selected.size>0||managedSelection.size>0)&&<div className={rosterLayout.selectionBar}><span>{selected.size+managedSelection.size} selected</span><div><button type="button" onClick={()=>{setSelected(new Map());setManagedSelection(new Set());}}>Clear selection</button>{managedSelection.size>0&&<button type="button" onClick={()=>setTagIds([...managedSelection])}>Edit tags ({managedSelection.size})</button>}{selected.size>0&&<button type="button" onClick={openBulkFromSelection}>Add to roster ({selected.size})</button>}</div></div>}
+        {loadError&&<div role="alert" className={rosterLayout.notice}><AlertTriangle size={16}/><span>{coreMatches&&roster.length?'Could not refresh. Showing the last loaded results.':'Could not load creators. Please try again.'}</span><button type="button" onClick={invalidateDetails}>Retry</button></div>}
+        {exportError&&<div role="alert" className={rosterLayout.notice}>{exportError}<button type="button" onClick={()=>setExportError('')} aria-label="Dismiss export error"><X size={14}/></button></div>}
+        {creatorView==='elite'&&brand==='all'?<div className={rosterLayout.empty}><Users size={28}/><h2>Choose a brand</h2><p>Elite membership is specific to each brand. Select a brand to see its Elite creators.</p></div>:!tableLoading&&!displayRoster.length?<div className={rosterLayout.empty}><Users size={28}/><h2>{loadError?'Creators are unavailable':'No creators found'}</h2><p>{loadError?'Retry to load the roster.':activeFilters?'Try a different search or clear the filters.':'Add a creator to get started.'}</p>{activeFilters&&<button type="button" className={rosterLayout.button} onClick={clearFilters}>Clear filters</button>}</div>:<StudioRosterTable rows={displayRoster} brand={brand} loading={tableLoading} showLoadBar={showLoadBar} studioLoading={studioLoading} sort={sortBy} direction={sortDir} onSort={toggleSort} selected={new Set([...selected.keys(),...managedSelection])} onSelect={toggleSelect} onSelectPage={toggleSelectAllPage} expanded={expanded} onActivate={c=>{if(c.grouped)toggleExpand(c.id);else if(!c.is_managed)setAddModalPrefill({account_1:primaryHandle(c)??'',brand:c.brand??(brand!=='all'?brand:'')});else setSelectedCreator(c);}} onOpenChild={openChild} onEditTags={id=>setTagIds([id])} label={slug=>brandMeta.label(slug)??slug} page={page} total={total} pages={totalPages} onPage={setPage} monthLabel={monthLabel}/>}
+        {coreMatches&&displayRoster.length>0&&<p className={rosterLayout.caption}>Published counts cover the selected dates. {monthLabel} delivery shows recorded month publications; qualifying delivery is unverified.{studioError?' Agreement history and owner details could not be loaded.':''}</p>}
       </section>
-
-      {/* Creator detail / edit panel */}
-      {selectedCreator && (
-        <CreatorPanel
-          key={selectedCreator.id}
-          creator={selectedCreator}
-          onClose={() => setSelectedCreator(null)}
-          onSaved={(updated) => {
-            setRoster(prev => prev.map(c => (c.id === updated.id ? updated : c)));
-            setSelectedCreator(updated);
-            fetchRoster();
-          }}
-          onRemoved={(removedId) => {
-            setRoster(prev => prev.filter(c => c.id !== removedId));
-            setSelectedCreator(null);
-            fetchRoster();
-          }}
-        />
-      )}
+      <details className={rosterLayout.summary} open={summaryOpen} onToggle={e=>setSummaryOpen(e.currentTarget.open)}><summary>Performance summary<ChevronDown size={15}/></summary>{summaryOpen&&<div className={rosterLayout.overview}>
+        <dl className={rosterLayout.metrics} aria-label="Roster performance">
+          <RosterMetric label="Affiliate GMV" value={!coreMatches||kpiFailed?'Unavailable':loading&&!summary?'Loading…':fmt(affiliateGmv)} trend={summary?pctDelta(affiliateGmv,summary.affiliate_gmv_prev):undefined} detail={periodLabel}/>
+          <RosterMetric label="Managed GMV" featured value={!coreMatches||kpiFailed?'Unavailable':loading&&!summary?'Loading…':fmt(totalGmvPeriod)} trend={summary?pctDelta(totalGmvPeriod,summary.managed_gmv_prev):undefined} detail={periodLabel}/>
+          <RosterMetric label="Managed share" value={!coreMatches||kpiFailed?'Unavailable':affiliateGmv>0?`${((totalGmvPeriod/affiliateGmv)*100).toFixed(0)}%`:'Unavailable'}/>
+          <RosterMetric label="Monthly retainers" value={!coreMatches||kpiFailed?'Unavailable':loading&&!summary?'Loading…':totalRetainer==null?'Unavailable':fmt(totalRetainer)} detail="Current commitments"/>
+          <RosterMetric label="GMV / retainer · 30d" value={!coreMatches||kpiFailed||totalRetainer==null?'Unavailable':roi>0?`${roi.toFixed(1)}x`:'N/A'}/>
+        </dl><div className={rosterLayout.videoSummary}><NewVideoGmvCard compact brand={brand} range={preset} start={customStart} end={customEnd} showCreators/></div>
+      </div>}</details>
+      {overviewCreator&&<CreatorOverviewDrawer key={overviewCreator.id} creator={overviewCreator} periodLabel={periodLabel} start={coreMatches?resolvedPeriod?.start:null} end={coreMatches?resolvedPeriod?.end:null} range={preset} onClose={()=>setSelectedCreator(null)} onEdit={roster.some(c=>!c.grouped&&c.id===overviewCreator.id)?()=>{setEditingCreator(overviewCreator);setSelectedCreator(null);}:undefined} onEditTags={brand!=='all'&&overviewCreator.brand===brand?()=>{setTagIds([overviewCreator.id]);setSelectedCreator(null);}:undefined}/>}
+      {editingCreator&&<CreatorPanel key={editingCreator.id} creator={editingCreator} onClose={()=>setEditingCreator(null)} onSaved={updated=>{setEditingCreator(updated);invalidateDetails();}} onRemoved={()=>{setEditingCreator(null);invalidateDetails();}}/>}
+      <RosterTagEditor ids={tagIds} open={tagIds.length>0} onOpenChange={open=>{if(!open)setTagIds([]);}} onSaved={()=>{setTagIds([]);setManagedSelection(new Set());invalidateDetails();}}/>
 
       {/* Add Creator modal */}
       {addModalPrefill !== null && (
@@ -2311,7 +1294,7 @@ function RosterContent() {
         }
       `}</style>
     </div>
-  );
+  </RosterTagsProvider>;
 }
 
 export default function RosterPage() {

@@ -22,10 +22,22 @@ export function DateRangePicker({
   staleThrough = null,
   appearance = 'default',
   displayRange,
+  value,
+  customRange,
+  onPresetChange,
+  onCustomChange,
+  label = 'Dashboard period',
 }: {
   defaultPreset?: DatePreset;
   appearance?: 'default' | 'studio';
   displayRange?: { start: string; end: string };
+  /** Supplying value keeps period selection local instead of changing the URL. */
+  value?: DatePreset;
+  customRange?: { start: string | null; end: string | null };
+  onPresetChange?: (preset: DatePreset) => void;
+  /** A confirmed custom range also calls onPresetChange with 'custom'. */
+  onCustomChange?: (start: string, end: string) => void;
+  label?: string;
   /**
    * Set ONLY when ingest is behind, to the last date that has data. When it is,
    * rolling presets SHIFT to end there (see resolveDateRange), so the chip has
@@ -53,9 +65,11 @@ export function DateRangePicker({
   const rootRef = useRef<HTMLDivElement>(null);
   const periodTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const current     = (searchParams.get('range') as DatePreset) || defaultPreset;
-  const customStart = searchParams.get('start');
-  const customEnd   = searchParams.get('end');
+  const controlled  = value !== undefined;
+  const pending     = !controlled && isPending;
+  const current     = value ?? ((searchParams.get('range') as DatePreset) || defaultPreset);
+  const customStart = controlled ? customRange?.start ?? null : searchParams.get('start');
+  const customEnd   = controlled ? customRange?.end ?? null : searchParams.get('end');
   const isCustom    = current === 'custom' && !!customStart && !!customEnd;
 
   // Close the menu on outside click / Escape.
@@ -76,11 +90,15 @@ export function DateRangePicker({
   }, [menuOpen, appearance]);
 
   function selectPreset(preset: DatePreset) {
+    setMenuOpen(false);
+    if (controlled) {
+      onPresetChange?.(preset);
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set('range', preset);
     params.delete('start');
     params.delete('end');
-    setMenuOpen(false);
     // Absolute path, built from usePathname(), rather than a bare `?${params}`.
     //
     // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
@@ -102,12 +120,17 @@ export function DateRangePicker({
   }
 
   function applyCustom(start: string, end: string) {
+    setPickerOpen(false);
+    setMenuOpen(false);
+    if (controlled) {
+      onPresetChange?.('custom');
+      onCustomChange?.(start, end);
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set('range', 'custom');
     params.set('start', start);
     params.set('end', end);
-    setPickerOpen(false);
-    setMenuOpen(false);
     // Absolute path, built from usePathname(), rather than a bare `?${params}`.
     //
     // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
@@ -151,7 +174,7 @@ export function DateRangePicker({
     return <div ref={rootRef} className={studioStyles.root}>
       <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenu.Trigger asChild>
-          <button ref={periodTriggerRef} type="button" disabled={isPending} className={studioStyles.trigger} aria-label={`Dashboard period: ${periodLabel}${dates ? `, ${dates}` : ''}`}>
+          <button ref={periodTriggerRef} type="button" disabled={pending} className={studioStyles.trigger} aria-label={`${label}: ${periodLabel}${dates ? `, ${dates}` : ''}`}>
             <span>{isCustom ? dates ?? baseLabel : `${periodLabel}${dates ? ` · ${dates}` : ''}`}</span><ChevronDown size={14} aria-hidden="true" />
           </button>
         </DropdownMenu.Trigger>
@@ -168,7 +191,7 @@ export function DateRangePicker({
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
-      {isPending && <span className="sr-only" role="status">Updating dashboard period. Previous results remain visible until the new view is ready.</span>}
+      {pending && <span className="sr-only" role="status">Updating {label.toLowerCase()}. Previous results remain visible until the new view is ready.</span>}
       {pickerOpen && <CustomRangePopover initialStart={customStart} initialEnd={customEnd} onApply={applyCustom} onClose={() => setPickerOpen(false)} returnFocusRef={periodTriggerRef} />}
     </div>;
   }
@@ -178,7 +201,8 @@ export function DateRangePicker({
       <button
         type="button"
         onClick={() => setMenuOpen((o) => !o)}
-        disabled={isPending}
+        disabled={pending}
+        aria-label={`${label}: ${currentLabel}`}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         className={cn(
@@ -187,7 +211,7 @@ export function DateRangePicker({
           // No opacity here: the shell's NavigationPendingOverlay already dims
           // the whole content region (this chip included), and stacking the two
           // washed it out to ~0.42. Just block re-entry.
-          isPending && 'pointer-events-none',
+          pending && 'pointer-events-none',
         )}
       >
         <span className="tabular-nums text-foreground">{currentLabel}</span>

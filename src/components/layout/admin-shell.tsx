@@ -46,7 +46,10 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const { tenant, userName, userEmail } = useTenant();
-  const studio = usePathname() === '/dashboard';
+  const pathname = usePathname();
+  // Enable only the reviewed screens; onboarding and Discord subroutes keep
+  // their existing shell until their own design review.
+  const studio = pathname === '/dashboard' || pathname === '/roster';
 
   const toggleCollapse = () =>
     setCollapsed((v) => {
