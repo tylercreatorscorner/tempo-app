@@ -24,8 +24,14 @@ interface Props {
 
 const number = (value?: number | null) => typeof value === 'number' && Number.isFinite(value)
   ? value.toLocaleString('en-US') : 'Unavailable';
-const date = (value?: string | null) => value && /^\d{4}-\d{2}-\d{2}$/.test(value)
-  ? new Date(`${value}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : null;
+const date = (value?: string | null) => {
+  if (!value) return null;
+  const calendarDate = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const parsed = new Date(calendarDate ? `${value}T12:00:00Z` : value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: calendarDate ? 'UTC' : 'America/Chicago',
+  }) : null;
+};
 const monthName = (value?: string) => value && /^\d{4}-\d{2}$/.test(value)
   ? new Date(`${value}-01T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' }) : 'Monthly';
 
@@ -128,7 +134,7 @@ export function CreatorOverviewDrawer({ creator, periodLabel, start, end, range,
               <strong>{agreementStatus ?? terms}</strong>
               {agreementStatus && <p>Recorded terms: {terms}</p>}
               {agreementDates && <p>Agreement period: {agreementDates}</p>}
-              {!agreementDates && date(creator.joined?.slice(0, 10)) && <p>Joined roster: {date(creator.joined?.slice(0, 10))}</p>}
+              {!agreementDates && date(creator.joined) && <p>Joined roster: {date(creator.joined)}</p>}
               <p>{historical ? 'Saved agreement terms. Prior versions remain in the agreement history.' : 'Unverified current terms. These do not confirm an earlier month’s agreement.'}</p>
             </section>
             <section className={styles.delivery} aria-label="Monthly publishing and delivery">
