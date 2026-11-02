@@ -2,12 +2,13 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { Building2, LayoutDashboard, UserRoundPlus, Users, PlaySquare, GraduationCap, FileBarChart, MessagesSquare, Hash, Wallet, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
+import { Building2, LayoutDashboard, UserRoundPlus, Users, PlaySquare, GraduationCap, FileBarChart, MessagesSquare, Hash, Wallet, PanelLeftClose, PanelLeft, Loader2, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/layout/brand-switcher';
 import styles from './workspace-theme.module.css';
+import studioStyles from './dashboard-studio-shell.module.css';
 
 interface Dest {
   href: string;
@@ -91,9 +92,13 @@ interface SidebarProps {
   /** When provided, renders the collapse/expand toggle (desktop sidebar only —
    *  the mobile drawer omits it). */
   onToggleCollapse?: () => void;
+  /** Visual treatment is opt-in so other admin routes keep their existing shell. */
+  studio?: boolean;
+  workspaceSwitcher?: React.ReactNode;
+  workspaceName?: string;
 }
 
-export function Sidebar({ className, isAdmin = false, canViewFinance = true, navPerms, collapsed = false, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ className, isAdmin = false, canViewFinance = true, navPerms, collapsed = false, onToggleCollapse, studio = false, workspaceSwitcher, workspaceName }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brand = searchParams.get('brand');
@@ -121,7 +126,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
         title={collapsed ? d.label : undefined}
         aria-label={d.label}
         aria-current={active ? 'page' : undefined}
-        className={cn(styles.navItem, active && styles.navItemActive)}
+        className={cn(styles.navItem, active && styles.navItemActive, studio && studioStyles.navItem, studio && active && studioStyles.navItemActive)}
       >
         <NavIcon icon={d.icon} active={active} />
         {!collapsed && <span className="truncate">{d.label}</span>}
@@ -132,35 +137,41 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
   return (
     <aside
       data-collapsed={collapsed || undefined}
-      className={cn('flex', styles.sidebar, className)}
+      className={cn('flex', styles.sidebar, studio && studioStyles.sidebar, className)}
     >
       {/* Logo */}
-      <div className={styles.sidebarLogo}>
+      <div className={cn(styles.sidebarLogo, studio && studioStyles.sidebarLogo)}>
         {collapsed ? <TempoIcon size={28} /> : <TempoLogo size="md" animated={false} />}
       </div>
 
-      {agencyAllowed && <nav aria-label="Workspace mode" className={styles.workspaceModes}>
-        {[{ label: 'Brands', href: withBrand('/dashboard'), icon: Users, active: !agencyMode }, { label: 'Agency', href: '/agency', icon: Building2, active: agencyMode }].map(({ label, href, icon: Icon, active }) => <Link key={label} href={href} title={collapsed ? `${label} workspace` : undefined} aria-label={`${label} workspace`} aria-current={active ? 'true' : undefined} className={cn(styles.workspaceMode, active && styles.workspaceModeActive)}><NavIcon icon={Icon} active={active} />{!collapsed && label}</Link>)}
+      {studio && !collapsed && <div className={studioStyles.workspaceControl}>
+        <span className={studioStyles.workspaceName}>{workspaceName ?? 'Workspace'}</span>
+        {workspaceSwitcher}
+      </div>}
+
+      {agencyAllowed && <nav aria-label="Workspace mode" className={cn(styles.workspaceModes, studio && studioStyles.workspaceModes)}>
+        {[{ label: 'Brands', href: withBrand('/dashboard'), icon: Users, active: !agencyMode }, { label: 'Agency', href: '/agency', icon: Building2, active: agencyMode }].map(({ label, href, icon: Icon, active }) => <Link key={label} href={href} title={collapsed ? `${label} workspace` : undefined} aria-label={`${label} workspace`} aria-current={active ? 'true' : undefined} className={cn(styles.workspaceMode, active && styles.workspaceModeActive, studio && studioStyles.workspaceMode, studio && active && studioStyles.workspaceModeActive)}>{(!studio || collapsed) && <NavIcon icon={Icon} active={active} />}{!collapsed && label}</Link>)}
       </nav>}
 
       {/* Empty permission groups disappear; the same navigation serves mobile. */}
-      <nav aria-label={agencyMode ? 'Agency navigation' : 'Brand navigation'} className={styles.destinations}>
-        {groups.map(group => <div key={group} className={styles.navGroup} role="group" aria-label={group}>
-          <h2 className={cn(styles.navGroupLabel, collapsed && 'sr-only')}>{group}</h2>
+      <nav aria-label={agencyMode ? 'Agency navigation' : 'Brand navigation'} className={cn(styles.destinations, studio && studioStyles.destinations)}>
+        {groups.map(group => <div key={group} className={cn(styles.navGroup, studio && studioStyles.navGroup)} role="group" aria-label={group}>
+          <h2 className={cn(styles.navGroupLabel, (collapsed || studio) && 'sr-only')}>{group}</h2>
           {destinations.filter(destination => destination.group === group).map(renderItem)}
         </div>)}
       </nav>
 
       {/* Bottom cluster — brand (expanded only) + collapse toggle. */}
-      <div className={styles.sidebarFooter}>
-        {!collapsed && !agencyMode && <div className={styles.brandContext}><p className={styles.contextLabel}>Selected brand</p><BrandSwitcher /></div>}
+      <div className={cn(styles.sidebarFooter, studio && studioStyles.sidebarFooter)}>
+        {!collapsed && !agencyMode && !studio && <div className={styles.brandContext}><p className={styles.contextLabel}>Selected brand</p><BrandSwitcher /></div>}
         {!collapsed && agencyMode && <p className={styles.agencyContext}>Internal agency workspace</p>}
+        {studio && <Link href={withBrand('/settings')} aria-label="Settings" title={collapsed ? 'Settings' : undefined} className={cn(styles.navItem, studioStyles.navItem, studioStyles.settingsLink)}><Settings className="h-4 w-4 flex-shrink-0" />{!collapsed && <span>Settings</span>}</Link>}
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={styles.collapseButton}
+            className={cn(styles.collapseButton, studio && studioStyles.collapseButton)}
           >
             {collapsed ? (
               <PanelLeft className="h-4 w-4" />

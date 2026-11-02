@@ -12,6 +12,14 @@ import {
 } from "./manager-goal-progress";
 import styles from "./manager-portfolios.module.css";
 
+function changeLabel(current: number, previous: number) {
+  const delta = current - previous;
+  const amount = `${delta >= 0 ? "+" : "−"}${formatCurrency(Math.abs(delta))}`;
+  return previous > 0
+    ? `${amount} · ${((delta / previous) * 100).toFixed(1)}%`
+    : `${amount} · from $0`;
+}
+
 export function ManagerPortfolios({
   managers,
   brands,
@@ -40,9 +48,7 @@ export function ManagerPortfolios({
         <header className={styles.header}>
           <div>
             <h2>Manager portfolios</h2>
-            <p>
-              Current assignments · GMV {start} – {end} · Goals use the full calendar month
-            </p>
+            <p>Selected-period results · Full calendar-month goals</p>
           </div>
           <Link
             className={styles.internal}
@@ -52,10 +58,12 @@ export function ManagerPortfolios({
           </Link>
         </header>
         <div className={styles.columns} aria-hidden="true">
-          <span>Manager / brands</span>
-          <span>Total GMV / change</span>
-          <span>Managed GMV / share</span>
+          <span>Manager</span>
+          <span>Assigned brands</span>
+          <span>Managed GMV</span>
+          <span>Change</span>
           <span>Monthly goal</span>
+          <span>Goal progress</span>
           <span />
         </div>
         {managers === null ? (
@@ -92,7 +100,6 @@ export function ManagerPortfolios({
             );
             const comparable =
               totalsAvailable && signals.available && checks.length === 0;
-            const delta = total - prior;
             const managedDelta = managed - priorManaged;
             return (
               <details key={manager.id} className={styles.manager}>
@@ -105,58 +112,32 @@ export function ManagerPortfolios({
                     />
                     <div>
                       <strong>{manager.name}</strong>
-                      <span>
-                        {rows.length} brand{rows.length === 1 ? "" : "s"}
-                      </span>
                     </div>
                   </div>
-                  <div className={styles.metric}>
-                    <span>Total GMV</span>
-                    <strong>
-                      {totalsAvailable ? formatCurrency(total) : "—"}
-                    </strong>
-                    <small
-                      className={
-                        comparable
-                          ? delta >= 0
-                            ? styles.positive
-                            : styles.negative
-                          : undefined
-                      }
-                    >
-                      {comparable
-                        ? `${delta >= 0 ? "+" : "−"}${formatCurrency(Math.abs(delta))}${prior > 0 ? ` (${((delta / prior) * 100).toFixed(1)}%)` : " · from $0"}`
-                        : "Comparison unavailable"}
-                    </small>
+                  <div className={styles.assignments}>
+                    <span className={styles.mobileLabel}>Assigned brands</span>
+                    {rows.length ? rows.map(row => labels[row.slug] ?? row.slug).join(", ") : "No linked brands"}
                   </div>
                   <div className={styles.metric}>
-                    <span>Managed GMV</span>
+                    <span className={styles.mobileLabel}>Managed GMV</span>
                     <strong>{formatCurrency(managed)}</strong>
-                    <small
-                      className={
-                        comparable
-                          ? managedDelta >= 0
-                            ? styles.positive
-                            : styles.negative
-                          : undefined
-                      }
-                    >
-                      {comparable
-                        ? `${managedDelta >= 0 ? "+" : "−"}${formatCurrency(Math.abs(managedDelta))}${priorManaged > 0 ? ` (${((managedDelta / priorManaged) * 100).toFixed(1)}%)` : " · from $0"}`
-                        : "Comparison unavailable"}
-                    </small>
-                    <small>
-                      {totalsAvailable && total > 0
-                        ? `${((managed / total) * 100).toFixed(1)}% of total`
-                        : "Share unavailable"}
-                    </small>
                   </div>
-                  <ManagerGoalProgress managerId={manager.id} month={month} />
+                  <div className={`${styles.change} ${comparable ? managedDelta >= 0 ? styles.positive : styles.negative : ""}`}>
+                    <span className={styles.mobileLabel}>Change vs prior period</span>
+                    {comparable ? changeLabel(managed, priorManaged) : "Comparison unavailable"}
+                  </div>
+                  <ManagerGoalProgress managerId={manager.id} month={month} presentation="portfolio" />
                   <span className={styles.chevron} aria-hidden="true">
                     <InterfaceIcon name="down" />
                   </span>
                 </summary>
                 <div className={styles.brands}>
+                  <div className={styles.portfolioContext}>
+                    <span>{start} – {end}</span>
+                    <span>Total GMV <strong>{totalsAvailable ? formatCurrency(total) : "Unavailable"}</strong></span>
+                    <span>{comparable ? changeLabel(total, prior) : "Total comparison unavailable"}</span>
+                    <span>Managed share <strong>{totalsAvailable && total > 0 ? `${((managed / total) * 100).toFixed(1)}%` : "Unavailable"}</strong></span>
+                  </div>
                   <Link
                     className={styles.reviewLink}
                     href={`/dashboard/reviews?month=${month}&manager=${hasManager ? encodeURIComponent(manager.id) : "all"}`}
@@ -203,6 +184,7 @@ export function ManagerPortfolios({
             );
           })
         )}
+        <p className={styles.footnote}>Current assignments · Results {start} – {end}. Expand a manager for brand details and reviews.</p>
       </section>
     </ManagerGoalsProvider>
   );

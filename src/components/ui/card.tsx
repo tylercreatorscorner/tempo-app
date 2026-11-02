@@ -9,6 +9,7 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
+      data-slot="card"
       className={cn('min-w-0 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-card shadow-[var(--workspace-surface-shadow,var(--pulse-elev-1))]', className)}
       {...props}
     />
@@ -18,7 +19,7 @@ Card.displayName = 'Card';
 
 export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex items-center justify-between gap-3 px-5 py-4', className)} {...props} />
+    <div ref={ref} data-slot="card-header" className={cn('flex items-center justify-between gap-3 px-5 py-4', className)} {...props} />
   ),
 );
 CardHeader.displayName = 'CardHeader';
@@ -29,6 +30,7 @@ export const CardTitle = React.forwardRef<
 >(({ className, eyebrow, ...props }, ref) => (
   <h3
     ref={ref}
+    data-slot="card-title"
     className={cn(
       eyebrow
         // Small uppercase section label (the Pulse `.ct` header style).
@@ -50,7 +52,7 @@ CardDescription.displayName = 'CardDescription';
 
 export const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('px-5 pb-5', className)} {...props} />
+    <div ref={ref} data-slot="card-content" className={cn('px-5 pb-5', className)} {...props} />
   ),
 );
 CardContent.displayName = 'CardContent';

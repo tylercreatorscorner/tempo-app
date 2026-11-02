@@ -8,12 +8,13 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { AllBrandsPortrait } from './all-brands-portrait';
 import { LoadingStatus } from '@/components/ui/loading-status';
 import { BrandPortrait } from './brand-portrait';
+import { useNavigationPending } from '@/components/layout/navigation-pending';
 
 interface BrandFilterProps {
   label?: string;
   compact?: boolean;
   brands: string[];
-  appearance?: 'default' | 'creator';
+  appearance?: 'default' | 'creator' | 'studio';
   brandsWithData: string[];
   selectedBrand: string | null;
   /**
@@ -31,6 +32,7 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
   const [showAll, setShowAll] = useState(false);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const navigation = useNavigationPending();
 
 
   const brandHref = (brand: string | null) => {
@@ -55,11 +57,12 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
     : 0;
   const visibleBrands = hidden > 0 ? withData : brands;
 
-  if (appearance === 'creator') return <div aria-busy={pending}>
-    <ChoiceMenu compact={compact} label={label} value={selectedBrand ?? '__all'} disabled={pending}
+  if (appearance === 'creator' || appearance === 'studio') return <div aria-busy={appearance === 'studio' ? navigation.isPending : pending}>
+    <ChoiceMenu compact={compact} label={label} value={selectedBrand ?? '__all'} disabled={appearance === 'studio' ? navigation.isPending : pending}
       options={[{value:'__all',label:'All Brands',icon:<AllBrandsPortrait/>,description:`${brands.length} brand relationships`}, ...brands.map(brand => ({value:brand,label:brandMeta.label(brand),icon:<BrandPortrait name={brandMeta.label(brand)} source={brandMeta.logo(brand)} color={brandMeta.color(brand)} />}))]}
-      onChange={value => startTransition(()=>router.push(brandHref(value === '__all' ? null : value),{scroll:false}))} />
-    {pending && <LoadingStatus label="Switching brand" className="mt-2" />}
+      onChange={value => (appearance === 'studio' ? navigation.startNav : startTransition)(()=>router.push(brandHref(value === '__all' ? null : value),{scroll:false}))} />
+    {appearance === 'studio' && navigation.isPending && <span className="sr-only" role="status">Updating dashboard. Previous brand data remains visible until the new view is ready.</span>}
+    {appearance !== 'studio' && pending && <LoadingStatus label="Switching brand" className="mt-2" />}
   </div>;
   return (
     <div className="flex flex-wrap gap-2">

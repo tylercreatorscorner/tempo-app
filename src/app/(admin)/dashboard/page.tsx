@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { Suspense } from 'react';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { BarChart3 } from 'lucide-react';
 import { format, subDays, differenceInDays } from 'date-fns';
 
@@ -16,11 +18,12 @@ import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-regi
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 
 import { StatCard } from '@/components/dashboard/stat-card';
 import { NewVideoGmvCard } from '@/components/dashboard/new-video-gmv';
 import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
-import { DashboardCharts } from '@/components/dashboard/dashboard-charts';
+import { DashboardCharts, DashboardSeriesProvider } from '@/components/dashboard/dashboard-charts';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { dashboardComparison } from '@/lib/data/dashboard-comparison';
@@ -28,17 +31,15 @@ import { buildContributors } from '@/lib/data/dashboard-contributors';
 import { GmvContributors } from '@/components/dashboard/gmv-contributors';
 import { buildDashboardTrend } from '@/lib/data/dashboard-trend';
 import { ManagerPortfolios } from '@/components/dashboard/manager-portfolios';
-import { MorningReview } from '@/components/dashboard/morning-review';
 import { getDashboardManagers } from '@/lib/data/dashboard-managers';
 import { buildDashboardSignals } from '@/lib/data/dashboard-signals';
-import reviewStyles from '@/components/dashboard/morning-review.module.css';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
+import studio from '@/components/dashboard/dashboard-studio.module.css';
+import { BrandPerformanceWithPublishing } from '@/components/dashboard/brand-performance-with-publishing';
+import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
+import { type BrandRowData } from '@/components/dashboard/brand-performance';
 import { TopCreators } from '@/components/dashboard/top-creators';
 import { TopVideos } from '@/components/dashboard/top-videos';
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
@@ -108,6 +109,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const canViewCost = scope?.canViewCreatorCost ?? false;
   const tenantId = activeTenantId ?? scope?.tenantId;
   const canReviewUploads = scope?.role === 'owner' || scope?.role === 'admin';
+  const canPrepareReports = Boolean(scope && can(scope, 'reporting', 'read'));
 
   let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false).order('name');
   if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
@@ -138,6 +140,15 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   // ── Resolve brand filter + expand to data slugs ─────────────────────────
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand) ? params.brand : null;
+  // Keep the URL-backed shell identity aligned with the server-authorized
+  // scope. A rejected slug must not label an All Brands response as that brand.
+  if (params.brand && !brandFilter) {
+    const clean = new URLSearchParams();
+    if (params.range) clean.set('range', params.range);
+    if (params.start) clean.set('start', params.start);
+    if (params.end) clean.set('end', params.end);
+    redirect(`/dashboard${clean.size ? `?${clean}` : ''}`);
+  }
   const activeRosterBrands = brandFilter ? [brandFilter] : ALL_BRANDS;
   const managersPromise = !brandFilter ? getDashboardManagers(activeRosterBrands) : Promise.resolve(undefined);
   const activeBrands = activeRosterBrands.flatMap(b => expandSlugs(reg, b));
@@ -321,6 +332,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
       brand: String(p.brand_name ?? ''),
       gmv: Number(p.gmv) || 0,
       views: p.views == null ? null : Number(p.views),
+      orders: p.orders == null ? null : Number(p.orders),
+      units: p.items_sold == null ? null : Number(p.items_sold),
+      publishedAt: p.post_date == null ? null : String(p.post_date),
     }))
     .filter((v) => v.gmv > 0)
     .slice(0, 10);
@@ -529,46 +543,40 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const managers = await managersPromise;
 
   return (
-    <div className={reviewStyles.page}>
+    <DashboardSeriesProvider key={`${brandFilter}|${startDate}|${endDate}`} start={startDate} end={endDate} brand={brandFilter} initial={totalDaily}>
+    <div className={studio.page}>
       {/* Stale-data warning — shows when the freshest data point is >3 days old */}
       {isStale && latestDate && daysStale != null && (
         <StaleDataBanner latestDate={latestDate} daysStale={daysStale} />
       )}
 
       {/* Header */}
-      <PageHeader
-        eyebrow={brandFilter ? activeBrandName ?? "Dashboard" : "Brand portfolio"}
-        title="Dashboard"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <BrandFilter compact label="Dashboard brand scope" appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
-            <Suspense fallback={null}>
-              <DateRangePicker staleThrough={staleThrough} />
-            </Suspense>
-            {/* "Data through" live status chip — mirrors the mockup's tinted
-                `.chip.live`; green when fresh, amber when the data is stale. */}
-            <span
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-md px-1 py-1 text-[11px] text-muted-foreground',
-                isStale
-                  ? 'border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn)]/10'
-                  : 'border-[var(--pulse-pos)]/25 bg-[var(--pulse-pos)]/10',
-              )}
-            >
-              <span className={cn('h-1.5 w-1.5 rounded-full', isStale ? 'bg-[var(--pulse-warn)]' : 'bg-[var(--pulse-pos)]')} />
-              <span className="tabular-nums">{dataThroughLabel}</span><InfoTooltip label={`Changes compare ${comparableBrands.length} fully recorded brands in both periods. Headline totals include all recorded sales. ${incompleteBrands.map(slug => brandLabel(reg,slug)).join(', ')}${incompleteBrands.length ? ': missing daily data; excluded from comparisons.' : ''}`} />
-            </span>
-          </div>
-        }
-      />
+      <header className={studio.heading}>
+        <div>
+          <h1>{brandFilter ? `${activeBrandName} performance` : 'Brand workspace'}</h1>
+          <p>{brandFilter ? 'Results, creator activity, and delivery within this brand.' : 'A clear view of your brands, your creators, and what is moving.'}</p>
+        </div>
+        {canPrepareReports && <Link href="/reporting" className={studio.reportLink}>Prepare a report</Link>}
+      </header>
 
-      <div className={reviewStyles.scopeBar}>
-        <strong>{format(new Date(`${startDate}T12:00:00`), 'MMM d, yyyy')} – {format(new Date(`${endDate}T12:00:00`), 'MMM d, yyyy')}</strong>
-        <span>vs {format(new Date(`${prevStartDate}T12:00:00`), 'MMM d, yyyy')} – {format(new Date(`${prevEndDate}T12:00:00`), 'MMM d, yyyy')}</span>
-        <span>{brandFilter ? activeBrandName : `${ALL_BRANDS.length} authorized brands`}</span>
+      <div className={studio.toolbar} aria-label="Dashboard scope">
+        <div className={studio.brandControl}><BrandFilter compact label="Dashboard brand scope" appearance="studio" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} /></div>
+        <Suspense fallback={<Skeleton className="h-9 w-52" />}>
+          <DateRangePicker staleThrough={staleThrough} appearance="studio" displayRange={{ start: startDate, end: endDate }} />
+        </Suspense>
+        <span className={studio.comparison}>vs {format(new Date(`${prevStartDate}T12:00:00`), 'MMM d')}–{format(new Date(`${prevEndDate}T12:00:00`), 'MMM d, yyyy')}</span>
+        <span className={studio.freshness}>
+          <span>{dataThroughLabel}{!brandFilter ? ` · ${ALL_BRANDS.length} brands` : ''}</span>
+          <InfoTooltip label={`Sales dates: ${startDate} through ${endDate}. Changes compare ${comparableBrands.length} fully recorded brands in both periods. Headline totals include all recorded sales.${incompleteBrands.length ? ` ${incompleteBrands.map(slug => brandLabel(reg,slug)).join(', ')}: missing daily data; excluded from comparisons.` : ''}`} />
+        </span>
+        <nav className={studio.jumpLinks} aria-label="Jump to dashboard section">
+          {managers !== undefined && <a href="#managers">Managers</a>}
+          {showBrandPerf && <a href="#brands">Brands</a>}
+          <a href="#monthly">Monthly</a>
+        </nav>
       </div>
 
-      <div className={reviewStyles.metrics}>
+      <section className={studio.metrics} aria-label="Selected-period performance">
         <StatCard
           label="Total GMV"
           value={totalsFailed ? '—' : formatCurrency(totals.gmv)}
@@ -597,11 +605,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <Suspense fallback={<StatCard label="Videos published" value="…" detail="Counting published videos…" />}>
           <PublishedVideosStat counts={publishedVideosPromise} canReviewUploads={canReviewUploads} />
         </Suspense>
-      </div>
-      {canViewCost && <div className={reviewStyles.commitments}>
-        <div>Current creator commitments <InfoTooltip label="Current recorded creator fees for the selected brands. Agreement periods may differ; this is not historical payment or spend in the selected date range."/><strong>{formatCurrency(totalRetainerSpend)}</strong><span>{retainerBrandCount} {retainerBrandCount===1?'brand':'brands'}</span></div>
-        <div>GMV / retainer return <InfoTooltip label={`Managed GMV from ${roiStart} through ${roiEnd}, divided by current monthly commitments. Revenue multiple, not profit ROI; excludes commissions and other costs.`}/><strong>{roi > 0 ? `${roi.toFixed(1)}×` : '—'}</strong><span>Trailing 30 days</span></div>
-      </div>}
+      </section>
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
@@ -617,37 +621,46 @@ export default async function AdminDashboard({ searchParams }: Props) {
         />
       )}
 
-      <div className={reviewStyles.workspace}>
-      <div className={reviewStyles.primary}>
-      {!isEmptyBrand && <DashboardCharts key={`${brandFilter}|${startDate}|${endDate}`} start={startDate} end={endDate} brand={brandFilter} initial={totalDaily}/>}
+      {!isEmptyBrand && <div className={studio.trendGrid}>
+        <DashboardCharts variant="daily" start={startDate} end={endDate} brand={brandFilter} initial={totalDaily}/>
+        <section className={studio.share} aria-labelledby="managed-share-heading">
+          <h2 id="managed-share-heading">Managed share</h2>
+          {totalsFailed ? <p className={studio.shareUnavailable}>Managed share is unavailable while total sales could not be loaded.</p> : <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} prevManaged={comparisonRecorded ? prevManagedGmv : undefined} prevTotal={comparisonRecorded ? prevTotals.gmv : undefined}/>}
+        </section>
+      </div>}
 
-      {/* Row 3 — Brand Performance, full width. Deliberately shows EVERY brand,
-          including those with $0 managed GMV: a brand you have no managed
-          creators on is a coverage gap worth seeing, not noise to hide. */}
-      {!isEmptyBrand && showBrandPerf && (
-        <BrandPerformance brands={activeBrandRows.map(row => !signals.available || signals.attention.some(signal => signal.slug === row.slug && signal.kind === 'coverage') ? { ...row, trend: undefined, managedTrend: undefined, series: undefined } : row)} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
-      )}
+      {managers !== undefined && <section id="managers" className={studio.section} aria-label="Manager portfolios">
+        <ManagerPortfolios managers={managers} brands={activeBrandRows} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} signals={signals} start={startDate} end={endDate} totalsAvailable={!totalsFailed} />
+      </section>}
 
-      {managers !== undefined && <ManagerPortfolios managers={managers} brands={activeBrandRows} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} signals={signals} start={startDate} end={endDate} totalsAvailable={!totalsFailed} />}
+      {!isEmptyBrand && showBrandPerf && <section id="brands" className={studio.section} aria-label="Brand performance">
+        <Suspense fallback={<div className={studio.skeletonCard} role="status" aria-label="Loading brand performance"><h2 className="text-lg font-semibold">Brand performance</h2>{[0,1,2,3].map(i=><Skeleton key={i} className="h-10 w-full"/>)}</div>}>
+          <BrandPerformanceWithPublishing counts={publishedVideosPromise} brands={activeBrandRows.map(row => !signals.available || signals.attention.some(signal => signal.slug === row.slug && signal.kind === 'coverage') ? { ...row, trend: undefined, managedTrend: undefined, series: undefined } : row)} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
+        </Suspense>
+      </section>}
 
-      {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}
-      {!isEmptyBrand && (
-        <div className={reviewStyles.leaderboards}>
-          <TopCreators brand={brandFilter} creators={topCreators} label={`${periodLength}d`} />
-          <TopVideos brand={brandFilter} videos={topVideos} label={`${periodLength}d`} failed={topVideosFailed} />
+      {brandFilter && <section className={studio.singleBrand} aria-label="Selected brand workspace">
+        <div><h2>{activeBrandName} workspace</h2><p>This view contains {activeBrandName} only. Manager portfolio goals remain in the All Brands review.</p></div>
+        <Link href={`/roster?brand=${encodeURIComponent(brandFilter)}`}>Review this brand’s creators</Link>
+      </section>}
+
+      {!isEmptyBrand && <>
+        <section id="monthly" className={studio.section} aria-label="Monthly performance"><DashboardCharts variant="monthly" start={startDate} end={endDate} brand={brandFilter} initial={totalDaily}/></section>
+        <div className={studio.leaders}>
+          <TopCreators brand={brandFilter} creators={topCreators} label={`${periodLength}d`} start={startDate} end={endDate} />
+          <TopVideos brand={brandFilter} videos={topVideos} label={`${periodLength}d`} failed={topVideosFailed} start={startDate} end={endDate} />
         </div>
-      )}
-      </div>
-      <aside className={reviewStyles.aside} aria-label="Period insights and video performance">
-        <h2 className={reviewStyles.asideHeading}>Review this period</h2>
-        <MorningReview attention={signals.attention} opportunities={signals.opportunities} available={signals.available} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} start={startDate} end={endDate} singleBrand={Boolean(brandFilter)} compact />
-        <Card><CardHeader className="px-4 py-3"><CardTitle>Managed share</CardTitle></CardHeader><CardContent className="px-4 pb-4">
-          {totalsFailed ? <p className="text-sm text-muted-foreground">Split unavailable.</p> : <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} prevManaged={comparisonRecorded ? prevManagedGmv : undefined} prevTotal={comparisonRecorded ? prevTotals.gmv : undefined}/>}
-        </CardContent></Card>
-        <NewVideoGmvCard brand={brandFilter} start={startDate} end={endDate} compact />
-        <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} start={startDate} end={endDate} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} ${activeRosterBrands.length === 1 ? 'brand' : 'brands'} with comparable coverage`} />
-      </aside>
-      </div>
+        <div className={studio.supplementary}>
+          <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} start={startDate} end={endDate} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} ${activeRosterBrands.length === 1 ? 'brand' : 'brands'} with comparable coverage`} />
+          <NewVideoGmvCard brand={brandFilter} start={startDate} end={endDate} compact />
+        </div>
+      </>}
+      <footer className={studio.footnote}>
+        <span>{canCompare ? `Changes use ${comparableBrands.length} of ${activeRosterBrands.length} brands with comparable recorded days.` : comparisonLabel} Headline figures include all recorded sales.</span>
+        {canReviewUploads && <Link href="/upload">Review data coverage</Link>}
+        {canViewCost && <details><summary>Creator cost basis</summary><p>Current recorded commitments: {formatCurrency(totalRetainerSpend)} across {retainerBrandCount} brands. This is not historical spend for the selected period. Trailing 30-day managed GMV / current commitments: {roi > 0 ? `${roi.toFixed(1)}×` : 'Unavailable'}, using {roiStart} through {roiEnd}. This revenue multiple is not profit ROI.</p></details>}
+      </footer>
     </div>
+    </DashboardSeriesProvider>
   );
 }

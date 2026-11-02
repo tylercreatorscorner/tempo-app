@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { MobileNav } from '@/components/layout/mobile-nav';
@@ -14,6 +15,7 @@ import { SetupBanner } from '@/components/onboarding/setup-banner';
 import { DashboardGate } from '@/components/onboarding/dashboard-gate';
 import { BreadcrumbProvider } from '@/components/layout/breadcrumb-context';
 import styles from './workspace-theme.module.css';
+import studioStyles from './dashboard-studio-shell.module.css';
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -44,6 +46,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const { tenant, userName, userEmail } = useTenant();
+  const studio = usePathname() === '/dashboard';
 
   const toggleCollapse = () =>
     setCollapsed((v) => {
@@ -63,10 +66,10 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
           so the scroll wheel works from anywhere on the page (including
           while hovering the sidebar). Sidebar is now `sticky top-0 h-screen`
           internally so it stays pinned while the document scrolls. */}
-      <div className={styles.workspace} data-workspace="tempo">
+      <div className={`${styles.workspace}${studio ? ` ${studioStyles.workspace}` : ''}`} data-workspace="tempo" data-dashboard-studio={studio || undefined}>
         <a className={styles.skipLink} href="#tempo-main">Skip to page content</a>
-        <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
-        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} />
+        <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} collapsed={collapsed} onToggleCollapse={toggleCollapse} studio={studio} workspaceSwitcher={tenantSwitcher} workspaceName={tenant?.name} />
+        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} studio={studio} workspaceSwitcher={tenantSwitcher} workspaceName={tenant?.name} />
 
         <div className={styles.frame}>
           <Header
@@ -77,6 +80,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
             tenantSwitcher={tenantSwitcher}
             isAdmin={isAdmin}
             canInviteMembers={canInviteMembers}
+            studio={studio}
           />
           <SectionTabs isAdmin={isAdmin} navPerms={navPerms} />
           <main id="tempo-main" tabIndex={-1} className={styles.main}>

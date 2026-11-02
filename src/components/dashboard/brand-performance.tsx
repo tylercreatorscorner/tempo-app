@@ -1,188 +1,115 @@
-import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { formatCurrency } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
-// Via the client wrapper, not Sparkline directly: this is a server component and
-// Sparkline's `format` prop is a function, which can't cross the boundary.
 import { BrandSparkline } from '@/components/dashboard/brand-sparkline';
+import styles from './brand-performance.module.css';
 
 export interface BrandRowData {
   slug: string;
   currentGmv: number;
-  /** GMV driven by managed creators only — i.e. the agency's contribution. */
+  /** Selected-period GMV from managed creators. */
   managedGmv: number;
   prevGmv: number;
-  /** Managed GMV in the previous period of equal length. */
   prevManagedGmv: number;
-  /** Total GMV vs the previous period. */
+  /** Undefined when either period lacks comparable coverage. */
   trend: number | undefined;
-  /** Managed GMV vs the previous period — the agency's own momentum. */
   managedTrend: number | undefined;
-  /** This brand's monthly retainer spend. Null when the viewer can't see
-   *  finance (canViewFinance false) — renders "—", never a fabricated $0. */
+  /** Current creator commitments. Null for a finance-hidden viewer. */
   retainer: number | null;
-  /** Trailing-30d managed GMV / this brand's monthly retainer. */
   roi?: number;
-  /** Daily total GMV across the selected range, zero-filled, index-aligned to `days`. */
   series?: number[];
   days?: string[];
+  /** Recorded publications, only from the canonical publication counter. */
+  publishedVideos?: number | null;
+  publishedComplete?: boolean;
 }
 
 interface Props {
   brands: BrandRowData[];
-  /** Pass through the current date params so click-to-filter preserves the range —
-   *  including start/end, without which a custom range silently reverts to last7. */
   range?: string;
   start?: string;
   end?: string;
-  /** Period length in days — labels the sparkline column. */
   periodLength?: number;
 }
 
-const TH = 'text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground';
-// Brand | GMV | Δ | sparkline | Managed | Δ | Mgd% | Retainer | ROI
-//
-// The brand track is BOUNDED and the eight data tracks are equal 1fr. Previously
-// brand was `1fr` and everything else `auto`, so the brand column absorbed all
-// the free width — short names like "M3" sat alone on the left beside ~200px of
-// void while every number crowded the right edge. Now the data spreads evenly
-// across the full width instead of pooling at one end.
-const COLS = 'grid grid-cols-[minmax(155px,1.6fr)_repeat(5,minmax(0,1fr))] items-center gap-x-3';
-
-/** Right-aligned column header with a hover tooltip explaining the metric.
- *  Width comes from the grid track, not the cell — see COLS. */
 function HeadCell({ label, tip }: { label: string; tip: string }) {
-  return (
-    <InfoTooltip label={tip}>
-      <span className={`${TH} cursor-help text-right underline decoration-muted-foreground/30 decoration-dotted underline-offset-2`}>
-        {label}
-      </span>
-    </InfoTooltip>
-  );
+  return <InfoTooltip label={tip}><span className={styles.headLabel}>{label}</span></InfoTooltip>;
 }
 
-/** Inline period-over-period delta. Sub-1% keeps a decimal so a real move
- *  doesn't render as a flat 0%. */
 function Delta({ value }: { value: number | undefined }) {
-  if (value === undefined) return <span className="text-right text-[13px] text-muted-foreground">—</span>;
-  const pos = value >= 0;
-  return (
-    <span
-      className="text-right text-[13px] font-bold tabular-nums"
-      style={{ color: pos ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
-    >
-      {<><InterfaceIcon name={pos ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{pos ? 'Up ' : 'Down '}</span></>}{Math.abs(value) < 1 ? Math.abs(value).toFixed(1) : Math.round(Math.abs(value))}%
-    </span>
-  );
+  if (value === undefined) return <span className={styles.unavailable}>Comparison unavailable</span>;
+  return <span className={value >= 0 ? styles.positive : styles.negative}>
+    {value >= 0 ? '+' : '−'}{Math.abs(value) < 1 ? Math.abs(value).toFixed(1) : Math.round(Math.abs(value))}%
+  </span>;
 }
 
-/**
- * Per-brand performance table — the agency-client view's key section.
- *
- * Columns: Brand · GMV · Δ · sparkline · Managed · Δ · Mgd% · Retainer · ROI.
- *
- * TWO deltas by design: total GMV says how the BRAND is doing, managed GMV says
- * how WE are doing on it. A brand can be up while our share of it falls, and a
- * single trend column hides exactly that. Retainer is ROI's denominator, shown
- * so the ratio is auditable instead of asserted.
- *
- * Renders EVERY brand, including those at $0 managed: a brand you have no
- * managed creators on is a coverage gap worth seeing, not noise to hide.
- */
+/** Compact, scoped brand comparison. Missing coverage is never replaced by zero. */
 export async function BrandPerformance({ brands, range, start, end, periodLength }: Props) {
   if (brands.length === 0) return null;
-
   const reg = await getBrandRegistry();
-  // Sort by current GMV desc — most-impactful brands at the top.
-  const rows = [...brands].sort((a, b) => b.currentGmv - a.currentGmv);
-  const sparkLabel = periodLength ? `${periodLength}d` : 'Trend';
-
+  const rows = [...brands].sort((a, b) => b.managedGmv - a.managedGmv || b.currentGmv - a.currentGmv);
+  const sparkLabel = periodLength ? `${periodLength}-day trend` : 'Period trend';
   function hrefFor(slug: string) {
-    const params = new URLSearchParams();
-    params.set('brand', slug);
+    const params = new URLSearchParams({ brand: slug });
     if (range) params.set('range', range);
     if (start) params.set('start', start);
     if (end) params.set('end', end);
     return `/dashboard?${params.toString()}`;
   }
-
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <CardTitle eyebrow>Brand Performance</CardTitle>
-        <span className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-          {rows.length} {rows.length === 1 ? 'brand' : 'brands'}
-        </span>
-      </CardHeader>
-
-      <div className="overflow-x-auto" role="region" aria-label="Brand performance metrics" tabIndex={0}>
-      <div className="min-w-[760px]">
-      {/* Column headers — each metric header hover-explains itself */}
-      <div className={`${COLS} border-b border-border px-5 py-2`}>
-        <span className={TH}>Brand</span>
-        <HeadCell label="GMV"      tip="Total affiliate GMV for this brand in the selected period." />
-        <span className={`${TH} text-right`}>{sparkLabel}</span>
-        <HeadCell label="Managed"  tip="GMV from your managed creators for this brand, in the selected period." />
-        <HeadCell label="Mgd %"    tip="Managed GMV as a share of this brand's total GMV." />
-        <HeadCell label="Retainer" tip="Current monthly creator retainer commitments for this brand. Not historical payments or actual period spend." />
-
-      </div>
-
-      <div className="divide-y divide-border">
-        {rows.map((b) => {
-          const color = brandColor(reg, b.slug);
+  return <Card className={styles.section}>
+    <CardHeader className={styles.header}>
+      <CardTitle className={styles.title}>Brand performance</CardTitle>
+      <span className={styles.context}>{rows.length} authorized {rows.length === 1 ? 'brand' : 'brands'} · Ranked by managed GMV</span>
+    </CardHeader>
+    <div className={styles.tableRegion} role="region" aria-label="Brand performance metrics" tabIndex={0}>
+      <div className={styles.table}>
+        <div className={styles.columns} aria-hidden="true">
+          <span>Brand</span>
+          <HeadCell label="Total GMV / change" tip="Total affiliate GMV for this brand in the selected period. Changes require comparable coverage in both periods." />
+          <HeadCell label="Managed / change" tip="GMV from your managed creators in the selected period, compared with the prior period of equal length." />
+          <HeadCell label="Managed share" tip="Managed creator GMV divided by this brand's total affiliate GMV." />
+          <span>{sparkLabel}</span>
+          <HeadCell label="Videos published" tip="Managed creators' publications within the selected dates. Recorded counts remain labeled when coverage is incomplete." />
+          <HeadCell label="Creator commitments" tip="Current monthly creator retainer commitments. These are not historical payments or actual spend in the selected dates." />
+        </div>
+        {rows.map(b => {
           const name = brandLabel(reg, b.slug);
-          const managedPct = b.currentGmv > 0 ? (b.managedGmv / b.currentGmv) * 100 : 0;
-
-          return (
-            <Link
-              key={b.slug}
-              href={hrefFor(b.slug)}
-              className={`${COLS} group px-5 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset`}
-            >
-              {/* Brand logo and name */}
-              <span className="flex min-w-0 items-center gap-2.5">
-                <span className="truncate text-[13.5px] font-bold text-foreground transition-colors group-hover:text-[var(--primary)]">
-                  <BrandIdentity brand={b.slug} label={name} />
-                </span>
-              </span>
-
-              {/* Total GMV + its delta */}
-              <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
-                {formatCurrency(b.currentGmv)}<span className="mt-1 block text-[11px]"><Delta value={b.trend} /></span>
-              </span>
-
-              {/* Shape of the period. Same source as the GMV figure two columns
-                  left, so the line can't disagree with the number beside it. */}
-              <span className="flex justify-end">
-                <BrandSparkline data={b.series} days={b.days} color={color} />
-              </span>
-
-              {/* Managed GMV + its delta */}
-              <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
-                {formatCurrency(b.managedGmv)}<span className="mt-1 block text-[11px]"><Delta value={b.managedTrend} /></span>
-              </span>
-
-              {/* Managed share of the brand's total GMV */}
-              <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
-                {b.currentGmv > 0 ? `${managedPct.toFixed(0)}%` : '—'}
-              </span>
-
-              {/* Monthly retainer spend — ROI's denominator, shown.
-                  Null (finance-hidden viewer) renders "—" like a $0 does. */}
-              <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
-                {b.retainer != null && b.retainer > 0 ? formatCurrency(b.retainer) : '—'}<span className="mt-1 block text-[11px] font-normal">{b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}× GMV / fee` : ''}</span>
-              </span>
-
-            </Link>
-          );
+          const managedPct = b.currentGmv > 0 ? (b.managedGmv / b.currentGmv) * 100 : null;
+          return <Link key={b.slug} href={hrefFor(b.slug)} className={styles.row}>
+            <span className={styles.identity}><BrandIdentity brand={b.slug} label={name} /></span>
+            <span className={styles.result}>
+              <span className={styles.mobileLabel}>Total GMV</span>
+              <strong>{formatCurrency(b.currentGmv)}</strong><small><Delta value={b.trend} /></small>
+            </span>
+            <span className={styles.result}>
+              <span className={styles.mobileLabel}>Managed GMV</span>
+              <strong>{formatCurrency(b.managedGmv)}</strong><small><Delta value={b.managedTrend} /></small>
+            </span>
+            <span className={styles.value}>
+              <span className={styles.mobileLabel}>Managed share</span>
+              {managedPct !== null ? `${managedPct.toFixed(1)}%` : 'Unavailable'}
+            </span>
+            <span className={styles.spark}>
+              <span className={styles.mobileLabel}>{sparkLabel}</span>
+              <BrandSparkline data={b.series} days={b.days} color={brandColor(reg, b.slug)} />
+            </span>
+            <span className={styles.result}>
+              <span className={styles.mobileLabel}>Videos published</span>
+              <strong>{b.publishedVideos != null ? b.publishedVideos.toLocaleString('en-US') : 'Unavailable'}</strong>
+              {b.publishedVideos != null && b.publishedComplete === false && <small>Recorded · incomplete coverage</small>}
+            </span>
+            <span className={styles.result}>
+              <span className={styles.mobileLabel}>Creator commitments</span>
+              <strong>{b.retainer != null && b.retainer > 0 ? formatCurrency(b.retainer) : '—'}</strong>
+              {b.roi != null && b.roi > 0 && <small>{b.roi.toFixed(1)}× GMV / fee</small>}
+            </span>
+          </Link>;
         })}
       </div>
-      </div>
-      </div>
-    </Card>
-  );
+    </div>
+    <p className={styles.footnote}>Open a brand to review its dashboard in the same reporting period. Commitments reflect current terms.</p>
+  </Card>;
 }

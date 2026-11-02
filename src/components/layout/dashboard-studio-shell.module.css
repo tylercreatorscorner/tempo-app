@@ -1,0 +1,265 @@
+/* The selected Studio direction is deliberately limited to /dashboard.
+   Body-scoped tokens also reach Radix portals without changing other routes. */
+:global(body):has(.workspace[data-dashboard-studio]) {
+  --studio-canvas: #f6f5f1;
+  --studio-surface: #fff;
+  --studio-ink: #191a1c;
+  --studio-muted: #66666c;
+  --studio-line: #dddcd7;
+  --studio-boundary: #87868d;
+  --studio-purple: #6e4bcc;
+  --studio-soft: #ede7fa;
+  --studio-positive: #217457;
+  --studio-warning: #93630d;
+  --studio-warning-bg: #fff1d8;
+  --studio-deep: #1d1c21;
+  --studio-on-deep: #fff;
+  --background: var(--studio-canvas);
+  --foreground: var(--studio-ink);
+  --card: var(--studio-surface);
+  --card-foreground: var(--studio-ink);
+  --popover: var(--studio-surface);
+  --popover-foreground: var(--studio-ink);
+  --primary: var(--studio-purple);
+  --primary-foreground: #fff;
+  --secondary: #efede8;
+  --secondary-foreground: var(--studio-ink);
+  --muted: #efede8;
+  --muted-foreground: var(--studio-muted);
+  --border: var(--studio-line);
+  --input: var(--studio-boundary);
+  --accent: var(--studio-soft);
+  --accent-foreground: var(--studio-purple);
+  --ring: var(--studio-purple);
+  --sidebar: var(--studio-surface);
+  --sidebar-foreground: var(--studio-muted);
+  --sidebar-primary: var(--studio-purple);
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: var(--studio-soft);
+  --sidebar-accent-foreground: var(--studio-purple);
+  --sidebar-border: var(--studio-line);
+  --sidebar-ring: var(--studio-purple);
+  --workspace-page-padding: 24px;
+  --workspace-page-gap: 24px;
+  --workspace-sidebar-width: 192px;
+  --workspace-rail-width: 64px;
+  --workspace-header-height: 56px;
+  --workspace-control-height: 36px;
+  --workspace-surface-radius: 12px;
+  --workspace-control-radius: 8px;
+  --workspace-surface-shadow: none;
+  --workspace-surface-raised-shadow: 0 10px 32px rgb(25 26 28 / 12%);
+  --pulse-accent-2: var(--studio-purple);
+  --pulse-grad: linear-gradient(var(--studio-purple), var(--studio-purple));
+  --pulse-hero: linear-gradient(var(--studio-deep), var(--studio-deep));
+  --pulse-pos: var(--studio-positive);
+  --pulse-pos-bg: #eaf5ef;
+  --pulse-warn: var(--studio-warning);
+  --pulse-warn-bg: var(--studio-warning-bg);
+  --chart-1: var(--studio-purple);
+}
+
+/* A compatible dark palette is kept for the existing theme preference.
+   The reviewed Figma target is the light presentation above. */
+:global(html.dark body):has(.workspace[data-dashboard-studio]) {
+  --studio-canvas: #151619;
+  --studio-surface: #1d1e23;
+  --studio-ink: #ededeb;
+  --studio-muted: #aaa9ae;
+  --studio-line: #37363d;
+  --studio-boundary: #807e88;
+  --studio-purple: #b89bf8;
+  --studio-soft: #30273f;
+  --studio-positive: #8bd4b1;
+  --studio-warning: #e9c57b;
+  --studio-warning-bg: #322a1b;
+  --studio-deep: #28232f;
+  --studio-on-deep: #f8f6fc;
+  --background: var(--studio-canvas);
+  --foreground: var(--studio-ink);
+  --card: var(--studio-surface);
+  --card-foreground: var(--studio-ink);
+  --popover: #222329;
+  --popover-foreground: var(--studio-ink);
+  --primary: var(--studio-purple);
+  --primary-foreground: #241831;
+  --secondary: #292a30;
+  --secondary-foreground: var(--studio-ink);
+  --muted: #292a30;
+  --muted-foreground: var(--studio-muted);
+  --border: var(--studio-line);
+  --input: var(--studio-boundary);
+  --accent: var(--studio-soft);
+  --accent-foreground: var(--studio-purple);
+  --ring: var(--studio-purple);
+  --sidebar: var(--studio-surface);
+  --sidebar-foreground: var(--studio-muted);
+  --sidebar-primary: var(--studio-purple);
+  --sidebar-primary-foreground: #241831;
+  --sidebar-accent: var(--studio-soft);
+  --sidebar-accent-foreground: var(--studio-purple);
+  --sidebar-border: var(--studio-line);
+  --sidebar-ring: var(--studio-purple);
+  --workspace-surface-shadow: none;
+  --workspace-surface-raised-shadow: 0 10px 36px rgb(0 0 0 / 28%);
+  --pulse-accent-2: var(--studio-purple);
+  --pulse-grad: linear-gradient(#6e4bcc, #6e4bcc);
+  --pulse-hero: linear-gradient(var(--studio-deep), var(--studio-deep));
+  --pulse-pos: var(--studio-positive);
+  --pulse-pos-bg: #20372e;
+  --pulse-warn: var(--studio-warning);
+  --pulse-warn-bg: var(--studio-warning-bg);
+  --chart-1: var(--studio-purple);
+}
+
+.workspace {
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  background: var(--studio-canvas);
+  color: var(--studio-ink);
+}
+
+.sidebar {
+  width: var(--workspace-sidebar-width);
+  border-right-color: var(--studio-line);
+  background: var(--studio-surface);
+  color: var(--studio-ink);
+}
+
+.sidebarLogo {
+  height: 70px;
+  padding: 0 20px;
+}
+
+.sidebarLogo > div {
+  transform: scale(1.23);
+  transform-origin: left center;
+}
+
+.sidebar[data-collapsed] .sidebarLogo > div { transform: none; }
+.sidebarLogo :global(.animate-tempo-glow) { animation: none; }
+
+.workspaceControl { margin: 0 12px 4px; min-width: 0; }
+.workspaceControl > div, .workspaceControl button { width: 100%; }
+.workspaceControl button {
+  min-height: 36px;
+  gap: 6px;
+  padding: 7px 9px;
+  border-color: var(--studio-boundary);
+  background: var(--studio-canvas);
+  font-size: 12px;
+  line-height: 17px;
+}
+.workspaceControl:has(button) > .workspaceName { display: none; }
+.workspaceName {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px 9px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  color: var(--studio-ink);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceModes {
+  gap: 2px;
+  padding: 2px;
+  margin: 0 12px 4px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--studio-canvas);
+}
+.workspaceMode { min-height: 32px; padding: 5px 7px; border: 0; font-size: 12px; font-weight: 500; }
+.workspaceModeActive, .workspaceModeActive:hover { background: var(--studio-deep); color: var(--studio-on-deep); box-shadow: none; }
+.destinations { padding: 0 12px 12px; }
+.navGroup + .navGroup { margin-top: 4px; }
+.navItem {
+  min-height: 38px;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-block: 2px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--studio-ink);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.navItem > svg { width: 18px; height: 18px; color: var(--studio-muted); }
+.navItem:hover { color: var(--studio-ink); background: var(--muted); }
+.navItemActive, .navItemActive:hover { color: var(--studio-purple); background: var(--studio-soft); font-weight: 600; }
+.navItemActive > svg { color: var(--studio-purple); }
+.sidebarFooter { border-top: 0; padding: 10px 12px 12px; }
+.settingsLink { margin: 0; }
+.collapseButton { min-height: 34px; padding: 7px 10px; font-size: 12px; }
+
+.header {
+  height: 56px;
+  border-bottom: 0;
+  padding-inline: 16px;
+  background: var(--studio-surface);
+}
+.scopeIdentity { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.scopeName { max-width: 210px; overflow: hidden; color: var(--studio-ink); font-size: 12px; line-height: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.scopeDescription { margin-left: 28px; color: var(--studio-muted); font-size: 12px; line-height: 18px; }
+.headerActions { gap: 10px; }
+.themeToggle {
+  height: 44px !important;
+  padding-block: 13px !important;
+  border: 0;
+  background: transparent !important;
+}
+.themeToggle::before {
+  content: '';
+  position: absolute;
+  inset: 10px 0;
+  border: 1px solid var(--studio-line);
+  border-radius: 999px;
+  background: var(--studio-soft);
+}
+.themeToggle > span { position: relative; }
+.headerActions :global([aria-label="Account menu"]) { min-height: 36px; padding-block: 2px; }
+.headerActions :global([aria-label="Account menu"] > span:first-child) { height: 28px; width: 28px; }
+.headerActions :global([aria-label="Account menu"] > span:nth-child(2)) { font-size: 12px; }
+
+.navItem:focus-visible, .workspaceMode:focus-visible, .collapseButton:focus-visible, .workspaceControl button:focus-visible {
+  outline: 2px solid var(--studio-purple);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1023px) {
+  .sidebar { width: 256px; }
+  .sidebarLogo { height: 70px; }
+  .scopeDescription { display: none; }
+  .mobileNavigation > div:last-child { width: 280px; }
+  .mobileNavigation .sidebar { width: 280px; }
+  .mobileNavigation .navItem, .mobileNavigation .workspaceMode, .mobileNavigation .workspaceControl button { min-height: 44px; }
+  .closeNavigation { display: grid; height: 44px; width: 44px; place-items: center; }
+}
+
+@media (max-width: 767px) {
+  :global(body):has(.workspace[data-dashboard-studio]) { --workspace-page-padding: 16px; --workspace-page-gap: 20px; }
+  .header { padding-inline: 12px; gap: 8px; }
+  .scopeIdentity { gap: 8px; }
+  .scopeName { max-width: 160px; font-size: 13px; }
+  .scopeIdentity > img, .scopeIdentity > span[aria-hidden] { display: none; }
+  .headerActions { gap: 6px; }
+  .menuButton { width: 44px; height: 44px; }
+  .headerActions :global([aria-label="Account menu"]) { min-height: 44px; }
+  .mobileLogo { display: none; }
+  .headerActions :global([aria-label="Account menu"] > span:nth-child(2)) { display: none; }
+}
+
+@media (pointer: coarse) {
+  .workspaceMode, .navItem, .collapseButton, .workspaceControl button { min-height: 44px; }
+  .headerActions :global([aria-label="Account menu"]) { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobileNavigation > div { transition: none; }
+  .sidebarLogo *, .sidebarLogo svg { animation: none !important; transition: none !important; }
+}

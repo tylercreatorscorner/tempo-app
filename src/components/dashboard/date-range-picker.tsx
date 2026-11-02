@@ -3,10 +3,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, ChevronDown, Check } from 'lucide-react';
+import { DropdownMenu } from 'radix-ui';
+import { format, parseISO } from 'date-fns';
 import { DATE_PRESETS, type DatePreset } from '@/lib/data/date-utils';
 import { CustomRangePopover } from './custom-range-popover';
 import { useNavigationPending } from '@/components/layout/navigation-pending';
 import { cn } from '@/lib/utils';
+import studioStyles from './date-range-picker.module.css';
 
 /**
  * Compact period control — a single rounded "chip" showing the active range
@@ -17,8 +20,12 @@ import { cn } from '@/lib/utils';
 export function DateRangePicker({
   defaultPreset = 'last7',
   staleThrough = null,
+  appearance = 'default',
+  displayRange,
 }: {
   defaultPreset?: DatePreset;
+  appearance?: 'default' | 'studio';
+  displayRange?: { start: string; end: string };
   /**
    * Set ONLY when ingest is behind, to the last date that has data. When it is,
    * rolling presets SHIFT to end there (see resolveDateRange), so the chip has
@@ -52,7 +59,7 @@ export function DateRangePicker({
 
   // Close the menu on outside click / Escape.
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen || appearance === 'studio') return;
     function onDown(e: MouseEvent) {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setMenuOpen(false);
     }
@@ -65,7 +72,7 @@ export function DateRangePicker({
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [menuOpen]);
+  }, [menuOpen, appearance]);
 
   function selectPreset(preset: DatePreset) {
     const params = new URLSearchParams(searchParams.toString());
@@ -132,6 +139,34 @@ export function DateRangePicker({
   const currentLabel = staleThrough && !isCustom
     ? `${baseLabel} · thru ${fmtCustom(staleThrough)}`
     : baseLabel;
+
+  if (appearance === 'studio') {
+    const periodLabel = baseLabel.replace(/\bDays\b/g, 'days').replace(/\bMonth\b/g, 'month');
+    const dates = displayRange ? `${format(parseISO(displayRange.start), 'MMM d')}–${format(parseISO(displayRange.end), 'MMM d')}` : null;
+    return <div ref={rootRef} className={studioStyles.root}>
+      <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenu.Trigger asChild>
+          <button type="button" disabled={isPending} className={studioStyles.trigger} aria-label={`Dashboard period: ${periodLabel}${dates ? `, ${dates}` : ''}`}>
+            <span>{isCustom ? dates ?? baseLabel : `${periodLabel}${dates ? ` · ${dates}` : ''}`}</span><ChevronDown size={14} aria-hidden="true" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content className={studioStyles.menu} align="start" sideOffset={6} collisionPadding={12} data-lenis-prevent>
+            <DropdownMenu.Label className={studioStyles.label}>Reporting period</DropdownMenu.Label>
+            <DropdownMenu.RadioGroup value={isCustom ? 'custom' : current} onValueChange={value => { if (value !== 'custom') selectPreset(value as DatePreset); }}>
+              {DATE_PRESETS.map(p => <DropdownMenu.RadioItem key={p.value} value={p.value} className={studioStyles.item}>
+                <span>{p.label.replace(/\bDays\b/g, 'days').replace(/\bMonth\b/g, 'month')}</span><DropdownMenu.ItemIndicator><Check size={15} aria-hidden="true" /></DropdownMenu.ItemIndicator>
+              </DropdownMenu.RadioItem>)}
+            </DropdownMenu.RadioGroup>
+            <DropdownMenu.Separator className={studioStyles.separator} />
+            <DropdownMenu.Item className={studioStyles.item} onSelect={() => setPickerOpen(true)}><span className={studioStyles.custom}><Calendar size={14} aria-hidden="true"/>Custom range</span>{isCustom && <Check size={15} aria-hidden="true"/>}</DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+      {isPending && <span className="sr-only" role="status">Updating dashboard period. Previous results remain visible until the new view is ready.</span>}
+      {pickerOpen && <CustomRangePopover initialStart={customStart} initialEnd={customEnd} onApply={applyCustom} onClose={() => setPickerOpen(false)} />}
+    </div>;
+  }
 
   return (
     <div className="relative" ref={rootRef}>

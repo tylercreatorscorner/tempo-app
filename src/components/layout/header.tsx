@@ -9,7 +9,13 @@ import { TempoLogo } from '@/components/ui/tempo-logo';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { createClient } from '@/lib/supabase/client';
 import { useBreadcrumbOverride } from '@/components/layout/breadcrumb-context';
+import { useGlobalBrand } from '@/hooks/use-global-brand';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
+import { AllBrandsPortrait } from '@/components/creators/all-brands-portrait';
+import { BrandPortrait } from '@/components/creators/brand-portrait';
+import { cn } from '@/lib/utils';
 import styles from './workspace-theme.module.css';
+import studioStyles from './dashboard-studio-shell.module.css';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -20,6 +26,7 @@ interface HeaderProps {
   /** Owner/admin (impersonation-aware) — gates the User Management menu entry. */
   isAdmin?: boolean;
   canInviteMembers?: boolean;
+  studio?: boolean;
 }
 
 // Every nav destination AND every SectionTabs sub-view. Keep in sync with
@@ -85,7 +92,17 @@ function labelFromPath(pathname: string): string {
   return seg.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher, isAdmin, canInviteMembers }: HeaderProps) {
+function DashboardScopeIdentity() {
+  const { brand, brandLabel, isFiltered, isPending } = useGlobalBrand();
+  const meta = useBrandMeta();
+  return <div className={studioStyles.scopeIdentity} aria-label="Current dashboard brand scope">
+    {isFiltered ? <BrandPortrait name={brandLabel} source={meta.logo(brand)} color={meta.color(brand)} size={24} /> : <AllBrandsPortrait size={24} />}
+    <strong className={studioStyles.scopeName}>{brandLabel}</strong>
+    <span className={studioStyles.scopeDescription}>{isPending ? 'Updating dashboard…' : 'Brand workspace'}</span>
+  </div>;
+}
+
+export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher, isAdmin, canInviteMembers, studio = false }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { label: overrideLabel } = useBreadcrumbOverride();
@@ -119,24 +136,24 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
     : '?';
 
   return (
-    <header className={styles.header}>
+    <header className={cn(styles.header, studio && studioStyles.header)}>
       {/* Left: mobile menu + breadcrumb */}
       <div className={styles.headerLead}>
         <button
           onClick={onMenuClick}
           type="button"
-          className={styles.menuButton}
+          className={cn(styles.menuButton, studio && studioStyles.menuButton)}
           aria-label="Open navigation menu"
         >
           <Menu className="h-5 w-5 text-muted-foreground" />
         </button>
 
-        <div className={styles.mobileLogo}>
+        <div className={cn(styles.mobileLogo, studio && studioStyles.mobileLogo)}>
           <TempoLogo size="sm" animated={false} />
         </div>
 
         {/* Breadcrumb */}
-        <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+        {studio ? <DashboardScopeIdentity /> : <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
           <span className={styles.tenantLabel} title={tenantName}>{tenantName ?? 'Tempo'}</span>
           <span className={styles.breadcrumbSeparator} aria-hidden="true">/</span>
           {isCreatorDetail && (
@@ -152,15 +169,15 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
             </>
           )}
           <span className={styles.pageLabel} title={pageLabel} aria-current="page">{pageLabel}</span>
-        </nav>
+        </nav>}
       </div>
 
       {/* Right: tenant switcher + action icons + avatar */}
-      <div className={styles.headerActions}>
-        {tenantSwitcher && <div className={styles.tenantSwitcher}>{tenantSwitcher}</div>}
+      <div className={cn(styles.headerActions, studio && studioStyles.headerActions)}>
+        {!studio && tenantSwitcher && <div className={styles.tenantSwitcher}>{tenantSwitcher}</div>}
 
         {/* Light / dark toggle */}
-        <ThemeToggle size="sm" />
+        <ThemeToggle size="sm" className={studio ? studioStyles.themeToggle : undefined} />
 
         {/* Divider */}
         <div className={styles.headerDivider} />
