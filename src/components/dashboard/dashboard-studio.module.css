@@ -35,7 +35,6 @@
 .skeletonCard { display:grid; gap:12px; padding:18px; border:1px solid var(--studio-line,var(--border)); border-radius:12px; background:var(--studio-surface,var(--card)); }
 .page :global([data-slot=card]) { border-radius:12px; border-color:var(--studio-line,var(--border)); box-shadow:none; }
 .page :global([data-slot=card-title]) { font-size:18px; font-weight:600; letter-spacing:-.3px; }
-.page :global([data-slot=card-header]) { padding:18px 18px 10px; }
 .page :global([data-slot=card-content]) { padding:0 18px 18px; }
 .reportLink:focus-visible,.jumpLinks a:focus-visible,.singleBrand a:focus-visible,.footnote a:focus-visible { outline:2px solid var(--studio-purple,var(--primary)); outline-offset:3px; }
 @media(min-width:1500px) { .metrics>div>p { font-size:28px; } }

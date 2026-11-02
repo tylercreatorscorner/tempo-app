@@ -143,7 +143,11 @@ export function DateRangePicker({
 
   if (appearance === 'studio') {
     const periodLabel = baseLabel.replace(/\bDays\b/g, 'days').replace(/\bMonth\b/g, 'month');
-    const dates = displayRange ? `${format(parseISO(displayRange.start), 'MMM d')}–${format(parseISO(displayRange.end), 'MMM d')}` : null;
+    const dates = displayRange
+      ? displayRange.start === displayRange.end
+        ? format(parseISO(displayRange.start), 'MMM d')
+        : `${format(parseISO(displayRange.start), 'MMM d')}–${format(parseISO(displayRange.end), displayRange.start.slice(0, 7) === displayRange.end.slice(0, 7) ? 'd' : 'MMM d')}`
+      : null;
     return <div ref={rootRef} className={studioStyles.root}>
       <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenu.Trigger asChild>
