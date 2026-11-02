@@ -8,7 +8,8 @@
 .table { min-width: 820px; }
 .columns, .row { display: grid; grid-template-columns: minmax(155px, 1.5fr) minmax(114px, 1.1fr) minmax(114px, 1.1fr) minmax(88px, .9fr) minmax(100px, 1fr) minmax(100px, .95fr) minmax(118px, 1.1fr); align-items: center; gap: 12px; }
 .columns { padding: 0 0 8px; min-height: 30px; color: var(--studio-muted, var(--muted-foreground)); font-size: 12px; font-weight: 500; }
-.headLabel { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-color: var(--studio-line, var(--border)); }
+.headLabel { min-height: 28px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-color: var(--studio-line, var(--border)); }
+.headLabel:focus-visible { outline: 2px solid var(--studio-purple, var(--primary)); outline-offset: 3px; }
 .row { min-height: 52px; padding: 7px 0; border-radius: 6px; font-size: 12px; }
 .row:hover { background: var(--studio-canvas, var(--muted)); }
 .row:focus-visible { outline: 2px solid var(--studio-purple, var(--primary)); outline-offset: -2px; }

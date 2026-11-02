@@ -51,6 +51,7 @@ export function DateRangePicker({
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const periodTriggerRef = useRef<HTMLButtonElement>(null);
 
   const current     = (searchParams.get('range') as DatePreset) || defaultPreset;
   const customStart = searchParams.get('start');
@@ -146,7 +147,7 @@ export function DateRangePicker({
     return <div ref={rootRef} className={studioStyles.root}>
       <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenu.Trigger asChild>
-          <button type="button" disabled={isPending} className={studioStyles.trigger} aria-label={`Dashboard period: ${periodLabel}${dates ? `, ${dates}` : ''}`}>
+          <button ref={periodTriggerRef} type="button" disabled={isPending} className={studioStyles.trigger} aria-label={`Dashboard period: ${periodLabel}${dates ? `, ${dates}` : ''}`}>
             <span>{isCustom ? dates ?? baseLabel : `${periodLabel}${dates ? ` · ${dates}` : ''}`}</span><ChevronDown size={14} aria-hidden="true" />
           </button>
         </DropdownMenu.Trigger>
@@ -164,7 +165,7 @@ export function DateRangePicker({
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
       {isPending && <span className="sr-only" role="status">Updating dashboard period. Previous results remain visible until the new view is ready.</span>}
-      {pickerOpen && <CustomRangePopover initialStart={customStart} initialEnd={customEnd} onApply={applyCustom} onClose={() => setPickerOpen(false)} />}
+      {pickerOpen && <CustomRangePopover initialStart={customStart} initialEnd={customEnd} onApply={applyCustom} onClose={() => setPickerOpen(false)} returnFocusRef={periodTriggerRef} />}
     </div>;
   }
 

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, type RefObject } from "react";
 import { Dialog } from "radix-ui";
 import { format, parseISO, isValid, subDays, startOfDay } from "date-fns";
 import { X } from "lucide-react";
@@ -12,6 +12,8 @@ interface Props {
   onApply: (start: string, end: string) => void;
   onClose: () => void;
   maxDate?: Date;
+  /** Stable trigger for callers that open this dialog from an unmounted menu. */
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 const parse = (value?: string | null) =>
   value && isValid(parseISO(value)) ? parseISO(value) : undefined;
@@ -21,6 +23,7 @@ export function CustomRangePopover({
   onApply,
   onClose,
   maxDate,
+  returnFocusRef,
 }: Props) {
   const returnFocus = useRef(
     typeof document === "undefined"
@@ -46,7 +49,7 @@ export function CustomRangePopover({
         <Dialog.Content
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            returnFocus.current?.focus();
+            (returnFocusRef?.current ?? returnFocus.current)?.focus();
           }}
           className={styles.popover}
           data-lenis-prevent

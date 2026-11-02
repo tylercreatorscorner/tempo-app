@@ -36,7 +36,7 @@ interface Props {
 }
 
 function HeadCell({ label, tip }: { label: string; tip: string }) {
-  return <InfoTooltip label={tip}><span className={styles.headLabel}>{label}</span></InfoTooltip>;
+  return <InfoTooltip label={tip}><button type="button" className={styles.headLabel}>{label}</button></InfoTooltip>;
 }
 
 function Delta({ value }: { value: number | undefined }) {
@@ -66,7 +66,7 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
     </CardHeader>
     <div className={styles.tableRegion} role="region" aria-label="Brand performance metrics" tabIndex={0}>
       <div className={styles.table}>
-        <div className={styles.columns} aria-hidden="true">
+        <div className={styles.columns}>
           <span>Brand</span>
           <HeadCell label="Total GMV / change" tip="Total affiliate GMV for this brand in the selected period. Changes require comparable coverage in both periods." />
           <HeadCell label="Managed / change" tip="GMV from your managed creators in the selected period, compared with the prior period of equal length." />
