@@ -9,6 +9,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { ChartLoading, LoadingStatus } from '@/components/ui/loading-status';
 import { monthlyPoints, seriesPoints, type MetricKey } from '@/lib/data/dashboard-series-model';
 import { loadSeriesRange, type SeriesResult } from './dashboard-series-loader';
+import { sparseCategoryLabel as sparseLabel } from './dashboard-chart-labels';
 import { formatCurrency } from '@/lib/utils/format';
 import { fmtCompact, fmtCompactCurrency } from '@/components/charts/format';
 import styles from './dashboard-charts.module.css';
@@ -84,11 +85,6 @@ export function DashboardSeriesProvider({ children, start, end, brand }: {
 
 const monthLabel = (month: string) => new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 const dayLabel = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : day;
-function sparseLabel(value: string, categories: string[], limit: number, format: (value: string) => string = value => value) {
-  const index = categories.indexOf(value);
-  if (categories.length <= limit) return format(value);
-  return Array.from({ length: limit }, (_, tick) => Math.round(tick * (categories.length - 1) / (limit - 1))).includes(index) ? format(value) : '';
-}
 function baseOptions(dark: boolean): ApexOptions {
   return {
     chart: { type: 'line', toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, background: 'transparent', fontFamily: 'inherit', foreColor: dark ? '#aaa9ae' : '#66666c', parentHeightOffset: 0 },
@@ -130,7 +126,7 @@ function DailyChart({ start, end, initial }: DashboardChartProps) {
   return <section className={`${styles.card} ${styles.daily}`} aria-label="Performance over time">
     <header className={styles.header}><h2>Performance over time</h2><ChoiceMenu compact label="Chart metric" value={metric} onChange={value => setMetric(value as ChartMetric)} options={metricOptions} triggerClassName={styles.control} /></header>
     <div className={styles.legend} aria-hidden="true"><span><i className={styles.totalLine} />{comparison ? 'Total GMV' : selected.label}</span>{comparison && <span><i className={styles.managedLine} />Managed GMV{!result ? (error ? ' unavailable' : ' loading') : ''}</span>}</div>
-    {pending && !hasInitial ? <div className={styles.loading}><ChartLoading label="Loading daily performance" /></div> : error && !hasInitial ? <RetryMessage retry={retry}>Daily metrics could not be loaded.</RetryMessage> : !hasInitial ? <p className={styles.empty}>No recorded daily data for these brands and dates. Missing records are not zero sales.</p> : <div className={styles.plot}><ApexChart type="line" height={204} options={options} series={series} /></div>}
+    {pending && !hasInitial ? <div className={styles.loading}><ChartLoading label="Loading daily performance" /></div> : error && !hasInitial ? <RetryMessage retry={retry}>Daily metrics could not be loaded.</RetryMessage> : !hasInitial ? <p className={styles.empty}>No recorded daily data for these brands and dates. Missing records are not zero sales.</p> : <div className={styles.plot} role="img" aria-label={`Daily ${comparison ? (result ? 'Total GMV and Managed GMV' : 'Total GMV') : selected.label} line chart. Exact values are available in the Daily values table below.`}><ApexChart type="line" height={204} options={options} series={series} /></div>}
     <div className={styles.caption}><span>{numeric ? 'Daily sales activity' : 'Daily sales'} · Selected period{comparison ? ' · Same dollar axis' : ''}</span><InfoTooltip label="Recorded daily totals for the selected brands and dates. A missing import is a gap, not zero sales. Managed metrics use the dashboard’s managed creator membership." /></div>
     {pending && hasInitial && <LoadingStatus label={result ? 'Updating daily performance' : 'Loading managed metrics'} detail={result ? 'Your last loaded selected-period chart remains visible.' : undefined} className={styles.inlineStatus} />}
     {error && hasInitial && <RetryMessage retry={retry}>{result ? 'The update failed. Your last loaded daily chart remains visible.' : 'Additional metrics are unavailable. Recorded total GMV remains visible.'}</RetryMessage>}
@@ -153,7 +149,7 @@ function MonthlyChart({ end }: DashboardChartProps) {
   return <section className={`${styles.card} ${styles.monthly}`} aria-label="Month-over-month performance">
     <header className={styles.header}><h2>Month over month</h2><ChoiceMenu compact label="History length" value={months} onChange={setMonths} options={[{ value: '6', label: '6 months' }, { value: '12', label: '12 months' }]} triggerClassName={styles.control} /></header>
     <div className={styles.legend} aria-hidden="true"><span><i className={styles.totalLine} />Total GMV</span><span><i className={styles.managedLine} />Managed GMV (left)</span><span><i className={styles.shareLine} />Managed share (right)</span></div>
-    {error && !result ? <RetryMessage retry={retry}>Monthly performance could not be loaded.</RetryMessage> : !result ? <div className={styles.loading}><ChartLoading label={total ? `Loading history · ${completed} of ${total} months` : 'Preparing monthly history'} /></div> : !points.some(point => point.total !== null) ? <p className={styles.empty}>No recorded monthly data for these brands. Missing records are not zero sales.</p> : <div className={styles.plot}><ApexChart type="line" height={224} options={options} series={[{ name: 'Total GMV', data: points.map(point => point.total) }, { name: 'Managed GMV', data: points.map(point => point.managed) }, { name: 'Managed share', data: points.map(point => point.share) }]} /></div>}
+    {error && !result ? <RetryMessage retry={retry}>Monthly performance could not be loaded.</RetryMessage> : !result ? <div className={styles.loading}><ChartLoading label={total ? `Loading history · ${completed} of ${total} months` : 'Preparing monthly history'} /></div> : !points.some(point => point.total !== null) ? <p className={styles.empty}>No recorded monthly data for these brands. Missing records are not zero sales.</p> : <div className={styles.plot} role="img" aria-label="Monthly Total GMV and Managed GMV line chart with Managed share on the right percentage axis. Exact values are available in the Monthly values table below."><ApexChart type="line" height={224} options={options} series={[{ name: 'Total GMV', data: points.map(point => point.total) }, { name: 'Managed GMV', data: points.map(point => point.managed) }, { name: 'Managed share', data: points.map(point => point.share) }]} /></div>}
     {pending && result && <LoadingStatus label={total ? `Updating monthly history · ${completed} of ${total} months` : 'Updating monthly history'} detail={`Showing the previous history from ${monthLabel(historyStart.slice(0, 7))} until the new data is ready.`} className={styles.inlineStatus} />}
     {error && result && <RetryMessage retry={retry}>The history update failed. Showing the last successfully loaded history.</RetryMessage>}
     <div className={styles.caption}><span>{monthLabel(historyStart.slice(0, 7))}–{monthLabel(end.slice(0, 7))} · * Partial month or incomplete coverage · Through {end}</span><InfoTooltip label="GMV uses the left dollar axis. Managed share uses the right percentage axis and equals managed GMV divided by total GMV for each month. Missing daily records mark the month partial." /></div>

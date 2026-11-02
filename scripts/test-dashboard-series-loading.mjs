@@ -53,3 +53,21 @@ const aborted = new AbortController();
 aborted.abort();
 await assert.rejects(model.loadSeriesRange({ ...args, cache: new Map(), signal: aborted.signal }));
 console.log('PASS dashboard loading: short selected range, calendar month coverage, bounded concurrency, ordered merge, scoped request, successful-window reuse, retry and abort');
+
+const labels = {};
+runInNewContext(ts.transpileModule(readFileSync('src/components/dashboard/dashboard-chart-labels.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { exports: labels });
+const days = ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31'];
+const dayFormat = value => `Oct ${Number(value.slice(-2))}`;
+for (const limit of [3, 5]) {
+  const fromRaw = days.map(value => labels.sparseCategoryLabel(value, days, limit, dayFormat));
+  const fromApexPositions = days.map((_, i) => labels.sparseCategoryLabel(String(i + 1), days, limit, dayFormat));
+  const fromFormatted = days.map(value => labels.sparseCategoryLabel(dayFormat(value), days, limit, dayFormat));
+  assert.deepEqual(fromRaw, fromApexPositions, 'Responsive numeric ticks must match original categories');
+  assert.deepEqual(fromRaw, fromFormatted, 'Rerendered formatted labels must retain the same ticks');
+  assert.equal(fromRaw.filter(Boolean).length, limit);
+}
+const months = Array.from({ length: 12 }, (_, i) => `Month ${i + 1}`);
+assert.equal(months.map((_, i) => labels.sparseCategoryLabel(String(i + 1), months, 3)).filter(Boolean).length, 3);
+console.log('PASS chart axis labels: desktop, initial mobile, responsive numeric category ticks, formatted rerenders and 12-month history');

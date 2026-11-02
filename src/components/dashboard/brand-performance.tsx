@@ -73,7 +73,7 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
           <HeadCell label="Managed share" tip="Managed creator GMV divided by this brand's total affiliate GMV." />
           <span>{sparkLabel}</span>
           <HeadCell label="Videos published" tip="Managed creators' publications within the selected dates. Recorded counts remain labeled when coverage is incomplete." />
-          <HeadCell label="Creator commitments" tip="Current monthly creator retainer commitments. These are not historical payments or actual spend in the selected dates." />
+          <HeadCell label="Creator commitments" tip="Current monthly creator retainer commitments, with the trailing-30-day managed GMV-to-fee multiple. These are not historical payments, selected-period spend, or profit ROI." />
         </div>
         {rows.map(b => {
           const name = brandLabel(reg, b.slug);
@@ -104,7 +104,7 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
             <span className={styles.result}>
               <span className={styles.mobileLabel}>Creator commitments</span>
               <strong>{b.retainer != null && b.retainer > 0 ? formatCurrency(b.retainer) : '—'}</strong>
-              {b.roi != null && b.roi > 0 && <small>{b.roi.toFixed(1)}× GMV / fee</small>}
+              {b.roi != null && b.roi > 0 && <small>{b.roi.toFixed(1)}× 30d GMV / fee</small>}
             </span>
           </Link>;
         })}
