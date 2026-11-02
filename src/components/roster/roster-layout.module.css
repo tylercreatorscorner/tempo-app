@@ -28,6 +28,7 @@
 .filterGroup { display:flex; flex-direction:column; align-items:stretch; gap:7px; margin:0 0 14px; min-width:0; font-size:12px; font-weight:500; }
 .filterGroup > button,.filterGroup > div > button { width:100%; }
 .filterGroup > span,.filterGroup > label { color:var(--studio-muted,var(--muted-foreground)); font-size:11px; line-height:18px; }
+.filterGroup:has(> span:only-child) { display:none; }
 .filterFooter { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid var(--studio-line,var(--border)); }
 .resultBar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-top:-2px; color:var(--studio-muted,var(--muted-foreground)); font-size:12px; line-height:19px; }
 .resultBar strong { color:var(--studio-ink,var(--foreground)); font-weight:600; }
@@ -136,7 +137,8 @@
   .search input { height:44px; min-height:44px; font-size:16px; }
   .resultBar { align-items:flex-start; gap:8px; font-size:11px; }
   .sortControl { gap:4px; }
-  .sortControl > span { display:none; }
+  .sortControl { max-width:195px; min-height:44px; }
+  .sortControl > span { font-size:11px; }
   .sortControl button { min-height:44px; }
   .tableCard { border:0; border-radius:0; background:transparent; overflow:visible; }
   .tableScroll { overflow:visible; }

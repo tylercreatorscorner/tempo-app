@@ -91,7 +91,7 @@ export function StudioRosterTable(props: Props) {
                 <span><strong>{name(c)}</strong><small>{c.handles?.[0] || c.account_1 ? `@${c.handles?.[0] || c.account_1}` : 'Handle not linked'}{(c.handles?.length ?? 0) > 1 ? ` +${c.handles.length - 1}` : ''}</small>{!c.is_managed && <small>Unmanaged</small>}</span>
               </button></td>
               {showBrand && <td data-label="Brand">{c.grouped ? `${c.brands?.length ?? 0} brands` : c.brand ? <BrandIdentity brand={c.brand} label={props.label(c.brand)} /> : 'Unassigned'}</td>}
-              <td data-label="Tags" onClick={e => e.stopPropagation()}><RosterRowTags id={c.id} brand={c.brand} tags={c.creator_tags ?? []} isManaged={c.is_managed && !c.grouped} onEditRequest={props.onEditTags} /></td>
+              <td data-label="Tags" onClick={e => e.stopPropagation()}>{c.grouped ? <span>By brand</span> : <RosterRowTags id={c.id} brand={c.brand} tags={c.creator_tags ?? []} isManaged={c.is_managed} onEditRequest={props.onEditTags} />}</td>
               <td data-label="GMV" className={styles.result}><strong>{formatCurrency(c.gmv_period)}</strong><Delta value={c.gmv_delta} /></td>
               <td data-label="Published"><strong className={styles.published}>{c.posts_period.toLocaleString('en-US')}</strong><span className={styles.mobileOnly}> videos in selected dates</span></td>
               <td data-label="Monthly agreement" className={styles.result}><RosterAgreementCell creator={c} pending={props.studioLoading} /></td>
@@ -111,7 +111,7 @@ export function StudioRosterTable(props: Props) {
         </tbody>
       </table>
     </div>
-    <footer className={styles.pagination}><p>{props.total.toLocaleString('en-US')} creators · Page {props.page} of {props.pages}</p><div>
+    <footer className={styles.pagination}><p>{props.loading && !props.rows.length ? 'Loading creator count…' : `${props.total.toLocaleString('en-US')} ${props.total === 1 ? 'creator' : 'creators'} · Page ${props.page} of ${props.pages}`}</p><div>
       <button type="button" disabled={props.loading || props.page === 1} onClick={() => props.onPage(props.page - 1)} aria-label="Previous page"><ChevronLeft size={14} /><span>Previous</span></button>
       <button type="button" disabled={props.loading || props.page >= props.pages} onClick={() => props.onPage(props.page + 1)} aria-label="Next page"><span>Next</span><ChevronRight size={14} /></button>
     </div></footer>

@@ -111,7 +111,7 @@ function CreatorPanel({
 
   const { brands: brandOptions } = useBrandList();
   const brandMeta = useBrandMeta();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState('');
   const [removing, setRemoving] = useState(false);
@@ -855,6 +855,7 @@ function RosterContent() {
   // as a full reference when switched to All or Unmanaged.
   type View = 'managed' | 'all' | 'unmanaged';
   const [view, setView] = useState<View>('managed');
+  const segmentBrandReset = useRef<string | null>(null);
   const [creatorView,setCreatorView]=useState<'creators'|'top'|'elite'>('creators');
   const [productFilter, setProductFilter] = useState('');
   const [groupFilter,setGroupFilter]=useState<{brand:string;tags:string[];mode:'any'|'all'}>({brand:'',tags:[],mode:'any'});
@@ -1088,7 +1089,7 @@ function RosterContent() {
       const stamp = new Date().toISOString().split('T')[0];
       const fname = `creators${brand && brand !== 'all' ? `_${brand}` : ''}_${stamp}`;
       if (format === 'csv') downloadCsv(`${fname}.csv`, rows);
-      else void downloadXlsx(`${fname}.xlsx`, [{ name: 'Creators', rows }]);
+      else await downloadXlsx(`${fname}.xlsx`, [{ name: 'Creators', rows }]);
     } catch (err) {
       console.error('Export failed:', err);
       setExportError('Could not export the roster. Please try again.');
@@ -1100,7 +1101,10 @@ function RosterContent() {
   // Reset to page 1 when scope/sort/period change.
   useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, preset, customStart, customEnd, productFilter]);
   // Clear search + product filter + reset view scope when the brand changes.
-  useEffect(() => { setSearchInput(''); setView('managed'); setProductFilter(''); }, [brand]);
+  useEffect(() => {
+    if (segmentBrandReset.current === brand) { segmentBrandReset.current = null; return; }
+    setSearchInput(''); setView('managed'); setProductFilter('');
+  }, [brand]);
   // Drop any multi-select when the scope changes (selection only applies to the
   // unmanaged candidates currently in view).
   useEffect(() => { setSelected(new Map()); }, [brand, view]);
@@ -1132,7 +1136,10 @@ function RosterContent() {
   // current filters for saving. Threshold filters (min/max GMV, min posts) live
   // in segFilters (there's no visible control for them) and surface as a chip.
   const applySegment = (c: SegmentFilterCriteria, name: string) => {
-    setBrand(c.brand && c.brand !== 'all' ? c.brand : 'all');
+    const nextBrand = c.brand && c.brand !== 'all' ? c.brand : 'all';
+    if (nextBrand !== brand) segmentBrandReset.current = nextBrand;
+    setBrand(nextBrand);
+    setHealth(c.health ?? 'all');
     if (c.view) setView(c.view);
     setProductFilter(c.product ?? '');
     setSearchInput(c.search ?? '');
@@ -1146,7 +1153,7 @@ function RosterContent() {
     setSegFilters({ name, min_gmv: c.min_gmv ?? null, max_gmv: c.max_gmv ?? null, min_posts: c.min_posts ?? null });
   };
   const currentCriteria: SegmentFilterCriteria = {
-    brand, view, product: productFilter || null, search: search || null,
+    brand, view, product: productFilter || null, search: search || null, health,
     range: preset, start: customStart, end: customEnd,
     min_gmv: segFilters?.min_gmv ?? null,
     max_gmv: segFilters?.max_gmv ?? null,

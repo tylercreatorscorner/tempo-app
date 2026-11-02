@@ -128,7 +128,7 @@ export function CreatorOverviewDrawer({ creator, periodLabel, start, end, range,
               <strong>{agreementStatus ?? terms}</strong>
               {agreementStatus && <p>Recorded terms: {terms}</p>}
               {agreementDates && <p>Agreement period: {agreementDates}</p>}
-              {!agreementDates && creator.joined && <p>Joined roster: {date(creator.joined)}</p>}
+              {!agreementDates && date(creator.joined?.slice(0, 10)) && <p>Joined roster: {date(creator.joined?.slice(0, 10))}</p>}
               <p>{historical ? 'Saved agreement terms. Prior versions remain in the agreement history.' : 'Unverified current terms. These do not confirm an earlier month’s agreement.'}</p>
             </section>
             <section className={styles.delivery} aria-label="Monthly publishing and delivery">
