@@ -83,7 +83,7 @@ export function RosterTagFilter({ selected, mode, onChange }: {
       </button>
     </Popover.Trigger>
     <Popover.Portal>
-      <Popover.Content align="start" sideOffset={6} collisionPadding={12} className={styles.filterPopover} data-lenis-prevent>
+      <Popover.Content aria-label="Creator tags" align="start" sideOffset={6} collisionPadding={12} className={styles.filterPopover} data-lenis-prevent>
         <div className={styles.popoverHeading}><strong>Creator tags</strong>{selected.length > 0 && <button type="button" onClick={() => onChange([], mode)}>Clear</button>}</div>
         {tags.length > 6 && <SearchInput className={styles.search} aria-label="Find a creator tag" placeholder="Find a tag" value={search} onChange={event => setSearch(event.target.value)} onClear={() => setSearch('')} />}
         {loading ? <p className={styles.hint} role="status">Loading tags…</p> : error ? <div className={styles.error} role="alert"><span>{error}</span><Button size="sm" variant="ghost" onClick={reload}>Retry</Button></div> : <>

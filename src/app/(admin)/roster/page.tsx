@@ -912,6 +912,7 @@ function RosterContent() {
   const [studioLoading, setStudioLoading] = useState(false);
   const [studioError, setStudioError] = useState(false);
   const studioCache = useRef(new Map<string,{at:number;rows:Record<string,RosterStudioData>}>());
+  const workspaceGeneration = useRef(0);
   // Expanded creator groups (All-Brands collapse). Keyed by the parent row id.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpand = (id: string) => setExpanded((prev) => {
@@ -1041,6 +1042,23 @@ function RosterContent() {
   useEffect(() => {
     void fetchRoster(true);
     return () => rosterRequest.current?.cancel();
+  }, [fetchRoster]);
+
+  useEffect(() => {
+    const reloadScope = () => {
+      workspaceGeneration.current += 1;
+      rosterRequest.current?.cancel();
+      studioCache.current.clear();
+      loadedSummaryKey.current = '';
+      setStudioRows({}); setResolvedPeriod(null); setLoadedCoreScope('');
+      setRoster([]); setSummary(null); setHasLoadedOnce(false); setLoadError(false);
+      setTotal(0); setTotalGmvPeriod(0);
+      setSelectedCreator(null); setEditingCreator(null); setTagIds([]);
+      setManagedSelection(new Set()); setSelected(new Map());
+      void fetchRoster();
+    };
+    window.addEventListener('workspace-context-changed', reloadScope);
+    return () => window.removeEventListener('workspace-context-changed', reloadScope);
   }, [fetchRoster]);
 
   // Export the current view (all matching rows, not just the page) to CSV/Excel.
@@ -1180,6 +1198,7 @@ function RosterContent() {
     const cached=studioCache.current.get(studioKey);
     if(cached && Date.now()-cached.at<60_000){setStudioRows(cached.rows);setStudioLoading(false);setStudioError(false);return;}
     const controller=new AbortController();
+    const generation=workspaceGeneration.current;
     setStudioRows({});setStudioLoading(true);setStudioError(false);
     void (async()=>{
       try {
@@ -1191,7 +1210,7 @@ function RosterContent() {
           const data=await response.json();
           for(const row of data.rows ?? [])result[row.id]=row.studio;
         }
-        if(controller.signal.aborted)return;
+        if(controller.signal.aborted || generation!==workspaceGeneration.current)return;
         if(studioCache.current.size>=8)studioCache.current.delete(studioCache.current.keys().next().value!);
         studioCache.current.set(studioKey,{at:Date.now(),rows:result});setStudioRows(result);
       }catch(error){if(!controller.signal.aborted){console.error('Roster details:',error);setStudioError(true);}}
