@@ -35,7 +35,7 @@
 .headlineSlot { display:flex; flex-direction:column; gap:12px; }
 .heading { margin:0; color:var(--studio-ink,var(--foreground)); font-size:30px; line-height:39px; font-weight:600; letter-spacing:-.65px; }
 .heading h1,.heading h2 { margin:0; font:inherit; }
-.freshness { margin:0; color:var(--studio-muted,var(--muted-foreground)); font-size:12px; line-height:18px; }
+.freshness { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:0; color:var(--studio-muted,var(--muted-foreground)); font-size:12px; line-height:18px; font-weight:400; letter-spacing:normal; }
 .metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:0; }
 .metrics > div { display:flex; flex-direction:column; gap:3px; min-width:0; min-height:94px; padding:12px; border-radius:12px; background:var(--studio-surface,var(--card)); }
 .metrics dt { color:var(--studio-muted,var(--muted-foreground)); font-size:12px; line-height:17px; font-weight:500; }
@@ -135,7 +135,7 @@
   .sectionStage { grid-column:2; grid-row:4; }
 }
 @container studio-profile (max-width:760px) {
-  .recordBar { align-items:stretch; margin-bottom:14px; }.back { min-height:44px; }.scope { flex:1; }.scope > * { flex:1; }
+  .recordBar { flex-direction:column; align-items:stretch; gap:4px; margin-bottom:14px; }.back { min-height:44px; }.scope { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); width:100%; }.scope > * { width:100%; min-width:0; }
   .workspace { display:flex; flex-direction:column; gap:14px; }.identitySlot { position:static; order:1; width:100%; }.workbench,.asideSlot { display:contents; }.headlineSlot { order:2; width:100%; gap:12px; }.asideSlot > * { order:3; width:100%; }.sectionAnchor { order:4; }.tabs { order:4; width:100%; margin:0; gap:18px; top:56px; }.sectionStage { order:5; width:100%; }
   .identity { padding:16px; gap:10px; }.identityHeader { flex-direction:row; gap:12px; align-items:center; }.portrait { width:52px; height:52px; aspect-ratio:1; border-radius:50%; font-size:20px; }.name h1,.name h2 { font-size:22px; line-height:29px; letter-spacing:-.4px; }.name > p,.identityHeader > div > p { margin-top:3px; font-size:13px; line-height:19px; }.handles { font-size:13px; line-height:19px; }.tags { gap:6px; }.tag { font-size:12px; min-height:28px; }.identityDetails { gap:7px; }.identityDetails p,.connections p,.connections a,.accountList,.owner { font-size:13px; line-height:19px; }.identityActions { flex-direction:row; flex-wrap:wrap; }.identityActions > button,.identityActions > a { flex:1; width:auto; min-height:44px; font-size:13px; }
   .heading { font-size:25px; line-height:35px; letter-spacing:-.5px; }.freshness { font-size:12px; line-height:19px; }.metrics { gap:10px; }.metrics > div { min-height:94px; padding:13px 12px; border:1px solid var(--studio-line,var(--border)); }.metrics dt { font-size:12px; line-height:18px; }.metrics dd { font-size:25px; line-height:34px; }.metrics p { font-size:11px; line-height:18px; }

@@ -96,6 +96,7 @@ export function CreatorProfileWorkspace({ identity, headline, aside, sections, d
             aria-selected={current === section.id} tabIndex={current === section.id ? 0 : -1}
             onClick={() => activate(section.id)}
             onKeyDown={event => {
+              if (event.altKey || event.ctrlKey || event.metaKey) return;
               const nextIndex = event.key === 'ArrowRight' ? (index + 1) % sections.length
                 : event.key === 'ArrowLeft' ? (index - 1 + sections.length) % sections.length
                   : event.key === 'Home' ? 0 : event.key === 'End' ? sections.length - 1 : null;
