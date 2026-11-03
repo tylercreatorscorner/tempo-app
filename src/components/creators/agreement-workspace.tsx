@@ -16,17 +16,17 @@ function commandFor(revision:AgreementFormRevision):AgreementCommand {
  if(revision.action==='end') return {action:'end',finalDate:revision.effective,reason:revision.reason};
  return {action:'change',effective:revision.effective,scope:revision.scope==='future'?'future':'period',terms,reason:revision.reason};
 }
-async function fetchAgreements(creatorId:string,brandId:string,signal?:AbortSignal):Promise<SavedAgreement[]> {
- const response=await fetch(`/api/creator-agreements?${new URLSearchParams({creatorId,brandId})}`,{signal,cache:'no-store'});
+async function fetchAgreements(creatorId:string,brandId:string,signal?:AbortSignal,readOnlyLoad=false):Promise<SavedAgreement[]> {
+ const response=await fetch(`/api/creator-agreements?${new URLSearchParams({creatorId,brandId,...(readOnlyLoad?{read_only:'1'}:{})})}`,{signal,cache:'no-store'});
  const result=await response.json();
  if(!response.ok) throw Error(result.error || 'Agreements unavailable');
  return result.agreements;
 }
-export function AgreementWorkspace({creatorId,brands,today,canWrite,canSave}:{creatorId:string;brands:Brand[];today:string;canWrite:boolean;canSave:boolean}) {
+export function AgreementWorkspace({creatorId,brands,today,canWrite,canSave,readOnlyLoad=false,initialMonth=today.slice(0,7)}:{creatorId:string;brands:Brand[];today:string;canWrite:boolean;canSave:boolean;readOnlyLoad?:boolean;initialMonth?:string}) {
  const [brand,setBrand]=useState(brands[0]?.value ?? '');
- return <div className={styles.root}><div className={styles.heading}><div><span className={styles.kicker}>Agreement history</span><h2>Terms that stay with their period</h2></div><ChoiceMenu label="Agreement brand" value={brand} options={brands} onChange={setBrand}/></div>{brand && <BrandAgreements key={brand} creatorId={creatorId} brand={brands.find(b=>b.value===brand)!} today={today} canWrite={canWrite} canSave={canSave}/>}</div>;
+ return <div className={styles.root}><div className={styles.heading}><div><span className={styles.kicker}>Agreement history</span><h2>Terms that stay with their period</h2></div><ChoiceMenu label="Agreement brand" value={brand} options={brands} onChange={setBrand}/></div>{brand && <BrandAgreements key={`${brand}:${initialMonth}`} creatorId={creatorId} brand={brands.find(b=>b.value===brand)!} today={today} canWrite={canWrite} canSave={canSave} readOnlyLoad={readOnlyLoad} initialMonth={initialMonth}/>}</div>;
 }
-function BrandAgreements({creatorId,brand,today,canWrite,canSave}:{creatorId:string;brand:Brand;today:string;canWrite:boolean;canSave:boolean}) {
+function BrandAgreements({creatorId,brand,today,canWrite,canSave,readOnlyLoad,initialMonth}:{creatorId:string;brand:Brand;today:string;canWrite:boolean;canSave:boolean;readOnlyLoad:boolean;initialMonth:string}) {
  const [rows,setRows]=useState<SavedAgreement[]|null>(null);
  const [error,setError]=useState('');
  const [selected,setSelected]=useState('');
@@ -36,12 +36,16 @@ function BrandAgreements({creatorId,brand,today,canWrite,canSave}:{creatorId:str
  const [renewBusy,setRenewBusy]=useState(false);
  const [renewError,setRenewError]=useState('');
  const request=useRef<{fingerprint:string;id:string;requestId:string}|null>(null);
- async function load() {const next=await fetchAgreements(creatorId,brand.value);setRows(next);setError('');}
+ async function load() {const next=await fetchAgreements(creatorId,brand.value,undefined,readOnlyLoad);setRows(next);setError('');}
  useEffect(()=>{const controller=new AbortController();
- void fetchAgreements(creatorId,brand.value,controller.signal).then(next=>{if(!controller.signal.aborted){setRows(next);setError('');}}).catch(error=>{if(!controller.signal.aborted)setError(error instanceof Error?error.message:'Unable to load agreements');});
- return()=>controller.abort();},[creatorId,brand.value]);
- const row=rows?.find(row=>row.id===selected) ?? (selected==='new'?undefined:rows?.[0]);
- const period=row?.state.periods.find(p=>p.start===periodStart) ?? row?.state.periods.at(-1);
+ void fetchAgreements(creatorId,brand.value,controller.signal,readOnlyLoad).then(next=>{if(!controller.signal.aborted){setRows(next);setError('');}}).catch(error=>{if(!controller.signal.aborted)setError(error instanceof Error?error.message:'Unable to load agreements');});
+ return()=>controller.abort();},[creatorId,brand.value,readOnlyLoad]);
+ const monthStart=/^\d{4}-(0[1-9]|1[0-2])$/.test(initialMonth)?`${initialMonth}-01`:today.slice(0,7)+'-01';
+ const monthEnd=new Date(Date.UTC(Number(monthStart.slice(0,4)),Number(monthStart.slice(5,7)),0)).toISOString().slice(0,10);
+ const overlapsMonth=(period:SavedAgreement['state']['periods'][number])=>period.start<=monthEnd && period.through>=monthStart;
+ const preferredRow=rows?.find(row=>row.state.periods.some(overlapsMonth));
+ const row=rows?.find(row=>row.id===selected) ?? (selected==='new'?undefined:preferredRow ?? rows?.[0]);
+ const period=row?.state.periods.find(p=>p.start===periodStart) ?? row?.state.periods.toReversed().find(overlapsMonth) ?? row?.state.periods.at(-1);
  const revision=period?.revisions.at(-1);
  const currentTerms=revision?.segments.at(-1)?.terms ?? row?.state.rules.at(-1)?.terms;
  const current:AgreementFormRevision|undefined=row && currentTerms?{terms:formTerms(currentTerms,row.state,brand.value),action:row.state.finalDate?'end':'change',effective:period?.start ?? row.state.start,scope:'future',reason:''}:undefined;
@@ -73,6 +77,7 @@ function BrandAgreements({creatorId,brand,today,canWrite,canSave}:{creatorId:str
     {rows.length>0 && <ChoiceMenu label="Agreement" value={row?.id ?? 'new'} options={[...rows.map(r=>({value:r.id,label:`${r.state.start} · ${r.state.kind}`})),...(canWrite?[{value:'new',label:'New agreement'}]:[])]} onChange={value=>{setSelected(value);setPeriodStart('');}}/>}
     {row && <ChoiceMenu label="Agreement period" value={period!.start} options={row.state.periods.map(p=>({value:p.start,label:`${p.start} to ${p.through}`})).reverse()} onChange={setPeriodStart}/>}
    </div>
+   {period && !overlapsMonth(period) && <p className={styles.review}>No saved period overlaps {initialMonth}. Showing {period.start} to {period.through}; choose another agreement or period to review its history.</p>}
    {canRenew && <div className={styles.review}><strong>{renewReview?'Confirm renewal':'Awaiting renewal'}</strong><p>{nextPeriod} starts the next period at ${(nextTerms.feeCents/100).toLocaleString()} for {nextTerms.requiredPosts} posts. Earlier periods stay unchanged. This does not approve payment.</p><button className={styles.primary} disabled={renewBusy || (renewReview && !canSave)} onClick={()=>void renew()}>{renewBusy?'Checking...':renewReview?'Confirm renewal':'Review renewal'}</button>{renewReview && <button disabled={renewBusy} onClick={()=>setRenewReview(false)}>Cancel</button>}{renewError && <p role="alert">{renewError}</p>}</div>}
    {!rows.length && <p className={styles.review}>No verified agreements recorded yet. Current roster terms have not been copied into historical periods.</p>}
    <AgreementPreview key={`${row?.id ?? 'new'}-${row?.version ?? 0}-${period?.start ?? ''}-${generation}`} brands={[brand]} today={today} integration={{current,renewalTerms:row && renewal?formTerms(renewal,row.state,brand.value):undefined,periodStart:period?.start,periodEnd:period?.through,readOnly:!canWrite,canSave,ended:Boolean(row?.state.finalDate),onReview:form=>submit(form,true),onSave:form=>submit(form,false)}}/>

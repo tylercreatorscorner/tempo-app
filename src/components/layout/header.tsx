@@ -153,7 +153,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
         </div>
 
         {/* Breadcrumb */}
-        {studio ? <StudioScopeIdentity pendingLabel={pathname === '/roster' ? 'creators' : 'dashboard'} /> : <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+        {studio ? <StudioScopeIdentity pendingLabel={pathname === '/roster' ? 'creators' : pathname.startsWith('/creators/') ? 'creator profile' : 'dashboard'} /> : <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
           <span className={styles.tenantLabel} title={tenantName}>{tenantName ?? 'Tempo'}</span>
           <span className={styles.breadcrumbSeparator} aria-hidden="true">/</span>
           {isCreatorDetail && (

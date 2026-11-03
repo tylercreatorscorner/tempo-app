@@ -61,7 +61,7 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
     <ChoiceMenu compact={compact} label={label} value={selectedBrand ?? '__all'} disabled={appearance === 'studio' ? navigation.isPending : pending}
       options={[{value:'__all',label:'All Brands',icon:<AllBrandsPortrait/>,description:`${brands.length} brand relationships`}, ...brands.map(brand => ({value:brand,label:brandMeta.label(brand),icon:<BrandPortrait name={brandMeta.label(brand)} source={brandMeta.logo(brand)} color={brandMeta.color(brand)} />}))]}
       onChange={value => (appearance === 'studio' ? navigation.startNav : startTransition)(()=>router.push(brandHref(value === '__all' ? null : value),{scroll:false}))} />
-    {appearance === 'studio' && navigation.isPending && <span className="sr-only" role="status">Updating dashboard. Previous brand data remains visible until the new view is ready.</span>}
+    {appearance === 'studio' && navigation.isPending && <span className="sr-only" role="status">Updating brand view. Previous results remain visible until the new view is ready.</span>}
     {appearance !== 'studio' && pending && <LoadingStatus label="Switching brand" className="mt-2" />}
   </div>;
   return (

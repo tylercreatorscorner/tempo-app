@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   try {
     const scope = await getWorkspaceScope();
     if (!scope) return unavailable(401);
-    if (!can(scope, 'dashboard', 'read')) return unavailable(403);
+    if (!can(scope, 'dashboard', 'read') && !can(scope, 'roster', 'read')) return unavailable(403);
     if (scope.brandScope.kind === 'scoped'
       && !scope.brandScope.brandIds.length && !scope.brandScope.brandSlugs.length) return unavailable(403);
     const input = new URL(request.url).searchParams.get('url') ?? '';

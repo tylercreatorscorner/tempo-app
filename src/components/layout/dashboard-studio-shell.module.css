@@ -1,4 +1,4 @@
-/* The selected Studio direction is limited to the reviewed /dashboard and /roster.
+/* The selected Studio direction is limited to reviewed dashboard, roster and creator profiles.
    Body-scoped tokens also reach Radix portals without changing other routes. */
 :global(body):has(.workspace[data-dashboard-studio]) {
   --studio-canvas: #f6f5f1;

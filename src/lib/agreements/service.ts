@@ -73,9 +73,9 @@ export async function agreementContext(
     throw new AgreementAccessError("Agreement access denied.");
   return { scope, tenant, admin, creatorId, brandId };
 }
-export async function readAgreements(creatorId: string, brandId: string) {
+export async function readAgreements(creatorId: string, brandId: string, options: { readOnly?: boolean } = {}) {
   const ctx = await agreementContext(creatorId, brandId);
-  await ensureAgreementPeriods({tenantId:ctx.tenant,brandIds:[brandId],creatorIds:[creatorId]});
+  if (!options.readOnly) await ensureAgreementPeriods({tenantId:ctx.tenant,brandIds:[brandId],creatorIds:[creatorId]});
   const { data, error } = await ctx.admin
     .from("creator_agreement_ledgers")
     .select("id,version,state,updated_at")
