@@ -39,10 +39,12 @@ const STATUSES = ['Active', 'Churned', 'Applied', 'Pending'];
 
 export function CreatorEditButton({ creator, className }: { creator: CreatorData; className?: string }) {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
 
   return (
     <>
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen(true)}
         className={`${styles.trigger} ${className ?? ''}`}
@@ -50,12 +52,12 @@ export function CreatorEditButton({ creator, className }: { creator: CreatorData
       >
         <Pencil className="h-4 w-4 text-muted-foreground" /> Edit profile
       </button>
-      {open && <EditPanel creator={creator} onClose={() => setOpen(false)} />}
+      {open && <EditPanel creator={creator} onClose={() => setOpen(false)} returnFocus={() => trigger.current?.focus({ preventScroll: true })} />}
     </>
   );
 }
 
-function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => void }) {
+function EditPanel({ creator, onClose, returnFocus }: { creator: CreatorData; onClose: () => void; returnFocus: () => void }) {
   const router = useRouter();
   const [section,setSection]=useState("details");
   const [customRole,setCustomRole]=useState(Boolean(creator.role && !ROLES.includes(creator.role)));
@@ -66,6 +68,8 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [discardPrompt, setDiscardPrompt] = useState(false);
+  const discardOpener = useRef<HTMLElement | null>(null);
+  const discardClosesEditor = useRef(false);
   const writePending = useRef(false);
   const [form, setForm] = useState({
     real_name: creator.real_name,
@@ -90,7 +94,11 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   const busy = saving || accountSaving;
   const requestClose = () => {
     if (writePending.current) return;
-    if (hasDraft) setDiscardPrompt(true);
+    if (hasDraft) {
+      discardOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      discardClosesEditor.current = false;
+      setDiscardPrompt(true);
+    }
     else onClose();
   };
 
@@ -193,7 +201,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   };
 
   return (
-    <Dialog.Root open onOpenChange={open => { if (!open) requestClose(); }}><Dialog.Portal><Dialog.Overlay className={styles.overlay} /><Dialog.Content className={styles.panel} data-lenis-prevent onEscapeKeyDown={event => { event.preventDefault(); requestClose(); }}>
+    <Dialog.Root open onOpenChange={open => { if (!open) requestClose(); }}><Dialog.Portal><Dialog.Overlay className={styles.overlay} /><Dialog.Content className={styles.panel} data-lenis-prevent onEscapeKeyDown={event => { event.preventDefault(); requestClose(); }} onCloseAutoFocus={event => { event.preventDefault(); returnFocus(); }}>
         <div className={styles.header}>
           <div><Dialog.Title className="text-xl font-semibold">Edit creator</Dialog.Title><Dialog.Description className="mt-1 text-xs text-muted-foreground">{creator.real_name} · Profile and brand relationship</Dialog.Description></div>
           <button type="button" onClick={requestClose} disabled={busy} aria-label="Close editor" className={styles.close}>
@@ -363,10 +371,10 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             {section==='details' && <button type="button" onClick={handleSave} disabled={saving || accountSaving} className={styles.primary}>{saving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Save changes</button>}
           </footer></Tabs.Root>
     </Dialog.Content></Dialog.Portal>
-      <AlertDialog.Root open={discardPrompt} onOpenChange={setDiscardPrompt}><AlertDialog.Portal><AlertDialog.Overlay className={styles.discardOverlay} /><AlertDialog.Content className={styles.discardDialog}>
+      <AlertDialog.Root open={discardPrompt} onOpenChange={setDiscardPrompt}><AlertDialog.Portal><AlertDialog.Overlay className={styles.discardOverlay} /><AlertDialog.Content className={styles.discardDialog} onCloseAutoFocus={event => { event.preventDefault(); if (!discardClosesEditor.current && discardOpener.current?.isConnected) discardOpener.current.focus({ preventScroll: true }); }}>
         <AlertDialog.Title>Discard unsaved changes?</AlertDialog.Title>
         <AlertDialog.Description>Your profile edits and any account handle you have not added will be discarded. Account changes already applied stay saved.</AlertDialog.Description>
-        <div className={styles.discardActions}><AlertDialog.Cancel className={styles.secondary}>Keep editing</AlertDialog.Cancel><AlertDialog.Action className={styles.primary} onClick={onClose}>Discard changes</AlertDialog.Action></div>
+        <div className={styles.discardActions}><AlertDialog.Cancel className={styles.secondary}>Keep editing</AlertDialog.Cancel><AlertDialog.Action className={styles.primary} onClick={() => { discardClosesEditor.current = true; onClose(); }}>Discard changes</AlertDialog.Action></div>
       </AlertDialog.Content></AlertDialog.Portal></AlertDialog.Root>
     </Dialog.Root>
   );

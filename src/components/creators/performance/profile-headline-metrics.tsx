@@ -16,7 +16,7 @@ export async function ProfileHeadlineMetrics({creatorId,start,end,brand,label,su
   const [current,previous,previousSummary]=await Promise.all([
     getCreatorPerformanceHistory(creatorId,start,end,brand),
     valid?getCreatorPerformanceHistory(creatorId,previousStart,previousEnd,brand):Promise.resolve(null),
-    valid?getCreatorSummary(creatorId,previousStart,previousEnd,brand):Promise.resolve(null),
+    valid&&appearance!=='studio'?getCreatorSummary(creatorId,previousStart,previousEnd,brand):Promise.resolve(null),
   ]);
   if(current.status==='denied') return null;
   const gmv=current.status==='ready'?total(current.points,'gmv'):null;

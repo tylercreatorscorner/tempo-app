@@ -40,6 +40,8 @@ export interface CreatorProfile {
   accounts: CreatorAccount[];
   brands: string[]; // all brands (performance + account registrations) — slugs
   brandsWithData: string[]; // only brands with actual performance data — slugs
+  /** Unavailable discovery is not evidence that an authorized brand has no sales. */
+  brandDiscoveryStatus?: 'ready' | 'unavailable';
 }
 
 export interface CreatorAccount {
@@ -171,17 +173,16 @@ interface PerfRow {
   commission: number;
 }
 
-async function perfByHandles(handles: string[], startDate: string, endDate: string): Promise<PerfRow[]> {
-  const lowered = Array.from(
-    new Set(handles.map((h) => h.replace(/^@/, '').trim().toLowerCase()).filter(Boolean)),
-  );
-  if (lowered.length === 0) return [];
+// Scalar request-local keys deduplicate the same current-period RPC used by
+// summary, account and brand panels without sharing results across viewers.
+const perfByHandleKey = cache(async (handlesKey: string, startDate: string, endDate: string): Promise<PerfRow[]> => {
+  const lowered = JSON.parse(handlesKey) as string[];
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('get_creator_perf_by_handles', {
     p_handles: lowered,
     p_start_date: startDate,
     p_end_date: endDate,
-  });
+  }).abortSignal(AbortSignal.timeout(8_000));
   if (error) throw error;
   return ((data as Record<string, unknown>[] | null) ?? []).map((r) => ({
     handle: String(r.handle),
@@ -191,6 +192,11 @@ async function perfByHandles(handles: string[], startDate: string, endDate: stri
     items_sold: Number(r.items_sold) || 0,
     commission: Number(r.commission) || 0,
   }));
+});
+
+async function perfByHandles(handles: string[], startDate: string, endDate: string): Promise<PerfRow[]> {
+  const lowered = [...new Set(handles.map(handle => handle.replace(/^@/, '').trim().toLowerCase()).filter(Boolean))].sort();
+  return lowered.length ? perfByHandleKey(JSON.stringify(lowered), startDate, endDate) : [];
 }
 
 /** Set of data-store slugs a brand filter resolves to (umbrella-expanded), or null for no filter. */
@@ -213,7 +219,8 @@ const getCreatorVideoHistory = cache(async (creatorId: string): Promise<CreatorV
   const handles = await getHandles(creatorId);
   if (!handles.length) return { brands: [], total_videos: 0, first_active_date: null };
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('get_creator_video_history', { p_handles: handles });
+  const { data, error } = await supabase.rpc('get_creator_video_history', { p_handles: handles })
+    .abortSignal(AbortSignal.timeout(5_000));
   if (error) throw error;
   if (!data) throw new Error('Creator history was unavailable.');
   return data as CreatorVideoHistory;
@@ -274,7 +281,7 @@ async function getManagedRowsForHandles(handles: string[]): Promise<ManagedRow[]
   const { data, error } = await supabase
     .from('managed_creators')
     .select(MANAGED_CREATOR_COLUMNS)
-    .or(orFilter);
+    .or(orFilter).abortSignal(AbortSignal.timeout(5_000));
   if (error) throw error;
 
   const handleSet = new Set(lowered);
@@ -332,10 +339,12 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
 
   // Fetch managed contracts (canonical retainer/role/status source) and
   // per-handle product-brand registrations in parallel.
-  const [managedRows, brandsByHandle] = await Promise.all([
-    getManagedRowsForHandles(handles),
-    getBrandsByHandle(reg, id),
+  const [managedDiscovery, salesDiscovery] = await Promise.all([
+    getManagedRowsForHandles(handles).catch(() => null),
+    getBrandsByHandle(reg, id).catch(() => null),
   ]);
+  const managedRows = managedDiscovery ?? [];
+  const brandsByHandle = salesDiscovery ?? new Map<string, string[]>();
 
   // Populate per-account brands
   for (const account of accountList) {
@@ -407,6 +416,7 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
     accounts: accountList,
     brands: Array.from(combinedBrands),
     brandsWithData: Array.from(perfBrands),
+    brandDiscoveryStatus: managedDiscovery !== null && salesDiscovery !== null ? 'ready' : 'unavailable',
   };
 }
 
@@ -428,16 +438,17 @@ export async function getCreatorIdByHandle(handle: string): Promise<string | nul
 }
 
 /** Helper: get all TikTok usernames for a creator */
-async function getHandles(creatorId: string): Promise<string[]> {
+const getHandles = cache(async (creatorId: string): Promise<string[]> => {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('tiktok_accounts')
     .select('tiktok_username')
-    .eq('creator_id', creatorId);
+    .eq('creator_id', creatorId).abortSignal(AbortSignal.timeout(5_000));
+  if (error) throw error;
   return (data ?? [])
     .map((r: Record<string, unknown>) => r.tiktok_username as string)
     .filter(Boolean);
-}
+});
 
 /** Helper: compute date diff for prior period comparison */
 function getPriorPeriod(startDate: string, endDate: string): { prevStart: string; prevEnd: string } {
@@ -1121,7 +1132,7 @@ export async function getCreatorEngagement(
   });
   if (error) return null;
 
-  const row = (data as any[] | null)?.[0];
+  const row = (data as Record<string, unknown>[] | null)?.[0];
   if (!row || Number(row.posts ?? 0) === 0) return null;
   return {
     activePosts: Number(row.posts ?? 0),
@@ -1170,7 +1181,7 @@ export async function getCreatorTopContent(
   });
   if (error) return [];
 
-  return ((data ?? []) as any[]).map((r) => ({
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     videoId: r.video_id as string,
     title: (r.video_title as string) || '(untitled)',
     brand: (r.brand_slug as string) ?? null,

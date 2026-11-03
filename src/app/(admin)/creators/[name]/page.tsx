@@ -50,6 +50,15 @@ function date(value?: string | null) {
   }) : null;
 }
 
+async function profileQuery<T>(source: string, read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    console.error(`[creator-profile] ${source} failed`, error);
+    throw error;
+  }
+}
+
 function ContractTerms({ contract, canViewCost }: { contract: CreatorStudioContract; canViewCost: boolean }) {
   const agreement = contract.studio.agreement;
   const basis = agreement.source === 'ledger' && !agreement.comparable ? 'agreement period' : 'month';
@@ -86,7 +95,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     for (const key of ['brand', 'range', 'start', 'end'] as const) if (sp[key]) query.set(key, sp[key]!);
     redirect(`/creators/${creatorId}${query.size ? `?${query}` : ''}`);
   }
-  const [profile, registry] = await Promise.all([getCreatorProfile(creatorId), getBrandRegistry()]);
+  const [profile, registry] = await Promise.all([profileQuery('identity', () => getCreatorProfile(creatorId)), getBrandRegistry()]);
   if (!profile) notFound();
   const active = new Set(activeBrandSlugs(registry));
   const brands = profile.brands.filter(brand => active.has(brand));
@@ -96,18 +105,18 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const canViewCost = scope.canViewCreatorCost;
   const canEdit = can(scope, 'roster', 'write') && !scope.impersonating;
   const accounts = [...new Map(profile.accounts.map(account => [account.tiktok_username.trim().toLowerCase(), account])).values()];
-  const dataThrough = await getDataAnchorDate(selectedBrand ? [selectedBrand] : brandsWithData.length ? brandsWithData : null);
+  const dataThrough = await getDataAnchorDate(selectedBrand ? [selectedBrand] : brandsWithData.length ? brandsWithData : brands.length ? brands : null);
   const { startDate, endDate, lagDays, anchorDate } = resolveDateRange(sp.range, sp.start, sp.end, dataThrough);
   const brandId = selectedBrand ? slugToUuid(registry, selectedBrand) ?? null : null;
   const label = selectedBrand ? brandLabel(registry, selectedBrand) : 'Authorized brands';
   const [contractsResult, summary, fetchedVideos, brandRows, lifetime, topContent, accountRows, relationship] = await Promise.all([
     getCreatorStudioContracts(creatorId, endDate, selectedBrand ?? undefined),
-    getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
-    getCreatorVideos(creatorId, startDate, endDate, 12, selectedBrand ?? undefined),
+    profileQuery('summary', () => getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined)),
+    profileQuery('videos', () => getCreatorVideos(creatorId, startDate, endDate, 12, selectedBrand ?? undefined)),
     selectedBrand ? Promise.resolve([]) : getCreatorBrandBreakdown(creatorId, startDate, endDate),
-    selectedBrand ? Promise.resolve(null) : getCreatorLifetimeStats(creatorId),
-    getCreatorTopContent(creatorId, startDate, endDate, 6, selectedBrand ?? undefined),
-    getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
+    selectedBrand ? Promise.resolve(null) : profileQuery('lifetime', () => getCreatorLifetimeStats(creatorId)).catch(() => null),
+    profileQuery('top-content', () => getCreatorTopContent(creatorId, startDate, endDate, 6, selectedBrand ?? undefined)),
+    profileQuery('account-breakdown', () => getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined)),
     getCreatorBrandRelationship(creatorId, brandId),
   ]);
   const allContracts = contractsResult.contracts.filter(contract => active.has(contract.brand)).map(contract => canViewCost ? contract : ({
@@ -173,6 +182,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   return <div className={styles.page}>
     <SetBreadcrumb label={profile.real_name} />
     <div className={styles.recordBar}><Link href={`/roster?${new URLSearchParams({...(selectedBrand?{brand:selectedBrand}:{}),range:'custom',start:startDate,end:endDate})}`} className={styles.back}><ArrowLeft size={14} aria-hidden="true" />Creators / {profile.real_name}</Link><div className={styles.scope}><Suspense fallback={null}><BrandFilter appearance="studio" compact brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} /></Suspense><Suspense fallback={null}><DateRangePicker appearance="studio" label="Creator reporting period" staleThrough={lagDays>0?anchorDate:null} displayRange={{start:startDate,end:endDate}} /></Suspense></div></div>
+    {!selectedBrand && profile.brandDiscoveryStatus === 'unavailable' && <p className={styles.freshness}>Showing linked brand relationships. Additional lifetime brand history could not be loaded.</p>}
     <CreatorProfileWorkspace key={creatorId} identity={identity} headline={headline} aside={aside} sections={[{id:'performance',label:'Overview',content:overview},{id:'content',label:'Content',content},{id:'agreements',label:'Agreement',content:agreements},{id:'coaching',label:'Coaching',content:coaching},{id:'activity',label:'Activity',content:activity}]}
       deliveryReview={<Suspense fallback={<p className={styles.notice} role="status">Loading recorded video links…</p>}><DeliveryEvidence creatorId={creatorId} creatorName={profile.real_name} selectedBrand={selectedBrand} label={label} end={endDate} contract={currentContract} /></Suspense>}
       coachingReview={<CreatorCoachingReview creatorName={profile.real_name} brandLabel={label} brand={selectedBrand} studio={studio} brandNotes={currentContract?.notes} sharedNotes={profile.notes} brief={<ProfileWorkspaceLink section="coaching" className={styles.primaryAction}>Prepare coaching brief</ProfileWorkspaceLink>} />} />
