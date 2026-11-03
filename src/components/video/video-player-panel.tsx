@@ -1,61 +1,45 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
+import { Dialog } from 'radix-ui';
 import { X, ExternalLink } from 'lucide-react';
 import { useVideoPanel } from './video-panel-context';
 import { canonicalVideoUrl, formatCurrency, formatNumber } from '@/lib/utils/format';
-import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import styles from './video-player-panel.module.css';
 
 export function VideoPlayerPanel() {
   const { video, isOpen, closeVideo } = useVideoPanel();
   const brandMeta = useBrandMeta();
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) closeVideo();
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, closeVideo]);
-
-  // Lock body scroll while the panel is open. Reference-counted so it can't
-  // clobber (or be clobbered by) a modal/sheet that's open at the same time.
-  useBodyScrollLock(isOpen);
+  const opener = useRef<HTMLElement | null>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
 
   const tiktokUrl = video ? canonicalVideoUrl(video.creator_name, video.video_id) ?? '' : '';
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-50 bg-black/30 transition-opacity duration-300 ${
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={closeVideo}
-      />
-
-      {/* Panel */}
-      <div
-        ref={panelRef}
-        className={`fixed top-0 right-0 z-50 h-full w-full sm:w-[430px] bg-card shadow-2xl sm:rounded-l-2xl transition-transform duration-300 ease-out flex flex-col ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        {/* Close button */}
-        <button
-          onClick={closeVideo}
-          className="absolute top-4 right-4 z-10 p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors"
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" />
-        </button>
+    <Dialog.Root open={isOpen && !!video} onOpenChange={next => { if (!next) closeVideo(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className={styles.overlay} />
+        <Dialog.Content className={styles.panel} data-lenis-prevent
+          onOpenAutoFocus={event => {
+            const focused = document.activeElement;
+            opener.current = focused instanceof HTMLElement && focused !== document.body ? focused : null;
+            event.preventDefault();
+            closeButton.current?.focus({ preventScroll: true });
+          }}
+          onCloseAutoFocus={event => {
+            event.preventDefault();
+            if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+          }}>
+          <header className={styles.header}>
+            <Dialog.Title>Video details</Dialog.Title>
+            <Dialog.Close ref={closeButton} className={styles.close} aria-label="Close video details"><X size={18} aria-hidden="true" /></Dialog.Close>
+          </header>
+          <Dialog.Description className="sr-only">Selected TikTok video, creator, and recorded performance for its reporting period.</Dialog.Description>
 
         {video && (
-          <div className="flex flex-col h-full overflow-y-auto">
+          <div className={styles.scroller}>
             {/* Video embed area */}
             <div className="bg-[#0a0a0a] flex items-center justify-center min-h-[520px] relative">
               <iframe
@@ -121,19 +105,20 @@ export function VideoPlayerPanel() {
               )}
 
               {/* Open in TikTok link */}
-              <a
+              {tiktokUrl ? <a
                 href={tiktokUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-[var(--primary)] transition-colors pt-2"
+                className={styles.externalLink}
               >
                 <ExternalLink className="h-3 w-3" />
                 Open in TikTok
-              </a>
+              </a> : <p className="text-xs text-muted-foreground">Video link unavailable</p>}
             </div>
           </div>
         )}
-      </div>
-    </>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

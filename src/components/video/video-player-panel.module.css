@@ -1,0 +1,16 @@
+.overlay { position:fixed; inset:0; z-index:80; background:rgb(25 26 28 / 28%); animation:overlayIn 220ms ease-out; }
+.overlay[data-state=closed] { animation:overlayOut 180ms ease-in; }
+.panel { position:fixed; inset:0 0 0 auto; z-index:81; display:flex; flex-direction:column; width:min(430px,100%); height:100dvh; min-width:0; background:var(--studio-surface,var(--card)); color:var(--studio-ink,var(--foreground)); box-shadow:-8px 0 28px rgb(25 26 28 / 16%); outline:none; animation:panelIn 220ms ease-out; }
+.panel[data-state=closed] { animation:panelOut 180ms ease-in; }
+.header { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:64px; padding:10px 16px; border-bottom:1px solid var(--studio-line,var(--border)); flex:none; }
+.header h2 { margin:0; color:var(--studio-ink,var(--foreground)); font-size:19px; line-height:27px; font-weight:600; letter-spacing:-.3px; }
+.close { display:grid; place-items:center; width:44px; height:44px; flex:none; border-radius:7px; background:var(--studio-canvas,var(--secondary)); color:var(--studio-muted,var(--muted-foreground)); transition:background-color 140ms ease-out,color 140ms ease-out; }
+.close:hover { color:var(--studio-ink,var(--foreground)); background:var(--secondary); }
+.scroller { display:flex; min-height:0; flex:1; flex-direction:column; overflow-y:auto; overscroll-behavior:contain; }
+.externalLink { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:7px 0; color:var(--studio-purple,var(--primary)); font-size:12px; line-height:18px; font-weight:500; text-decoration:none; }
+.externalLink:hover { text-decoration:underline; text-underline-offset:3px; }
+.close:focus-visible,.externalLink:focus-visible { outline:2px solid var(--studio-purple,var(--ring)); outline-offset:3px; }
+@keyframes overlayIn { from { opacity:0; } to { opacity:1; } }@keyframes overlayOut { from { opacity:1; } to { opacity:0; } }
+@keyframes panelIn { from { transform:translateX(100%); } to { transform:translateX(0); } }@keyframes panelOut { from { transform:translateX(0); } to { transform:translateX(100%); } }
+@media(max-width:767px) { .externalLink { font-size:13px; }.scroller { padding-bottom:env(safe-area-inset-bottom); } }
+@media(prefers-reduced-motion:reduce) { .overlay,.overlay[data-state=closed],.panel,.panel[data-state=closed] { animation:none; }.close { transition:none; } }
