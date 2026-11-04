@@ -96,7 +96,7 @@ export function StudioReport({ token, preview = false, report: r, snapshot, note
       <div className={s.brand}>{logoUrl && <img src={logoUrl} alt="" />}<span><strong>{brandName}</strong><small>Creator performance report</small></span></div>
       <span className={s.agencyCredit}>Prepared by Creators Corner</span>
       <div className={s.history}><ChoiceMenu label="Report period" value={token} compact contentClassName={s.historyMenu} disabled={opening} options={history.some(item => item.token === token) ? history.map(item => ({ value: item.token, label: item.label })) : [{ value: token, label: periodLabel }, ...history.map(item => ({ value: item.token, label: item.label }))]} onChange={value => { if (value === token) return; startOpening(() => router.push('/r/' + encodeURIComponent(value) + (preview ? '?preview=1' : ''), { scroll: true })); }} /></div>
-      <a className={s.button} href={'/api/report-pdf/' + encodeURIComponent(token)}><Download size={14} /><span>Download PDF</span></a>
+      <a className={s.button} href={'/api/report-pdf/' + encodeURIComponent(token)} aria-label="Download PDF"><Download size={14} aria-hidden="true" /><span>Download PDF</span></a>
     </div><nav className={s.nav} aria-label="Report sections">{sections.map(([id, label]) => <a href={'#' + id} key={id}>{label}</a>)}<button type="button" onClick={() => setDrawer({ type: 'snapshot' })}>Snapshot details</button></nav></header>
     <main className={s.main} id="report-main" aria-busy={opening}>
       {opening && <div role="status" className={s.notice}>Opening the selected report. The figures below still describe {periodLabel}.</div>}

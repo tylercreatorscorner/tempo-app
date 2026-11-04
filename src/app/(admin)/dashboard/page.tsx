@@ -567,7 +567,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <span className={studio.comparison}>vs {format(new Date(`${prevStartDate}T12:00:00`), 'MMM d')}–{format(new Date(`${prevEndDate}T12:00:00`), 'MMM d, yyyy')}</span>
         <span className={studio.freshness}>
           <span>{dataThroughLabel}{!brandFilter ? ` · ${ALL_BRANDS.length} brands` : ''}</span>
-          <InfoTooltip label={`Sales dates: ${startDate} through ${endDate}. Changes compare ${comparableBrands.length} fully recorded brands in both periods. Headline totals include all recorded sales.${incompleteBrands.length ? ` ${incompleteBrands.map(slug => brandLabel(reg,slug)).join(', ')}: missing daily data; excluded from comparisons.` : ''}`} />
+          <InfoTooltip label={`Sales dates: ${startDate} through ${endDate}. Changes compare ${comparableBrands.length} fully recorded ${comparableBrands.length === 1 ? 'brand' : 'brands'} in both periods. Headline totals include all recorded sales.${incompleteBrands.length ? ` ${incompleteBrands.map(slug => brandLabel(reg,slug)).join(', ')}: missing daily data; excluded from comparisons.` : ''}`} />
         </span>
         <nav className={studio.jumpLinks} aria-label="Jump to dashboard section">
           {managers !== undefined && <a href="#managers">Managers</a>}
