@@ -1,13 +1,14 @@
 import { redirect } from 'next/navigation';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 import { getAllowedBrandsForUser } from '@/lib/data/brands';
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { getDataAnchorDate } from '@/lib/data/data-anchor';
-import { PostsClient } from './posts-client';
+import { StudioContentClient } from './studio-content-client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Posts — Tempo' };
+export const metadata = { title: 'Content | Tempo' };
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string; managed?: string }>;
@@ -17,6 +18,7 @@ export default async function PostsPage({ searchParams }: Props) {
   // Any Workspace user; /api/posts scopes the data to their brands.
   const scope = await getWorkspaceScope();
   if (!scope) redirect('/dashboard');
+  if (!can(scope, 'posts', 'read')) return <div><h1>Content unavailable</h1><p>Your workspace access does not include video performance.</p></div>;
   const allowedBrands = await getAllowedBrandsForUser(); // null = all (owner/admin)
 
   const params = await searchParams;
@@ -29,6 +31,7 @@ export default async function PostsPage({ searchParams }: Props) {
   const { data: dbBrands } = await supabase
     .from('brands_v2')
     .select('slug, is_umbrella')
+    .eq('tenant_id', scope.tenantId)
     .eq('is_archived', false)
     .order('name');
   const brands = (dbBrands ?? [])
@@ -51,14 +54,16 @@ export default async function PostsPage({ searchParams }: Props) {
   const managedOnly = params.managed === 'true';
 
   return (
-    <div className="space-y-6">
-      <PostsClient
+    <div>
+      <StudioContentClient
+        key={`${scope.tenantId}:${scope.userId}:${scope.role}:${!!scope.impersonating}:${allowedBrands?.join(',') ?? 'all'}`}
         brands={brands}
         selectedBrand={selectedBrand}
         startDate={startDate}
         endDate={endDate}
         staleThrough={staleThrough}
         managedOnly={managedOnly}
+        canViewRoster={can(scope, 'roster', 'read')}
       />
     </div>
   );

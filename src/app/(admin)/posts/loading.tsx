@@ -1,14 +1,10 @@
-import { Skeleton } from '@/components/ui/skeleton';
-import { PageHeaderSkeleton, TableSkeleton } from '@/components/ui/page-skeletons';
-/** Mirrors the current content overview, filters and video table on mobile too. */
+import styles from './studio-content.module.css';
+/** Static shapes preserve the reviewed library layout without fabricated values. */
 export default function PostsLoading() {
-  return <div className="space-y-4" aria-busy="true">
-    <PageHeaderSkeleton />
-    <div className="overflow-hidden rounded-xl border border-border bg-card p-4" aria-hidden="true">
-      <div className="mb-4 flex flex-wrap justify-between gap-3"><Skeleton className="h-8 w-48" /><Skeleton className="h-8 w-40" /></div>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-8">{Array.from({length:8},(_,i)=><div key={i} className="space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-6 w-24" /></div>)}</div>
-    </div>
-    <div className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4" aria-hidden="true">{[0,1,2,3].map(i=><Skeleton key={i} className="h-9 w-full" />)}</div>
-    <TableSkeleton rows={8} cols={8} title={false} />
+  return <div className={styles.page} aria-busy="true">
+    <header className={styles.heading}><div className={styles.title}><h1>Content</h1><p role="status">Loading your video library…</p></div></header>
+    <div className={styles.loadingFilters} aria-hidden="true">{[0,1,2,3].map(index=><i key={index}/>)}</div>
+    <div className={styles.loadingSummary} aria-hidden="true" />
+    <div className={styles.workspace} aria-hidden="true"><div className={styles.skeleton}>{[0,1,2,3,4,5].map(index=><div key={index}><i/><span><b/><b/><b/></span><em/></div>)}</div><div className={styles.loadingInspector}/></div>
   </div>;
 }

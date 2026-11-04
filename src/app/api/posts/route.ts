@@ -16,7 +16,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 import { getPosts, type ReviewFilter, type DateBasis } from '@/lib/data/posts';
+import { enrichPostCreators } from '@/lib/data/posts-creator-context';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -25,7 +27,7 @@ const VALID_REVIEW_FILTERS: ReviewFilter[] = ['all', 'unreviewed', 'reviewed-by-
 
 export async function GET(request: NextRequest) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || !can(scope, 'posts', 'read')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
   const { searchParams } = request.nextUrl;
@@ -58,11 +60,12 @@ export async function GET(request: NextRequest) {
       endDate: end,
       managedOnly: managed !== 'false',
       currentUserId: scope.userId,
+      scope,
       reviewFilter,
       dateBasis,
       allowedBrandSlugs: scopedSlugs,
     });
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, posts: await enrichPostCreators(scope, result.posts) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to load posts';
     return NextResponse.json({ error: message }, { status: 500 });

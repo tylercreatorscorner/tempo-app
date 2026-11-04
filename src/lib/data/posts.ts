@@ -2,7 +2,7 @@
  * Posts data fetcher.
  *
  * Powers the /posts page. The heavy lifting lives in three RPCs (migrations
- * 043/076/079/090):
+ * 043/076/079/090), with scoped application review metadata:
  *
  *   - get_managed_posts            → one row per UNIQUE video_id, deduped
  *                                    across brands (a video_id is one video and
@@ -14,11 +14,9 @@
  *   - get_managed_posts_totals     → the KPI aggregate over the FULL window
  *                                    (uncapped), so the headline numbers add up
  *                                    no matter how many rows the table renders.
- *   - get_video_reviews_in_window  → review aggregates for videos posted in
- *                                    the window (mig 090), replacing an
- *                                    un-paginated all-time video_reviews read
- *                                    that silently truncated at the PostgREST
- *                                    1000-row cap.
+ *   - readTenantVideoReviews       → paginated review metadata from retained
+ *                                    same-tenant reviewer profiles. Reviews
+ *                                    follow video identity across brands.
  *
  * Money (gmv/orders/items) is WINDOWED from video_performance (mig 079).
  * Engagement (views/likes/comments/shares) is ALSO windowed from
@@ -27,10 +25,13 @@
  * this window" (typically uploads that predate the engagement ingest) and is
  * rendered as absent, never a fake 0.
  *
- * Filtered by post_date (when the video was originally posted) being in the
- * date range. Each unique video appears once.
+ * 'earned' filters the sales window; 'posted' additionally filters original
+ * publication dates. Each unique video appears once.
  */
 import { createAdminClient } from '@/lib/supabase/server';
+import type { WorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
+import { assertLegacyPostSlugScope, readTenantVideoReviews } from './post-reviews';
 
 export interface PostRow {
   video_id: string;
@@ -142,8 +143,9 @@ function pNumOrNull(v: unknown): number | null {
 }
 
 interface GetPostsOpts {
+  scope: WorkspaceScope;
   brand: string | null;
-  startDate: string;          // YYYY-MM-DD — filters by post_date
+  startDate: string;          // YYYY-MM-DD — sales window; see DateBasis
   endDate: string;            // YYYY-MM-DD
   managedOnly?: boolean;
   limit?: number;
@@ -186,6 +188,7 @@ function emptyResult(startDate: string, endDate: string): PostsResult {
 }
 
 export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
+  if (!can(opts.scope, 'posts', 'read')) throw new Error('Not permitted to read posts.');
   const supabase = await createAdminClient();
   const { brand, startDate, endDate, managedOnly = true, limit = ROW_CAP, currentUserId, reviewFilter = 'all', dateBasis = 'earned', allowedBrandSlugs } = opts;
 
@@ -196,9 +199,11 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   let brandQuery = supabase
     .from('brands_v2')
     .select('slug, is_umbrella')
+    .eq('tenant_id', opts.scope.tenantId)
     .eq('is_archived', false);
   if (brand) brandQuery = brandQuery.eq('slug', brand);
-  const { data: brandsRaw } = await brandQuery;
+  const { data: brandsRaw, error: brandError } = await brandQuery;
+  if (brandError) throw new Error('Brand access could not be verified.');
   let brandSlugs = (brandsRaw as Array<{ slug: string; is_umbrella: boolean | null }> | null ?? [])
     .filter(b => !b.is_umbrella)
     .map(b => b.slug);
@@ -206,11 +211,16 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
     const allowed = new Set(allowedBrandSlugs);
     brandSlugs = brandSlugs.filter(s => allowed.has(s));
   }
+  if (opts.scope.brandScope.kind === 'scoped') {
+    const allowed = new Set(opts.scope.brandScope.brandSlugs);
+    brandSlugs = brandSlugs.filter(slug => allowed.has(slug));
+  }
   if (brandSlugs.length === 0) return emptyResult(startDate, endDate);
+  await assertLegacyPostSlugScope(supabase, opts.scope.tenantId, brandSlugs);
 
   // ── 2. Deduped rows (capped) + full-window totals + review aggregates, in
-  //       parallel. All three are SQL-side (managed join, dedupe, review
-  //       grouping) — 3 round-trips regardless of window size.
+  //       parallel. Money stays on the established SQL deduplication basis;
+  //       application review metadata is paginated and tenant-provenance gated.
   const [rowsRes, totalsRes, reviewsRes] = await Promise.all([
     supabase.rpc('get_managed_posts', {
       p_brand_slugs: brandSlugs,
@@ -227,18 +237,13 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
       p_managed_only: managedOnly,
       p_date_basis: dateBasis,
     }),
-    // Un-windowed (mig 095): the earned basis surfaces pre-window posts whose
-    // reviews a window-scoped aggregate would silently drop.
-    supabase.rpc('get_video_review_aggs', {
-      p_brand_slugs: brandSlugs,
-      p_user_id: currentUserId ?? null,
-    }),
+    // Un-windowed: earned sales can surface old videos with older reviews.
+    readTenantVideoReviews(supabase, opts.scope),
   ]);
   if (rowsRes.error) throw rowsRes.error;
   if (totalsRes.error) throw totalsRes.error;
   // Reviews are load-bearing for the queue pills — a failed read must surface
   // as an error, never as a fake "inbox zero".
-  if (reviewsRes.error) throw reviewsRes.error;
 
   const rpcRows = (rowsRes.data as RpcRow[] | null) ?? [];
   const tot = ((totalsRes.data as Array<Record<string, unknown>> | null) ?? [])[0] ?? {};
@@ -256,8 +261,23 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   // reviews by (video, brand) silently detached them whenever the winner
   // flipped — mig 094 aggregates per video across brands.
   const reviewByVideo = new Map<string, ReviewRpcRow>();
-  for (const r of (reviewsRes.data as ReviewRpcRow[] | null) ?? []) {
-    reviewByVideo.set(r.video_id, r);
+  const ratingSums = new Map<string, { sum: number; count: number }>();
+  const videoIds = new Set(rpcRows.map(row => row.video_id));
+  for (const r of reviewsRes) {
+    const videoId = String(r.video_id ?? '');
+    if (!videoIds.has(videoId)) continue;
+    const entry = reviewByVideo.get(videoId) ?? { video_id: videoId, review_count: 0, avg_rating: null, flagged: false, has_my_review: false };
+    entry.review_count = pNum(entry.review_count) + 1;
+    entry.flagged = !!entry.flagged || Array.isArray(r.tags) && r.tags.some(tag => tag === 'off-brand' || tag === 'needs-rework');
+    entry.has_my_review = !!entry.has_my_review || !!currentUserId && r.reviewer_user_id === currentUserId;
+    const rating = pNumOrNull(r.rating);
+    if (rating !== null) {
+      const aggregate = ratingSums.get(videoId) ?? { sum: 0, count: 0 };
+      aggregate.sum += rating; aggregate.count++;
+      ratingSums.set(videoId, aggregate);
+      entry.avg_rating = aggregate.sum / aggregate.count;
+    }
+    reviewByVideo.set(videoId, entry);
   }
 
   // ── 3. Map RPC rows → PostRow. Engagement stays nullable end-to-end.

@@ -87,11 +87,12 @@ function fmtShortDate(iso: string): string {
 }
 
 export function PostReviewClient({
-  meta, initialReviews, currentUserId,
+  meta, initialReviews, currentUserId, canWrite,
 }: {
   meta: VideoMeta;
   initialReviews: ReviewRow[];
   currentUserId: string;
+  canWrite: boolean;
 }) {
   const brandMeta = useBrandMeta();
   const [reviews, setReviews] = useState<ReviewRow[]>(initialReviews);
@@ -127,6 +128,7 @@ export function PostReviewClient({
   }
 
   async function saveReview() {
+    if (!canWrite) return;
     setSaving(true);
     setError(null);
     try {
@@ -151,6 +153,7 @@ export function PostReviewClient({
   }
 
   async function deleteReview() {
+    if (!canWrite) return;
     setConfirmingDelete(false);
     setDeleting(true);
     setError(null);
@@ -325,7 +328,7 @@ export function PostReviewClient({
                 : 'You haven\'t reviewed this yet'}
             </div>
           </div>
-          {myReview && (
+          {myReview && canWrite && (
             <Button
               variant="ghost"
               size="sm"
@@ -340,6 +343,10 @@ export function PostReviewClient({
         </CardHeader>
 
         <CardContent className="space-y-4 pt-5">
+          {!canWrite ? <>
+            <p className="text-sm text-muted-foreground">This is a read-only view. Saved feedback is available below.</p>
+            {myReview ? <ul><OtherReviewRow review={myReview} /></ul> : <p className="text-sm text-muted-foreground">No review is recorded under this account.</p>}
+          </> : <>
           {/* Rating */}
           <div>
             <Label id={`rating-label-${meta.video_id}`}>Rating</Label>
@@ -419,6 +426,7 @@ export function PostReviewClient({
               {saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : <><Save className="h-4 w-4" />{myReview ? 'Update review' : 'Save review'}</>}
             </Button>
           </div>
+          </>}
         </CardContent>
       </Card>
 
@@ -444,7 +452,7 @@ export function PostReviewClient({
           contract: the consumer supplies the centering wrapper, backdrop, and
           stopPropagation on the panel (same shape as the reporting
           ConfirmDeleteModal). */}
-      {confirmingDelete && (
+      {confirmingDelete && canWrite && (
         <ModalOverlay onClose={() => setConfirmingDelete(false)}>
           <div className="absolute inset-0 flex items-center justify-center p-4" onClick={() => setConfirmingDelete(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
