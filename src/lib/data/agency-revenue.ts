@@ -2,10 +2,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { agencyMonthBounds, clientServicePeriod, isAgencyDate, selectMonthTerms, type ClientRecord } from '@/lib/agency/model';
 import { financeSettingsSchema, managerAllocations } from '@/lib/agency/finance-model';
 import { calculateRevenueTrueUp, sumRevenueTrueUps, type RevenueTrueUpRow, type RevenueTrueUpTotals, type RevenueFinanceRecord } from '@/lib/agency/revenue-model';
+import { revenueCalculationTrace, type RevenueCalculationTrace } from '@/lib/agency/revenue-trace';
 
 export interface AgencyRevenueCoverage {
   brandId: string;
   brandName: string;
+  brandSlug?: string;
+  logoUrl?: string | null;
   gmvCents: number | null;
   recordedDays: number;
   sourceRecordedDays: number;
@@ -28,7 +31,7 @@ export interface AgencyRevenueResponse {
   periodEnd: string;
   asOfDate: string;
   throughDate: string;
-  rows: Array<RevenueTrueUpRow & { brandCoverage: AgencyRevenueCoverage[]; managerRecipients: Array<{ managerId: string; name: string | null }> }>;
+  rows: Array<RevenueTrueUpRow & { brandCoverage: AgencyRevenueCoverage[]; managerRecipients: Array<{ managerId: string; name: string | null }>; calculationTrace?: RevenueCalculationTrace }>;
   totals: RevenueTrueUpTotals;
   cash: AgencyRevenueCash;
   warnings: string[];
@@ -81,7 +84,7 @@ export async function loadAgencyRevenue(db: SupabaseClient, tenantId: string, pe
   if (!tenantId) throw new Error('Agency tenant is required.');
   const hasClosedDates = period.throughDate >= period.periodStart;
   const [directory, clientResult, financeResult, performanceResult, cashResult, managerResult] = await Promise.all([
-    db.from('brands_v2').select('id,name,display_name', { count: 'exact' }).eq('tenant_id', tenantId).is('parent_brand_id', null).order('id').limit(10000),
+    db.from('brands_v2').select('id,name,display_name,slug,logo_url', { count: 'exact' }).eq('tenant_id', tenantId).is('parent_brand_id', null).order('id').limit(10000),
     db.rpc('agency_business_list_clients', { p_tenant_id: tenantId }),
     db.from('agency_finance_settings').select('client_id,revision,manager_terms:settings->managerTerms,terms_review_required:settings->termsReviewRequired,creator_billing_periods:settings->creatorBillingPeriods', { count: 'exact' }).eq('tenant_id', tenantId).limit(10000),
     hasClosedDates ? db.rpc('agency_business_period_performance', { p_tenant_id: tenantId, p_month: period.periodStart, p_through: period.throughDate }) : Promise.resolve({ data: [], error: null }),
@@ -108,7 +111,10 @@ export async function loadAgencyRevenue(db: SupabaseClient, tenantId: string, pe
       if (row && (!Number.isInteger(row.recorded_days) || !Number.isInteger(row.source_recorded_days) || row.expected_days !== expectedDays
         || row.recorded_days < 0 || row.source_recorded_days < row.recorded_days || row.source_recorded_days > expectedDays
         || [row.recorded_through, row.latest_recorded_through].some(day => day !== null && (!isAgencyDate(day) || day < from || day > through)))) throw new Error('Agency source coverage could not be verified.');
-      return [brand.id, { brandId: brand.id, brandName: brand.display_name || brand.name, gmvCents: row ? finiteCents(row.managed_gmv, true) : null,
+      return [brand.id, { brandId: brand.id, brandName: brand.display_name || brand.name,
+        brandSlug: typeof brand.slug === 'string' ? brand.slug : undefined,
+        logoUrl: typeof brand.logo_url === 'string' ? brand.logo_url : null,
+        gmvCents: row ? finiteCents(row.managed_gmv, true) : null,
         recordedDays: row?.recorded_days ?? 0, sourceRecordedDays: row?.source_recorded_days ?? 0, expectedDays,
         recordedThrough: row?.recorded_through ?? null, latestRecordedThrough: row?.latest_recorded_through ?? null,
         dailyCoverageComplete: row?.complete === true && row.recorded_days === expectedDays && row.recorded_through === through }];
@@ -156,7 +162,7 @@ export async function loadAgencyRevenue(db: SupabaseClient, tenantId: string, pe
         ...(range ? { periodStart: range.start, periodEnd: range.end } : {}),
       } });
     const managerRecipients = estimate.managerTerms ? managerAllocations(estimate.managerTerms).map(recipient => ({ managerId: recipient.managerId, name: managerNames.get(recipient.managerId) ?? null })) : [];
-    return { ...estimate, brandCoverage, managerRecipients };
+    return { ...estimate, brandCoverage, managerRecipients, calculationTrace: revenueCalculationTrace({ ...estimate, managerRecipients }) };
   });
   const warnings: string[] = ['Daily coverage describes source presence in every expected store; it does not verify every sale in an export.'];
   if (!hasClosedDates) warnings.push('No completed source dates in this service month yet.');

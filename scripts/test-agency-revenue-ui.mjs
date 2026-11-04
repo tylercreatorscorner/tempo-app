@@ -11,25 +11,27 @@ const result = await build({
     import { buildInvoice, emptyFinanceSettings } from './src/lib/agency/finance-model';
     import { CreatorBillingLedger } from './src/app/(admin)/agency/finance/creator-billing';
     import { calculateCreatorBilling } from './src/lib/agency/creator-billing';
-    import { AgencyRevenueWorkspace } from './src/app/(admin)/agency/revenue/workspace';
+    import { AgencyRevenueWorkspace, RevenueCalculationDetail } from './src/app/(admin)/agency/revenue/workspace';
+    import { revenueCalculationTrace } from './src/lib/agency/revenue-trace';
     import { calculateRevenueTrueUp, sumRevenueTrueUps } from './src/lib/agency/revenue-model';
     const client = { id: '00000000-0000-4000-8000-000000000009', revision: 1, name: 'Pacific Collective', brandIds: [], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [
       { effectiveMonth: '2026-01', monthlyRetainer: 2000, revSharePercent: 0, feeModel: 'fixed' },
       { effectiveMonth: '2026-10', monthlyRetainer: 0, revSharePercent: 0, feeModel: 'fixed' },
     ] };
     const cash = { collectedCents: 0, managerPaidCents: 0, retainedCashCents: 0, collectedCount: 0, managerPaidCount: 0, complete: true };
+    const detail = row => renderToStaticMarkup(<RevenueCalculationDetail row={{ ...row, calculationTrace: revenueCalculationTrace(row) }} onInspect={() => {}} onBack={() => {}} />);
     function render(month, finance = null, firstDay = false) {
       const throughDate = firstDay ? '2026-09-30' : month === '2026-10' ? '2026-10-28' : '2026-09-30';
       const row = { ...calculateRevenueTrueUp({ client, finance, month, throughDate, gmv: { amountCents: null, complete: false, recordedThrough: null } }), managerRecipients: [], brandCoverage: [] };
       const data = { month, periodStart: month + '-01', periodEnd: month === '2026-10' ? '2026-10-31' : '2026-09-30', asOfDate: firstDay ? '2026-10-01' : '2026-10-29', throughDate, rows: [row], totals: sumRevenueTrueUps([row]), cash: firstDay ? { ...cash, collectedCents: null, managerPaidCents: null, retainedCashCents: null, complete: false } : cash, warnings: [] };
-      return { row, data, html: renderToStaticMarkup(<AgencyRevenueWorkspace initialData={data} latestMonth="2026-10" />) };
+      return { row, data, html: renderToStaticMarkup(<AgencyRevenueWorkspace initialData={data} latestMonth="2026-10" />), detail: detail(row) };
     }
     const october = render('2026-10');
     assert.equal(october.row.status, 'no_agency_fee');
     const table = october.html.slice(october.html.indexOf('<tbody>'), october.html.indexOf('</tbody>'));
-    assert.doesNotMatch(table, /Pacific Collective/);
-    assert.match(october.html, /No agency fees <span>1<\/span>/);
-    assert.match(october.html, /Confirmed \$0 agency fee.*Oct 2026/);
+    assert.match(table, /Pacific Collective/, 'All statuses includes confirmed no-fee clients as the approved design specifies');
+    assert.match(table, /No agency fee/);
+    assert.match(table, /data-label="Estimated fees"><strong>\$0\.00/, 'the explicit no-fee agreement stays visible without inventing manager pay');
     assert.doesNotMatch(october.html, /Review manager pay/);
     const estimate = october.html.slice(october.html.indexOf('aria-label="Revenue estimate"'));
     const summaryEnd = estimate.indexOf('</section>');
@@ -38,14 +40,15 @@ const result = await build({
     assert.deepEqual(october.data.cash, cash, 'no-fee classification does not change recorded cash');
     const september = render('2026-09');
     assert.equal(september.row.feeCents, 200000);
-    assert.match(september.html, /Review manager pay/);
+    assert.match(september.detail, /Review manager pay/);
     assert.doesNotMatch(september.html, /No agency fees <span>/, 'October terms do not hide September setup or fees');
     const paidManager = render('2026-10', { client_id: client.id, revision: 1, settings: { termsReviewRequired: false, managerTerms: [{ effectiveMonth: '2026-10', managerId: '00000000-0000-4000-8000-000000000020', fixedMonthly: 200, gmvPercent: 0, payoutDays: 7 }] } });
     assert.equal(paidManager.row.retainedCents, -20000);
     assert.match(paidManager.html, /-\$200\.00/);
     assert.doesNotMatch(paidManager.html, /No agency fees <span>/, 'a real manager cost remains in the active revenue table');
     const firstDay = render('2026-10', null, true);
-    assert.match(firstDay.html, /No closed cash dates in October 2026 yet/);
+    const firstDayCash = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={firstDay.data} latestMonth="2026-10" initialView="collections" />);
+    assert.match(firstDayCash, /No closed cash dates in October 2026 yet/);
     assert.doesNotMatch(firstDay.html, /Oct 1[–-]Sep 30/);
     const servicePeriod = { start: '2026-10-15', end: '2026-10-31' };
     const partialClient = { ...client, name: 'Lumen Nutrition', serviceStart: '2026-10-15', terms: [
@@ -58,17 +61,19 @@ const result = await build({
     ] } };
     const partialRow = { ...calculateRevenueTrueUp({ client: partialClient, finance: partialFinance, month: '2026-10', throughDate: '2026-10-28', gmv: { amountCents: 18000000, complete: true, recordedThrough: '2026-10-28', periodStart: '2026-10-15', periodEnd: '2026-10-28' } }), managerRecipients: [{ managerId: '00000000-0000-4000-8000-000000000020', name: 'Jordan Example' }], brandCoverage: [] };
     const partialData = { ...october.data, rows: [partialRow], totals: sumRevenueTrueUps([partialRow]) };
-    const partialHtml = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={partialData} latestMonth="2026-10" />);
+    const partialHtml = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={partialData} latestMonth="2026-10" />) + detail(partialRow);
     assert.equal(partialRow.status, 'provisional');
     assert.match(partialHtml, /Approved period: Oct 15–Oct 31, 2026/);
     assert.match(partialHtml, /Approved service period: Oct 15–Oct 31, 2026/);
     assert.match(partialHtml, /Manager pay period: Oct 15–Oct 31, 2026/);
     assert.match(partialHtml, /Known fees and recorded share/);
+    assert.match(partialHtml, /CC fee component fixed/);
+    assert.match(partialHtml, /managed-GMV share/, 'drawer renders canonical server trace amounts alongside saved terms');
     assert.match(partialHtml, /3,838.71/);
     assert.match(partialHtml, /1,645.16/);
     const novemberRow = { ...calculateRevenueTrueUp({ client: partialClient, finance: partialFinance, month: '2026-11', throughDate: '2026-11-30', gmv: { amountCents: 18000000, complete: true, recordedThrough: '2026-11-30' } }), managerRecipients: [], brandCoverage: [] };
     const novemberData = { ...october.data, month: '2026-11', periodStart: '2026-11-01', periodEnd: '2026-11-30', throughDate: '2026-11-30', rows: [novemberRow], totals: sumRevenueTrueUps([novemberRow]) };
-    const novemberHtml = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={novemberData} latestMonth="2026-11" />);
+    const novemberHtml = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={novemberData} latestMonth="2026-11" />) + detail(novemberRow);
     assert.doesNotMatch(novemberHtml, /Approved period:|Manager pay period:/);
     assert.match(novemberHtml, /7,000/);
     assert.match(novemberHtml, /3,000/);
@@ -81,11 +86,18 @@ const result = await build({
     assert.equal(pendingRow.knownManagerCents, 300000);
     assert.equal(pendingRow.knownRetainedCents, 400000);
     const pendingData = { ...october.data, rows: [pendingRow], totals: sumRevenueTrueUps([pendingRow]) };
-    const pendingHtml = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={pendingData} latestMonth="2026-10" />);
+    const pendingHtml = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={pendingData} latestMonth="2026-10" />) + detail(pendingRow);
     assert.ok(pendingHtml.includes('Known agency fees') && pendingHtml.includes('$7,000.00') && pendingHtml.includes('$3,000.00') && pendingHtml.includes('$4,000.00'), 'known matched components remain visible while exact fee/pay totals are null');
     assert.ok(pendingHtml.includes('+ pending share') && pendingHtml.includes('Invoice approval pending'));
     assert.ok(pendingHtml.includes('Pending fees or manager pay can change the CC portion'), 'known CC difference is never described as a guaranteed minimum');
     assert.ok(pendingHtml.includes('section=manager'), 'manager setup has a direct action');
+    const affiliateBasisRow = { ...pendingRow, agencyTerms: { ...pendingRow.agencyTerms, feeModel: 'tiered', gmvBasis: 'agency_supported_affiliate', tierCalculation: 'marginal', revShareTiers: [{ upToGmv: null, percent: 7 }] } };
+    const affiliateBasisHtml = detail(affiliateBasisRow);
+    assert.match(affiliateBasisHtml, /Agency-supported affiliate GMV/);
+    assert.match(affiliateBasisHtml, /Recorded managed GMV is not a verified substitute/);
+    assert.match(affiliateBasisHtml, /variable fees remain pending until the eligible source is confirmed/);
+    assert.doesNotMatch(affiliateBasisHtml, /Marginal bands.*� Managed GMV/);
+
     const creatorClient = { ...client, name: 'Creator Program', terms: [{ effectiveMonth: '2026-10', monthlyRetainer: 0, revSharePercent: 0, feeModel: 'per_creator', creatorRate: { monthlyFee: 500, maxCreators: 50, monthlyBudgetCap: 100000 } }] };
     const ledgerProps = { client: creatorClient, onChange: () => {}, canEdit: true, currentDay: '2026-10-30', initialMonth: '2026-10' };
     const missingLedgerHtml = renderToStaticMarkup(<CreatorBillingLedger {...ledgerProps} periods={[]} />);
@@ -128,10 +140,10 @@ const result = await build({
     const capHtml = renderToStaticMarkup(<CreatorBillingLedger {...ledgerProps} client={cappedClient} periods={[{ ...creatorPeriod, creators: [eligibleCreator, { ...eligibleCreator, id: '00000000-0000-4000-8000-000000000031', handle: 'second.creator' }] }]} />);
     assert.ok(capHtml.includes('Headcount approval') && capHtml.includes('Budget approval') && capHtml.includes('Written approvals'));
     const creatorRevenueRow = { ...calculateRevenueTrueUp({ client: creatorClient, finance: null, month: '2026-10', throughDate: '2026-10-29', gmv: { amountCents: null, complete: false, recordedThrough: null } }), managerRecipients: [], brandCoverage: [] };
-    const creatorRevenueHtml = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={{ ...october.data, rows: [creatorRevenueRow], totals: sumRevenueTrueUps([creatorRevenueRow]) }} latestMonth="2026-10" />);
+    const creatorRevenueHtml = renderToStaticMarkup(<AgencyRevenueWorkspace initialData={{ ...october.data, rows: [creatorRevenueRow], totals: sumRevenueTrueUps([creatorRevenueRow]) }} latestMonth="2026-10" />) + detail(creatorRevenueRow);
     assert.ok(creatorRevenueHtml.includes('Manage creator billing') && creatorRevenueHtml.includes('section=creator-billing') && creatorRevenueHtml.includes('billingMonth=2026-10'));
     assert.ok(!creatorRevenueHtml.includes('href="/upload"'), 'per-creator sourcing does not ask for irrelevant GMV uploads');
-    console.log('PASS revenue UI: separate no-fee records, no setup prompt or invented manager zero, effective September history, retained manager costs, unchanged cash, first-day dates approved-period annotations, known fixed/pending share creator billing states, unsaved preview labeling, full-roster pagination totals and separate frozen invoice funding schedule');
+    console.log('PASS revenue UI: compact searchable client list, separate tabs, server calculation trace, no invented manager zero, effective September history, retained manager costs, unchanged cash, first-day dates approved-period annotations, known fixed/pending share creator billing states, unsaved preview labeling, full-roster pagination totals and separate frozen invoice funding schedule');
   ` },
   bundle: true, write: false, outdir: resolve('.design-preview/agency-revenue-test'), format: 'cjs', platform: 'node', jsx: 'automatic',
   loader: { '.css': 'empty' }, external: ['react', 'react-dom/server', 'react/jsx-runtime', 'radix-ui', 'lucide-react'],

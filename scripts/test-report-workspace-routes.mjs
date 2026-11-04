@@ -105,7 +105,9 @@ deps['@/lib/pdf/report-reconciliation-pdf']={ReportReconciliationPDF:props=>{rec
 deps['@/lib/pdf/brand-client-report-pdf']={BrandClientReportPDF:props=>props};
 deps['@/lib/brand-logo']={brandLogoDataUri:async url=>{logoSeen=url;return null;}};
 deps['react/jsx-runtime']={jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props}),Fragment:'fragment'};
-deps['./report-view']={ReportView:'report'};deps['./view-beacon']={ViewBeacon:'beacon'};
+deps['./studio-report-view']={StudioReportView:'report'};deps['./view-beacon']={ViewBeacon:'beacon'};
+deps['@/lib/data/client-report-history']={loadClientReportHistoryResult:async()=>({items:[],unavailable:false})};
+deps['lucide-react']={LockKeyhole:'lock-icon'};
 const csv=load('src/app/api/report-csv/[token]/route.ts'),pdf=load('src/app/api/report-pdf/[token]/route.ts'),page=load('src/app/r/[token]/page.tsx');
 const tokenCtx={params:Promise.resolve({token:'our-token'})};
 tables.brands_v2[0].logo_url='our-logo';tables.brands_v2.unshift(brand('collision','b',{slug:'own',logo_url:'foreign-logo'}));

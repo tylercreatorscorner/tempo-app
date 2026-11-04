@@ -9,8 +9,11 @@
  */
 import { createAdminClient } from '@/lib/supabase/server';
 import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
-import { ReportView, type ReportType } from './report-view';
+import type { ReportType } from './report-view';
+import { StudioReportView as ReportView } from './studio-report-view';
 import { ViewBeacon } from './view-beacon';
+import { loadClientReportHistoryResult } from '@/lib/data/client-report-history';
+import { LockKeyhole } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,25 +48,25 @@ export async function generateMetadata({ params }: Props) {
   return {
     title:
       data && !data.revoked_at
-        ? `${data.brand_name} — ${kind}${data.period_label ? ` · ${data.period_label}` : ''}`
-        : 'Report — Tempo',
+        ? `${data.brand_name} · ${kind}${data.period_label ? ` · ${data.period_label}` : ''}`
+        : 'Report · Tempo',
     robots: { index: false, follow: false },
   };
 }
 
 function GonePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#fbfbfd] p-6">
-      <div className="max-w-sm rounded-2xl border border-[#e7e7f2] bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-[#f2f1f8] text-lg text-[#8a8fb0]">
-          &#128274;
+    <main className="flex min-h-screen items-center justify-center bg-[#f6f5f1] p-6 text-[#191a1c]">
+      <div className="max-w-sm rounded-xl border border-[#dddcd7] bg-white p-8 text-center">
+        <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#ede7fa] text-[#6e4bcc]">
+          <LockKeyhole size={22} aria-hidden="true" />
         </div>
-        <h1 className="text-base font-bold text-[#171a33]">This report link is no longer active</h1>
-        <p className="mt-2 text-sm leading-relaxed text-[#6b7093]">
+        <h1 className="text-lg font-semibold">This report link is no longer active</h1>
+        <p className="mt-2 text-sm leading-relaxed text-[#66666c]">
           Ask your Creators Corner contact for a fresh link.
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -75,11 +78,13 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
   const supabase = await createAdminClient();
   const { data: row } = await supabase
     .from('client_reports')
-    .select('tenant_id, id, brand_slug, brand_name, period_label, snapshot, notes, plan, created_at, viewed_at, revoked_at, report_type')
+    .select('tenant_id, id, brand_slug, brand_name, period_start, period_end, period_label, snapshot, notes, plan, created_at, viewed_at, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
 
   if (!row || row.revoked_at) return <GonePage />;
+  const historyPromise = row.snapshot?.reconciliation
+    ? Promise.resolve({ items: [], unavailable: false }) : loadClientReportHistoryResult(supabase, { ...row, token });
 
   /**
    * The client's own mark, read LIVE rather than from the frozen snapshot.
@@ -112,6 +117,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
 
   const snapshot = row.snapshot as ClientReportSnapshot;
   const report = reviveReportDates(snapshot.report);
+  const history = await historyPromise;
 
   return (
     <>
@@ -130,6 +136,8 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
            an older client. Treat absence as the standing report. */
         reportType={(row.report_type as ReportType | null) ?? 'performance'}
         logoUrl={logoUrl}
+        history={history.items}
+        historyUnavailable={history.unavailable}
       />
     </>
   );

@@ -10,8 +10,8 @@ export interface ChoiceOption { value: string; label: string; description?: stri
 // Radix reserves the empty string for clearing. Keep callers' existing empty
 // values intact, including form fields and "latest revision" filters.
 const EMPTY_CHOICE = '__tempo_empty_choice__';
-export function ChoiceMenu({ label, value, options, onChange, disabled, placeholder = 'Choose an option', compact = false, triggerClassName = '', id }: {
-  label: string; value: string; options: ChoiceOption[]; onChange: (value: string) => void; disabled?: boolean; placeholder?: string; compact?: boolean; triggerClassName?: string; id?: string;
+export function ChoiceMenu({ label, value, options, onChange, disabled, placeholder = 'Choose an option', compact = false, triggerClassName = '', contentClassName = '', id }: {
+  label: string; value: string; options: ChoiceOption[]; onChange: (value: string) => void; disabled?: boolean; placeholder?: string; compact?: boolean; triggerClassName?: string; contentClassName?: string; id?: string;
 }) {
   const selected = options.find(option => option.value === value);
   const hasEmptyOption = options.some(option => option.value === '');
@@ -19,7 +19,7 @@ export function ChoiceMenu({ label, value, options, onChange, disabled, placehol
     <Select.Trigger id={id} className={`${styles.trigger} ${compact ? styles.compact : ''} ${triggerClassName}`} aria-label={label}>
       {selected?.icon}<Select.Value placeholder={placeholder} /><Select.Icon className={styles.chevron}><ChevronDown size={15} /></Select.Icon>
     </Select.Trigger>
-    <Select.Portal><Select.Content className={`${styles.content} ${compact ? styles.compactContent : ''}`} position="popper" sideOffset={8} collisionPadding={12} data-lenis-prevent>
+    <Select.Portal><Select.Content className={`${styles.content} ${compact ? styles.compactContent : ''} ${contentClassName}`} position="popper" sideOffset={8} collisionPadding={12} data-lenis-prevent>
       <Select.ScrollUpButton className={styles.scroll}><InterfaceIcon name="increase" /></Select.ScrollUpButton>
       <Select.Viewport className={styles.viewport}>
         {!options.some(option => option.group) && <div className={styles.heading}>{label}</div>}
