@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Dialog, Popover } from 'radix-ui';
 import { Check, ChevronDown, Download, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react';
@@ -39,21 +39,9 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
   const navigation = useNavigationPending();
   const filterParams = JSON.stringify(Object.fromEntries(Object.keys(defaults).map(name => [name, params.get(name)])));
   const urlQuery = useMemo(() => normalizeContentQuery(JSON.parse(filterParams) as Record<string, string | null>), [filterParams]);
-  const [query, setQuery] = useState(urlQuery);
-  const [seenFilterParams, setSeenFilterParams] = useState(filterParams);
-  if (seenFilterParams !== filterParams) {
-    setSeenFilterParams(filterParams);
-    const latestQuery = typeof window === 'undefined' ? urlQuery : normalizeContentQuery(new URLSearchParams(window.location.search));
-    if (JSON.stringify(latestQuery) === JSON.stringify(urlQuery)) setQuery(current => JSON.stringify(current) === JSON.stringify(urlQuery) ? current : urlQuery);
-  }
-  const urlSelected = params.get('selected');
-  const [selectedKey, setSelectedKey] = useState(urlSelected);
-  const [seenSelected, setSeenSelected] = useState(urlSelected);
-  if (seenSelected !== urlSelected) {
-    setSeenSelected(urlSelected);
-    const latestSelected = typeof window === 'undefined' ? urlSelected : new URLSearchParams(window.location.search).get('selected');
-    if (latestSelected === urlSelected) setSelectedKey(urlSelected);
-  }
+  const [query, setQuery] = useOptimistic(urlQuery);
+  const [selectedKey, setSelectedKey] = useOptimistic(params.get('selected'));
+  const [, startLocalTransition] = useTransition();
   const basis = params.get('basis') === 'posted' ? 'posted' : 'earned';
   const key = `${selectedBrand ?? 'all'}|${startDate}|${endDate}|${managedOnly}|${basis}`;
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -112,6 +100,7 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
   const filtered = Boolean(query.q || query.creator || query.tag || query.age !== 'all' || query.review !== 'all' || managedOnly || basis === 'posted');
 
   function setLocal(patch: Partial<ContentQuery> & { selected?: string }) {
+    if (navigation.isPending) return;
     const url = new URLSearchParams(window.location.search);
     // Preserve controls already changed by a fast preceding interaction, even
     // before Next has committed the new search-param context to this render.
@@ -120,17 +109,19 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
       if (value === undefined) continue;
       if (name !== 'selected' && value === defaults[name]) url.delete(name); else url.set(name, value);
     }
-    // Controlled inputs and Radix menus update immediately; URL context may
-    // commit in a later transition and must not temporarily reset the control.
     const nextQuery = normalizeContentQuery(url);
-    setQuery(current => JSON.stringify(current) === JSON.stringify(nextQuery) ? current : nextQuery);
-    if (patch.selected !== undefined) setSelectedKey(patch.selected);
-    // Let Next copy its internal history state and notify useSearchParams.
-    // Passing window.history.state bypasses that notification in Next 16.
-    window.history.replaceState(null, '', `${pathname}${url.size ? `?${url}` : ''}`);
+    // Optimistic controls settle onto the URL base after either native local
+    // filtering or a server navigation, without a separate sync effect.
+    startLocalTransition(() => {
+      if (Object.keys(patch).some(name => name !== 'selected')) setQuery(nextQuery);
+      if (patch.selected !== undefined) setSelectedKey(patch.selected);
+      // Next copies its internal state and notifies useSearchParams itself.
+      window.history.replaceState(null, '', `${pathname}${url.size ? `?${url}` : ''}`);
+    });
     setExportNotice('');
   }
   function setServer(name: 'managed' | 'basis', value: string) {
+    if (navigation.isPending) return;
     const url = new URLSearchParams(window.location.search);
     if (value) url.set(name, value); else url.delete(name);
     navigation.startNav(() => router.push(`${pathname}${url.size ? `?${url}` : ''}`, { scroll: false }));
@@ -139,6 +130,7 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
     return post ? `/posts/${encodeURIComponent(post.video_id)}?${new URLSearchParams({ brand: post.brand_slug, start: shownStart, end: shownEnd })}` : '/posts';
   }
   function select(post: ContentPost, opener: HTMLButtonElement) {
+    if (navigation.isPending) return;
     setLocal({ selected: contentPostKey(post) });
     if (!inspectorElement.current || window.getComputedStyle(inspectorElement.current).display === 'none') { mobileOpener.current = opener; setMobileOpen(true); }
   }
@@ -154,6 +146,7 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
     setExportNotice(`Exported ${formatNumber(rows.length)} video/brand rows${data.capped ? ' from the loaded subset' : ''}.`);
   }
   function resetFilters() {
+    if (navigation.isPending) return;
     if (!managedOnly && basis === 'earned') { setLocal({ q: '', creator: '', age: 'all', tag: '', review: 'all' }); return; }
     const url = new URLSearchParams(window.location.search);
     for (const name of ['q', 'creator', 'age', 'tag', 'review', 'managed', 'basis']) url.delete(name);
@@ -169,8 +162,8 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
   const filterFields = <>
     <label className={styles.filterField}><span>Creator scope</span><ChoiceMenu compact label="Creator scope" value={managedOnly ? 'managed' : 'all'} disabled={updating} options={[{ value: 'all', label: 'All creators' }, { value: 'managed', label: 'Managed creators' }]} onChange={value => setServer('managed', value === 'managed' ? 'true' : '')} /></label>
     <label className={styles.filterField}><span>Date basis</span><ChoiceMenu compact label="Date basis" value={basis} disabled={updating} options={[{ value: 'earned', label: 'Sales in period', description: 'Any publication date' }, { value: 'posted', label: 'Published in period', description: 'Sales remain limited to the selected period' }]} onChange={value => setServer('basis', value === 'posted' ? 'posted' : '')} /></label>
-    <label className={styles.filterField}><span>Review status</span><ChoiceMenu compact label="Review status" value={query.review} options={[...CONTENT_REVIEW_OPTIONS]} onChange={value => setLocal({ review: value as ContentQuery['review'] })} /></label>
-    <label className={styles.filterField}><span>Metrics shown</span><ChoiceMenu compact label="Metrics shown" value={query.metrics} options={[{ value: 'sales', label: 'Sales' }, { value: 'engagement', label: 'Engagement' }]} onChange={value => setLocal({ metrics: value as ContentQuery['metrics'] })} /></label>
+    <label className={styles.filterField}><span>Review status</span><ChoiceMenu compact label="Review status" value={query.review} disabled={navigation.isPending} options={[...CONTENT_REVIEW_OPTIONS]} onChange={value => setLocal({ review: value as ContentQuery['review'] })} /></label>
+    <label className={styles.filterField}><span>Metrics shown</span><ChoiceMenu compact label="Metrics shown" value={query.metrics} disabled={navigation.isPending} options={[{ value: 'sales', label: 'Sales' }, { value: 'engagement', label: 'Engagement' }]} onChange={value => setLocal({ metrics: value as ContentQuery['metrics'] })} /></label>
   </>;
 
   return <div className={styles.page}>
@@ -184,28 +177,28 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
     </header>
 
     <section className={styles.toolbar} aria-label="Find videos">
-      <SearchInput ref={searchInput} className={styles.search} value={query.q} aria-label="Search videos or creators" placeholder="Search videos or creators" onChange={event => setLocal({ q: event.target.value })} onClear={() => setLocal({ q: '' })} />
-      <div className={styles.primaryFilter}><CreatorMenu creators={creators} value={query.creator} onChange={value => setLocal({ creator: value })} /></div>
-      {canViewRoster && <div className={styles.primaryFilter}><ChoiceMenu compact triggerClassName={styles.choice} label="Creator tag" value={query.tag} options={[{ value: '', label: 'All tags' }, ...[...new Set([...tags, ...(query.tag ? [query.tag] : [])])].map(tag => ({ value: tag, label: tag }))]} onChange={value => setLocal({ tag: value })} /></div>}
-      <div className={styles.primaryFilter}><ChoiceMenu compact triggerClassName={styles.choice} label="Video age" value={query.age} options={CONTENT_AGE_OPTIONS.map(({value,label}) => ({value,label}))} onChange={value => setLocal({ age: value as ContentQuery['age'] })} /></div>
-      <Popover.Root><Popover.Trigger asChild><button type="button" className={styles.more}><SlidersHorizontal size={16} aria-hidden="true" /><span>Filters</span>{(managedOnly || basis === 'posted' || query.review !== 'all' || query.tag || query.creator || query.age !== 'all') && <i aria-label="Active filters" />}</button></Popover.Trigger>
+      <SearchInput ref={searchInput} className={styles.search} value={query.q} disabled={navigation.isPending} aria-label="Search videos or creators" placeholder="Search videos or creators" onChange={event => setLocal({ q: event.target.value })} onClear={() => setLocal({ q: '' })} />
+      <div className={styles.primaryFilter}><CreatorMenu disabled={navigation.isPending} creators={creators} value={query.creator} onChange={value => setLocal({ creator: value })} /></div>
+      {canViewRoster && <div className={styles.primaryFilter}><ChoiceMenu compact triggerClassName={styles.choice} label="Creator tag" value={query.tag} disabled={navigation.isPending} options={[{ value: '', label: 'All tags' }, ...[...new Set([...tags, ...(query.tag ? [query.tag] : [])])].map(tag => ({ value: tag, label: tag }))]} onChange={value => setLocal({ tag: value })} /></div>}
+      <div className={styles.primaryFilter}><ChoiceMenu compact triggerClassName={styles.choice} label="Video age" value={query.age} disabled={navigation.isPending} options={CONTENT_AGE_OPTIONS.map(({value,label}) => ({value,label}))} onChange={value => setLocal({ age: value as ContentQuery['age'] })} /></div>
+      <Popover.Root><Popover.Trigger asChild><button type="button" className={styles.more} disabled={navigation.isPending}><SlidersHorizontal size={16} aria-hidden="true" /><span>Filters</span>{(managedOnly || basis === 'posted' || query.review !== 'all' || query.tag || query.creator || query.age !== 'all') && <i aria-label="Active filters" />}</button></Popover.Trigger>
         <Popover.Portal><Popover.Content className={styles.filterPopover} align="end" sideOffset={8} collisionPadding={12} data-lenis-prevent aria-label="Content filters">
           <div className={styles.popoverHead}><h2>Filter content</h2><Popover.Close className={styles.iconButton} aria-label="Close content filters"><X size={17} aria-hidden="true" /></Popover.Close></div>
-          <div className={styles.mobileFilter}><label className={styles.filterField}><span>Creator</span><CreatorMenu creators={creators} value={query.creator} onChange={value => setLocal({ creator: value })} /></label>
-            {canViewRoster && <label className={styles.filterField}><span>Creator tag</span><ChoiceMenu compact label="Creator tag" value={query.tag} options={[{ value: '', label: 'All tags' }, ...[...new Set([...tags, ...(query.tag ? [query.tag] : [])])].map(tag => ({ value: tag, label: tag }))]} onChange={value => setLocal({ tag: value })} /></label>}
-            <label className={styles.filterField}><span>Video age</span><ChoiceMenu compact label="Video age" value={query.age} options={CONTENT_AGE_OPTIONS.map(({value,label}) => ({value,label}))} onChange={value => setLocal({ age: value as ContentQuery['age'] })} /></label></div>
-          {filterFields}<button type="button" className={styles.textButton} onClick={resetFilters} disabled={!filtered}>Clear content filters</button>
+          <div className={styles.mobileFilter}><label className={styles.filterField}><span>Creator</span><CreatorMenu disabled={navigation.isPending} creators={creators} value={query.creator} onChange={value => setLocal({ creator: value })} /></label>
+            {canViewRoster && <label className={styles.filterField}><span>Creator tag</span><ChoiceMenu compact label="Creator tag" value={query.tag} disabled={navigation.isPending} options={[{ value: '', label: 'All tags' }, ...[...new Set([...tags, ...(query.tag ? [query.tag] : [])])].map(tag => ({ value: tag, label: tag }))]} onChange={value => setLocal({ tag: value })} /></label>}
+            <label className={styles.filterField}><span>Video age</span><ChoiceMenu compact label="Video age" value={query.age} disabled={navigation.isPending} options={CONTENT_AGE_OPTIONS.map(({value,label}) => ({value,label}))} onChange={value => setLocal({ age: value as ContentQuery['age'] })} /></label></div>
+          {filterFields}<button type="button" className={styles.textButton} onClick={resetFilters} disabled={!filtered || navigation.isPending}>Clear content filters</button>
         </Popover.Content></Popover.Portal>
       </Popover.Root>
     </section>
 
     {filtered && <div className={styles.filterChips} aria-label="Active content filters">
-      {managedOnly && <button onClick={() => setServer('managed', '')}>Managed creators<X size={12} aria-label="Remove creator scope filter" /></button>}
-      {basis === 'posted' && <button onClick={() => setServer('basis', '')}>Published in period<X size={12} aria-label="Remove publication filter" /></button>}
-      {query.creator && <button onClick={() => setLocal({ creator: '' })}>@{query.creator}<X size={12} aria-label="Remove creator filter" /></button>}
-      {query.tag && <button onClick={() => setLocal({ tag: '' })}>{query.tag}<X size={12} aria-label="Remove tag filter" /></button>}
-      {query.age !== 'all' && <button onClick={() => setLocal({ age: 'all' })}>{CONTENT_AGE_OPTIONS.find(option => option.value === query.age)?.label}<X size={12} aria-label="Remove age filter" /></button>}
-      {query.review !== 'all' && <button onClick={() => setLocal({ review: 'all' })}>{CONTENT_REVIEW_OPTIONS.find(option => option.value === query.review)?.label}<X size={12} aria-label="Remove review filter" /></button>}
+      {managedOnly && <button disabled={navigation.isPending} onClick={() => setServer('managed', '')}>Managed creators<X size={12} aria-label="Remove creator scope filter" /></button>}
+      {basis === 'posted' && <button disabled={navigation.isPending} onClick={() => setServer('basis', '')}>Published in period<X size={12} aria-label="Remove publication filter" /></button>}
+      {query.creator && <button disabled={navigation.isPending} onClick={() => setLocal({ creator: '' })}>@{query.creator}<X size={12} aria-label="Remove creator filter" /></button>}
+      {query.tag && <button disabled={navigation.isPending} onClick={() => setLocal({ tag: '' })}>{query.tag}<X size={12} aria-label="Remove tag filter" /></button>}
+      {query.age !== 'all' && <button disabled={navigation.isPending} onClick={() => setLocal({ age: 'all' })}>{CONTENT_AGE_OPTIONS.find(option => option.value === query.age)?.label}<X size={12} aria-label="Remove age filter" /></button>}
+      {query.review !== 'all' && <button disabled={navigation.isPending} onClick={() => setLocal({ review: 'all' })}>{CONTENT_REVIEW_OPTIONS.find(option => option.value === query.review)?.label}<X size={12} aria-label="Remove review filter" /></button>}
       <button className={styles.clearFilters} onClick={resetFilters}>Clear filters</button>
     </div>}
 
@@ -228,13 +221,13 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
     <span className={styles.srOnly} role="status">{exportNotice}</span>
     <div className={styles.workspace} data-updating={updating || undefined}>
       <section className={styles.library} aria-label="Video library">
-        <div className={styles.libraryHead}><h2>Video library</h2><ChoiceMenu compact label="Sort content" value={`${query.sort}:${query.dir}`} options={sortOptions} triggerClassName={styles.sort} onChange={value => { const [sort, dir] = value.split(':'); setLocal({ sort: sort as ContentQuery['sort'], dir: dir as ContentQuery['dir'] }); }} /></div>
+        <div className={styles.libraryHead}><h2>Video library</h2><ChoiceMenu compact label="Sort content" value={`${query.sort}:${query.dir}`} disabled={navigation.isPending} options={sortOptions} triggerClassName={styles.sort} onChange={value => { const [sort, dir] = value.split(':'); setLocal({ sort: sort as ContentQuery['sort'], dir: dir as ContentQuery['dir'] }); }} /></div>
         {!data && requestPending ? <ContentSkeleton /> : !rows.length ? <div className={styles.empty}><Search size={24} aria-hidden="true" /><h3>{error ? 'Content is unavailable' : filtered ? 'No videos match these filters' : 'No recorded videos in this period'}</h3><p>{error ? 'Try loading the library again.' : filtered ? 'Clear the search or adjust the creator, tag, and age filters.' : 'Try another brand or a wider sales period.'}</p>{filtered ? <button type="button" className={styles.secondary} onClick={() => { resetFilters(); searchInput.current?.focus(); }}>Clear filters</button> : error ? <button type="button" className={styles.secondary} onClick={() => setAttempt(value => value + 1)}>Try again</button> : null}</div> : <div className={styles.rows}>{rendered.map(post => {
           const age = postAgeDays(post.post_date, shownEnd);
           const url = resolveWatchUrl(post.video_url, post.creator_handle, post.video_id);
           const creatorName = post.creator_name?.trim();
           const showName = creatorName && creatorName.toLowerCase().replace(/^@/, '') !== post.creator_handle.toLowerCase().replace(/^@/, '');
-          return <button type="button" key={contentPostKey(post)} className={styles.videoRow} aria-pressed={contentPostKey(post) === selectionKey} aria-label={`View video details: ${post.video_title || 'Untitled video'} by @${post.creator_handle}`} onClick={event => select(post, event.currentTarget)}>
+          return <button type="button" key={contentPostKey(post)} className={styles.videoRow} disabled={navigation.isPending} aria-pressed={contentPostKey(post) === selectionKey} aria-label={`View video details: ${post.video_title || 'Untitled video'} by @${post.creator_handle}`} onClick={event => select(post, event.currentTarget)}>
             <VideoThumbnail url={url ?? ''} className={styles.rowCover} />
             <span className={styles.videoIdentity}><strong>{post.video_title || 'Untitled video'}</strong><span>{showName ? `${creatorName} · ` : ''}@{post.creator_handle}{!shownBrand ? ` · ${post.brand_name || brandMeta.label(post.brand_slug)}` : ''}</span><span>{post.post_date ? `${date(post.post_date)}${age === null ? '' : ` · ${age}d old`}` : 'Publication date unavailable'}</span><span className={styles.rowContext}>{post.is_managed ? 'Managed creator' : 'Outside managed roster'}{post.flagged ? ' · Flagged for review' : post.review_count ? ` · ${post.review_count} ${post.review_count === 1 ? 'review' : 'reviews'}` : ' · Unreviewed'}</span></span>
             <span className={styles.rowMetrics}>{query.metrics === 'sales' ? <><strong>{formatCurrency(post.gmv)}<small> GMV</small></strong><span>{formatNumber(post.orders)} orders · {formatNumber(post.items_sold)} units</span></> : <><strong>{post.views === null ? 'Unavailable' : formatNumber(post.views)}<small> views</small></strong><span>{post.likes === null ? 'Likes unavailable' : `${formatNumber(post.likes)} likes`} · {post.engagement_rate === null ? 'Engagement unavailable' : `${post.engagement_rate.toFixed(1)}% engagement`}</span></>}</span>
@@ -254,12 +247,12 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
   </div>;
 }
 
-function CreatorMenu({ creators, value, onChange }: { creators: string[]; value: string; onChange: (value: string) => void }) {
+function CreatorMenu({ creators, value, onChange, disabled = false }: { creators: string[]; value: string; onChange: (value: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const filtered = creators.filter(creator => creator.includes(search.toLowerCase().replace(/^@/, '').trim()));
-  return <Popover.Root open={open} onOpenChange={setOpen}><Popover.Trigger asChild><button type="button" className={styles.creatorTrigger} aria-label="Creator filter"><span>{value ? `@${value}` : 'All creators'}</span><ChevronDown size={15} aria-hidden="true" /></button></Popover.Trigger><Popover.Portal><Popover.Content className={styles.creatorMenu} align="start" sideOffset={8} collisionPadding={12} data-lenis-prevent aria-label="Choose a creator" onOpenAutoFocus={event => { event.preventDefault(); input.current?.focus(); }}>
+  return <Popover.Root open={open} onOpenChange={setOpen}><Popover.Trigger asChild><button type="button" className={styles.creatorTrigger} disabled={disabled} aria-label="Creator filter"><span>{value ? `@${value}` : 'All creators'}</span><ChevronDown size={15} aria-hidden="true" /></button></Popover.Trigger><Popover.Portal><Popover.Content className={styles.creatorMenu} align="start" sideOffset={8} collisionPadding={12} data-lenis-prevent aria-label="Choose a creator" onOpenAutoFocus={event => { event.preventDefault(); input.current?.focus(); }}>
     <SearchInput ref={input} className={styles.creatorSearch} value={search} aria-label="Search creator handles" placeholder="Search creator handles" onChange={event => setSearch(event.target.value)} onClear={() => setSearch('')} />
     <div className={styles.creatorOptions}><button type="button" onClick={() => { onChange(''); setOpen(false); }}>All creators{!value && <Check size={14} aria-hidden="true" />}</button>{filtered.slice(0, 60).map(creator => <button key={creator} type="button" onClick={() => { onChange(creator); setOpen(false); }}>@{creator}{creator === value && <Check size={14} aria-hidden="true" />}</button>)}</div>
     {!filtered.length && <p className={styles.menuHint}>No matching creator handles in this library.</p>}{filtered.length > 60 && <p className={styles.menuHint}>Search to narrow the creator list.</p>}
