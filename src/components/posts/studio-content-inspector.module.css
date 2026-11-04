@@ -3,6 +3,7 @@
 .poster > .cover { position:absolute; inset:0; width:100%; height:100%; border:0; border-radius:0; }
 .details { display:flex; flex-direction:column; gap:10px; min-width:0; }
 .details h2,.empty h2 { margin:0; color:var(--studio-ink,var(--foreground)); font-size:24px; line-height:32px; font-weight:600; letter-spacing:-.45px; overflow-wrap:anywhere; }
+.details h2 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 .creator { display:inline-flex; align-items:center; gap:5px; width:fit-content; max-width:100%; min-height:28px; color:var(--studio-purple,var(--primary)); font-size:12px; line-height:18px; font-weight:600; text-decoration:none; overflow-wrap:anywhere; }
 .creator:hover { text-decoration:underline; text-underline-offset:3px; }
 .publication,.period,.muted { margin:0; color:var(--studio-muted,var(--muted-foreground)); font-size:12px; line-height:19px; overflow-wrap:anywhere; }

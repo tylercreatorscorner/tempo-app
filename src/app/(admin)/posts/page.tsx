@@ -8,7 +8,7 @@ import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { StudioContentClient } from './studio-content-client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Content | Tempo' };
+export const metadata = { title: 'Content' };
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string; managed?: string }>;

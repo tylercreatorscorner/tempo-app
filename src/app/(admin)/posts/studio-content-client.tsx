@@ -38,7 +38,22 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
   const brandMeta = useBrandMeta();
   const navigation = useNavigationPending();
   const filterParams = JSON.stringify(Object.fromEntries(Object.keys(defaults).map(name => [name, params.get(name)])));
-  const query = useMemo(() => normalizeContentQuery(JSON.parse(filterParams) as Record<string, string | null>), [filterParams]);
+  const urlQuery = useMemo(() => normalizeContentQuery(JSON.parse(filterParams) as Record<string, string | null>), [filterParams]);
+  const [query, setQuery] = useState(urlQuery);
+  const [seenFilterParams, setSeenFilterParams] = useState(filterParams);
+  if (seenFilterParams !== filterParams) {
+    setSeenFilterParams(filterParams);
+    const latestQuery = typeof window === 'undefined' ? urlQuery : normalizeContentQuery(new URLSearchParams(window.location.search));
+    if (JSON.stringify(latestQuery) === JSON.stringify(urlQuery)) setQuery(current => JSON.stringify(current) === JSON.stringify(urlQuery) ? current : urlQuery);
+  }
+  const urlSelected = params.get('selected');
+  const [selectedKey, setSelectedKey] = useState(urlSelected);
+  const [seenSelected, setSeenSelected] = useState(urlSelected);
+  if (seenSelected !== urlSelected) {
+    setSeenSelected(urlSelected);
+    const latestSelected = typeof window === 'undefined' ? urlSelected : new URLSearchParams(window.location.search).get('selected');
+    if (latestSelected === urlSelected) setSelectedKey(urlSelected);
+  }
   const basis = params.get('basis') === 'posted' ? 'posted' : 'earned';
   const key = `${selectedBrand ?? 'all'}|${startDate}|${endDate}|${managedOnly}|${basis}`;
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -85,7 +100,6 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
 
   const rows = useMemo(() => filterContentPosts(data?.posts ?? [], query, shownEnd), [data, query, shownEnd]);
   const totals = useMemo(() => summarizeContent(rows), [rows]);
-  const selectedKey = params.get('selected');
   const selected = rows.find(post => contentPostKey(post) === selectedKey) ?? rows[0] ?? null;
   const selectionKey = selected ? contentPostKey(selected) : '';
   const creators = useMemo(() => [...new Set((data?.posts ?? []).map(post => post.creator_handle.replace(/^@/, '').toLowerCase()).filter(Boolean))].sort(), [data]);
@@ -98,12 +112,19 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
   const filtered = Boolean(query.q || query.creator || query.tag || query.age !== 'all' || query.review !== 'all' || managedOnly || basis === 'posted');
 
   function setLocal(patch: Partial<ContentQuery> & { selected?: string }) {
-    const next = { ...query, ...patch };
     const url = new URLSearchParams(window.location.search);
-    for (const name of Object.keys(defaults) as (keyof ContentQuery)[]) {
-      if (next[name] === defaults[name]) url.delete(name); else url.set(name, next[name]);
+    // Preserve controls already changed by a fast preceding interaction, even
+    // before Next has committed the new search-param context to this render.
+    for (const name of Object.keys(patch) as (keyof ContentQuery | 'selected')[]) {
+      const value = patch[name];
+      if (value === undefined) continue;
+      if (name !== 'selected' && value === defaults[name]) url.delete(name); else url.set(name, value);
     }
-    if (patch.selected !== undefined) url.set('selected', patch.selected);
+    // Controlled inputs and Radix menus update immediately; URL context may
+    // commit in a later transition and must not temporarily reset the control.
+    const nextQuery = normalizeContentQuery(url);
+    setQuery(current => JSON.stringify(current) === JSON.stringify(nextQuery) ? current : nextQuery);
+    if (patch.selected !== undefined) setSelectedKey(patch.selected);
     // Let Next copy its internal history state and notify useSearchParams.
     // Passing window.history.state bypasses that notification in Next 16.
     window.history.replaceState(null, '', `${pathname}${url.size ? `?${url}` : ''}`);
@@ -158,21 +179,21 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
       <div className={styles.scopeControls}>
         <BrandFilter appearance="studio" compact label="Content brand" brands={brands} brandsWithData={brands} selectedBrand={selectedBrand} />
         <DateRangePicker appearance="studio" label="Content sales period" staleThrough={staleThrough} displayRange={{ start: startDate, end: endDate }} />
-        <button className={styles.export} type="button" onClick={exportLinks} disabled={!rows.length || updating} aria-label="Export video links"><Download size={15} aria-hidden="true" /><span>Export video links</span></button>
       </div>
+      <button className={styles.export} type="button" onClick={exportLinks} disabled={!rows.length || updating} aria-label="Export video links"><Download size={15} aria-hidden="true" /><span>Export video links</span></button>
     </header>
 
     <section className={styles.toolbar} aria-label="Find videos">
       <SearchInput ref={searchInput} className={styles.search} value={query.q} aria-label="Search videos or creators" placeholder="Search videos or creators" onChange={event => setLocal({ q: event.target.value })} onClear={() => setLocal({ q: '' })} />
       <div className={styles.primaryFilter}><CreatorMenu creators={creators} value={query.creator} onChange={value => setLocal({ creator: value })} /></div>
       {canViewRoster && <div className={styles.primaryFilter}><ChoiceMenu compact triggerClassName={styles.choice} label="Creator tag" value={query.tag} options={[{ value: '', label: 'All tags' }, ...[...new Set([...tags, ...(query.tag ? [query.tag] : [])])].map(tag => ({ value: tag, label: tag }))]} onChange={value => setLocal({ tag: value })} /></div>}
-      <div className={styles.primaryFilter}><ChoiceMenu compact triggerClassName={styles.choice} label="Video age" value={query.age} options={[...CONTENT_AGE_OPTIONS]} onChange={value => setLocal({ age: value as ContentQuery['age'] })} /></div>
+      <div className={styles.primaryFilter}><ChoiceMenu compact triggerClassName={styles.choice} label="Video age" value={query.age} options={CONTENT_AGE_OPTIONS.map(({value,label}) => ({value,label}))} onChange={value => setLocal({ age: value as ContentQuery['age'] })} /></div>
       <Popover.Root><Popover.Trigger asChild><button type="button" className={styles.more}><SlidersHorizontal size={16} aria-hidden="true" /><span>Filters</span>{(managedOnly || basis === 'posted' || query.review !== 'all' || query.tag || query.creator || query.age !== 'all') && <i aria-label="Active filters" />}</button></Popover.Trigger>
         <Popover.Portal><Popover.Content className={styles.filterPopover} align="end" sideOffset={8} collisionPadding={12} data-lenis-prevent aria-label="Content filters">
           <div className={styles.popoverHead}><h2>Filter content</h2><Popover.Close className={styles.iconButton} aria-label="Close content filters"><X size={17} aria-hidden="true" /></Popover.Close></div>
           <div className={styles.mobileFilter}><label className={styles.filterField}><span>Creator</span><CreatorMenu creators={creators} value={query.creator} onChange={value => setLocal({ creator: value })} /></label>
             {canViewRoster && <label className={styles.filterField}><span>Creator tag</span><ChoiceMenu compact label="Creator tag" value={query.tag} options={[{ value: '', label: 'All tags' }, ...[...new Set([...tags, ...(query.tag ? [query.tag] : [])])].map(tag => ({ value: tag, label: tag }))]} onChange={value => setLocal({ tag: value })} /></label>}
-            <label className={styles.filterField}><span>Video age</span><ChoiceMenu compact label="Video age" value={query.age} options={[...CONTENT_AGE_OPTIONS]} onChange={value => setLocal({ age: value as ContentQuery['age'] })} /></label></div>
+            <label className={styles.filterField}><span>Video age</span><ChoiceMenu compact label="Video age" value={query.age} options={CONTENT_AGE_OPTIONS.map(({value,label}) => ({value,label}))} onChange={value => setLocal({ age: value as ContentQuery['age'] })} /></label></div>
           {filterFields}<button type="button" className={styles.textButton} onClick={resetFilters} disabled={!filtered}>Clear content filters</button>
         </Popover.Content></Popover.Portal>
       </Popover.Root>
@@ -197,7 +218,7 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
     </section>
     <p className={styles.definition}>Video GMV is earned during the selected sales period. Video age is measured as of {date(shownEnd)}. {shownBasis === 'posted' ? 'Only videos published in the period are included. ' : ''}Published dates and qualifying delivery are separate.</p>
     {data?.capped && <div className={styles.notice}>This range contains more videos than can be loaded at once. These totals and exports cover the {formatNumber(data.deliveredCount)} loaded video/brand rows. Narrow the sales period or select a brand to review the full result.</div>}
-    {contextIncomplete && <p className={styles.definition}>Some creator tags could not be loaded. Tag filters include only confirmed matches.</p>}
+    {contextIncomplete && query.tag && <p className={styles.definition}>Some creator tags are unverified. Tag filters show confirmed matches.</p>}
     {!canViewRoster && query.tag && <p className={styles.notice}>Creator tags are not included in your access. Clear the tag filter to see the video library.</p>}
 
     <div className={styles.feedback}>
@@ -215,7 +236,7 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
           const showName = creatorName && creatorName.toLowerCase().replace(/^@/, '') !== post.creator_handle.toLowerCase().replace(/^@/, '');
           return <button type="button" key={contentPostKey(post)} className={styles.videoRow} aria-pressed={contentPostKey(post) === selectionKey} aria-label={`View video details: ${post.video_title || 'Untitled video'} by @${post.creator_handle}`} onClick={event => select(post, event.currentTarget)}>
             <VideoThumbnail url={url ?? ''} className={styles.rowCover} />
-            <span className={styles.videoIdentity}><strong>{post.video_title || 'Untitled video'}</strong><span>{showName ? `${creatorName} · ` : ''}@{post.creator_handle}{!shownBrand ? ` · ${post.brand_name || brandMeta.label(post.brand_slug)}` : ''}</span><span>{post.post_date ? `${date(post.post_date)}${age === null ? '' : ` · ${age}d old`}` : 'Publication date unavailable'}</span><span className={styles.rowContext}>{post.is_managed ? 'Managed creator' : 'All-creator source'}{post.flagged ? ' · Flagged for review' : post.review_count ? ` · ${post.review_count} ${post.review_count === 1 ? 'review' : 'reviews'}` : ' · Unreviewed'}</span></span>
+            <span className={styles.videoIdentity}><strong>{post.video_title || 'Untitled video'}</strong><span>{showName ? `${creatorName} · ` : ''}@{post.creator_handle}{!shownBrand ? ` · ${post.brand_name || brandMeta.label(post.brand_slug)}` : ''}</span><span>{post.post_date ? `${date(post.post_date)}${age === null ? '' : ` · ${age}d old`}` : 'Publication date unavailable'}</span><span className={styles.rowContext}>{post.is_managed ? 'Managed creator' : 'Outside managed roster'}{post.flagged ? ' · Flagged for review' : post.review_count ? ` · ${post.review_count} ${post.review_count === 1 ? 'review' : 'reviews'}` : ' · Unreviewed'}</span></span>
             <span className={styles.rowMetrics}>{query.metrics === 'sales' ? <><strong>{formatCurrency(post.gmv)}<small> GMV</small></strong><span>{formatNumber(post.orders)} orders · {formatNumber(post.items_sold)} units</span></> : <><strong>{post.views === null ? 'Unavailable' : formatNumber(post.views)}<small> views</small></strong><span>{post.likes === null ? 'Likes unavailable' : `${formatNumber(post.likes)} likes`} · {post.engagement_rate === null ? 'Engagement unavailable' : `${post.engagement_rate.toFixed(1)}% engagement`}</span></>}</span>
             <span className={styles.mobileDetails}>View video details</span>
           </button>;

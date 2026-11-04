@@ -146,7 +146,7 @@ function InspectorBody({ post, start, end, reviewHref, onPreview, isUpdating = f
   return <section className={styles.inspector} aria-label="Selected video" aria-busy={isUpdating}>
     <div className={styles.poster}><VideoThumbnail url={url ?? ''} className={styles.cover} /></div>
     <div className={styles.details}>
-      <h2>{post.video_title || 'Untitled video'}</h2>
+      <h2 title={post.video_title}>{post.video_title || 'Untitled video'}</h2>
       <Link className={styles.creator} href={creatorHref(post, start, end)}>@{post.creator_handle.replace(/^@/, '')}</Link>
       <p className={styles.publication}>{publicationLabel(post, end)}</p>
       <p className={styles.period}>Sales during {calendarDate(start)} to {calendarDate(end)}</p>
@@ -155,7 +155,7 @@ function InspectorBody({ post, start, end, reviewHref, onPreview, isUpdating = f
         <p>{formatNumber(post.orders)} orders · {formatNumber(post.items_sold)} units</p>
       </div>
       <div className={styles.relationship}>
-        <span>{post.brand_name}</span><span>{post.is_managed ? 'Managed creator' : 'Other creator'}</span>
+        <span>{post.brand_name}</span><span>{post.is_managed ? 'Managed creator' : 'Outside managed roster'}</span>
       </div>
       {post.creator_context_status === 'ready' && tags.length > 0 && <div className={styles.tags} aria-label="Creator tags">{tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
       <DeliveryContext post={post} start={start} end={end} />
