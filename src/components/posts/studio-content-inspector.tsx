@@ -9,6 +9,7 @@ import { VideoThumbnail } from '@/components/dashboard/video-thumbnail';
 import { TikTokPlayer } from '@/components/posts/tiktok-player';
 import { formatCurrency, formatNumber, resolveWatchUrl } from '@/lib/utils/format';
 import styles from './studio-content-inspector.module.css';
+import { restoreContentPreviewFocus } from '@/lib/posts/client-interactions';
 
 type Review = {
   id: string;
@@ -161,7 +162,7 @@ function InspectorBody({ post, start, end, reviewHref, onPreview, isUpdating = f
       <DeliveryContext post={post} start={start} end={end} />
       <CoachingContext key={`${post.brand_slug}:${post.video_id}`} post={post} />
       <div className={styles.actions}>
-        <button type="button" className={styles.primaryButton} disabled={isUpdating || !canPreview} onClick={onPreview}><Play size={15} aria-hidden="true" />Open preview</button>
+        <button type="button" data-content-preview-trigger className={styles.primaryButton} disabled={isUpdating || !canPreview} onClick={onPreview}><Play size={15} aria-hidden="true" />Open preview</button>
         <CopyVideoLink key={url} url={url} disabled={isUpdating} />
         <Link href={reviewHref} className={styles.textLink}>Open full review<ExternalLink size={13} aria-hidden="true" /></Link>
         {url && <a href={url} target="_blank" rel="noopener noreferrer" className={styles.textLink}>Open in TikTok<ExternalLink size={13} aria-hidden="true" /></a>}
@@ -180,9 +181,10 @@ export function ContentInspector({ post, start, end, reviewHref, onPreview, isUp
   return <InspectorBody key={`${post.brand_slug}:${post.video_id}`} post={post} start={start} end={end} reviewHref={reviewHref} onPreview={onPreview} isUpdating={isUpdating} />;
 }
 
-export function ContentPreview({ post, start, end, reviewHref, open, onOpenChange, onNext }: {
+export function ContentPreview({ post, start, end, reviewHref, open, onOpenChange, onNext, onReturnFocus }: {
   post: ContentPost | null; start: string; end: string; reviewHref: string;
   open: boolean; onOpenChange: (open: boolean) => void; onNext?: () => void;
+  onReturnFocus?: () => boolean;
 }) {
   const opener = useRef<HTMLElement | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -198,15 +200,14 @@ export function ContentPreview({ post, start, end, reviewHref, open, onOpenChang
           closeButton.current?.focus({ preventScroll: true });
         }}
         onCloseAutoFocus={event => {
-          event.preventDefault();
-          if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+          if (restoreContentPreviewFocus(opener.current, onReturnFocus)) event.preventDefault();
         }}>
         <Dialog.Title className="sr-only">Video preview</Dialog.Title>
         <Dialog.Description className="sr-only">Selected video playback, publication details and recorded sales in the selected reporting period.</Dialog.Description>
         <header className={styles.previewHeader}>
           <Dialog.Close ref={closeButton} className={styles.closeButton} aria-label="Close video preview"><X size={17} aria-hidden="true" /><span>Close preview</span></Dialog.Close>
         </header>
-        {post && <div className={styles.previewLayout}>
+        {post && <div key={`${post.brand_slug}:${post.video_id}`} className={styles.previewLayout}>
           <div className={styles.playerArea}>
             <TikTokPlayer key={post.video_id} videoId={post.video_id} className={styles.player} />
             {url && <a href={url} className={styles.playerFallback} target="_blank" rel="noopener noreferrer">Open in TikTok<ExternalLink size={14} aria-hidden="true" /></a>}

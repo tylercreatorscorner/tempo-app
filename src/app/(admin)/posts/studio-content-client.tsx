@@ -17,6 +17,7 @@ import { CONTENT_AGE_OPTIONS, CONTENT_REVIEW_OPTIONS, CONTENT_SORT_OPTIONS, norm
   filterContentPosts, summarizeContent, contentCsv, contentPostKey, postAgeDays,
   type ContentPost, type ContentQuery, type ContentResponse } from '@/lib/posts/studio-content';
 import styles from './studio-content.module.css';
+import { requestContentLibrary } from '@/lib/posts/client-interactions';
 
 type Scope = { brand: string | null; start: string; end: string; managed: boolean; basis: 'earned' | 'posted' };
 type Loaded = { key: string; scope: Scope; data: ContentResponse };
@@ -53,6 +54,7 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
   const [exportNotice, setExportNotice] = useState('');
   const mobileOpener = useRef<HTMLButtonElement | null>(null);
   const inspectorElement = useRef<HTMLElement>(null);
+  const mobileInspectorElement = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const requestPending = request.key !== `${key}|${attempt}` || request.pending;
   const error = request.key === `${key}|${attempt}` ? request.error : null;
@@ -73,16 +75,14 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
     if (selectedBrand) api.set('brand', selectedBrand);
     if (!managedOnly) api.set('managed', 'false');
     if (basis === 'posted') api.set('basis', 'posted');
-    fetch(`/api/posts?${api}`, { signal: controller.signal })
-      .then(async response => {
-        const body: unknown = await response.json();
-        if (!response.ok || !body || typeof body !== 'object' || !('posts' in body) || !Array.isArray(body.posts) || !('totals' in body)) throw new Error('Content could not be loaded. Please try again.');
+    requestContentLibrary(`/api/posts?${api}`, controller.signal)
+      .then(body => {
         if (active) {
           setLoaded({ key, scope, data: body as ContentResponse });
           setRequest({ key: requestKey, pending: false, error: null });
         }
       })
-      .catch(() => { if (active && !controller.signal.aborted) setRequest({ key: requestKey, pending: false, error: 'Content could not be loaded. Please try again.' }); });
+      .catch(error => { if (active && !controller.signal.aborted) setRequest({ key: requestKey, pending: false, error: error instanceof Error ? error.message : 'Content could not be loaded. Please try again.' }); });
     return () => { active = false; controller.abort(); };
   }, [key, selectedBrand, startDate, endDate, managedOnly, basis, attempt]);
 
@@ -133,6 +133,13 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
     if (navigation.isPending) return;
     setLocal({ selected: contentPostKey(post) });
     if (!inspectorElement.current || window.getComputedStyle(inspectorElement.current).display === 'none') { mobileOpener.current = opener; setMobileOpen(true); }
+  }
+  function returnPreviewFocus() {
+    const inspector = mobileOpen ? mobileInspectorElement.current : inspectorElement.current;
+    const trigger = inspector?.querySelector<HTMLButtonElement>('[data-content-preview-trigger]');
+    if (!trigger || trigger.disabled) return false;
+    trigger.focus({ preventScroll: true });
+    return true;
   }
   function exportLinks() {
     if (!data || !rows.length || updating) return;
@@ -241,9 +248,9 @@ export function StudioContentClient({ brands, selectedBrand, startDate, endDate,
     </div>
     <Dialog.Root open={mobileOpen && !!selected} onOpenChange={setMobileOpen}><Dialog.Portal><Dialog.Overlay className={styles.detailOverlay} /><Dialog.Content className={styles.detailSheet} data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); mobileOpener.current?.focus({ preventScroll: true }); }}>
       <header className={styles.detailHeader}><Dialog.Title>Video details</Dialog.Title><Dialog.Close className={styles.iconButton} aria-label="Close video details"><X size={20} aria-hidden="true" /></Dialog.Close></header><Dialog.Description className={styles.srOnly}>Sales, publication, and coaching context for the selected video.</Dialog.Description>
-      <div className={styles.detailBody}><ContentInspector post={selected} start={shownStart} end={shownEnd} reviewHref={reviewHref(selected)} onPreview={() => setPreviewOpen(true)} isUpdating={updating} /></div>
+      <div ref={mobileInspectorElement} className={styles.detailBody}><ContentInspector post={selected} start={shownStart} end={shownEnd} reviewHref={reviewHref(selected)} onPreview={() => setPreviewOpen(true)} isUpdating={updating} /></div>
     </Dialog.Content></Dialog.Portal></Dialog.Root>
-    <ContentPreview post={selected} start={shownStart} end={shownEnd} reviewHref={reviewHref(selected)} open={previewOpen && !!selected && !updating} onOpenChange={setPreviewOpen} onNext={selectedIndex >= 0 && selectedIndex + 1 < rows.length ? () => setLocal({ selected: contentPostKey(rows[selectedIndex + 1]) }) : undefined} />
+    <ContentPreview post={selected} start={shownStart} end={shownEnd} reviewHref={reviewHref(selected)} open={previewOpen && !!selected && !updating} onOpenChange={setPreviewOpen} onReturnFocus={returnPreviewFocus} onNext={selectedIndex >= 0 && selectedIndex + 1 < rows.length ? () => setLocal({ selected: contentPostKey(rows[selectedIndex + 1]) }) : undefined} />
   </div>;
 }
 

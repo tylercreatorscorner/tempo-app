@@ -62,6 +62,7 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
       {/* Drawer — slides in from the left, out to the left */}
       <div
         ref={drawer}
+        id="tempo-mobile-navigation"
         role="dialog"
         aria-modal={open || undefined}
         aria-label="Workspace navigation"

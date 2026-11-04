@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, Eye } from 'lucide-react';
 import { switchTenant } from '@/app/actions/switch-tenant';
@@ -10,6 +10,7 @@ interface Manager { id:string; name:string; role:string; }
 interface Props { tenants:Tenant[]; activeTenantId:string|null; managers:Manager[]; activeManagerId:string|null; }
 export function TenantSwitcher({tenants,activeTenantId,managers,activeManagerId}:Props) {
   const [pending,setPending]=useState(false);
+  const [refreshing,startRefresh]=useTransition();
   const [error,setError]=useState<string|null>(null);
   const router=useRouter();
   const options:ChoiceOption[]=[{value:'tenant:all',label:'All workspaces',description:'Platform administrator',icon:<Building2 size={18}/>,group:'Workspaces'},...tenants.map(tenant=>({value:`tenant:${tenant.id}`,label:tenant.name,description:tenant.plan,icon:<Building2 size={18}/>,group:'Workspaces'}))];
@@ -21,9 +22,9 @@ export function TenantSwitcher({tenants,activeTenantId,managers,activeManagerId}
       if(kind==='tenant') await switchTenant(id==='all'?null:id);
       else await switchManager(id==='self'?null:id);
       window.dispatchEvent(new Event('workspace-context-changed'));
-      router.refresh();
+      startRefresh(() => router.refresh());
     } catch {setError('Could not change workspace. Please try again.');}
     finally {setPending(false);}
   }
-  return <div><ChoiceMenu compact label="Workspace" value={activeManagerId?`manager:${activeManagerId}`:`tenant:${activeTenantId??'all'}`} options={options} onChange={pick} disabled={pending}/>{error&&<p role="alert" className="absolute right-4 mt-2 rounded-xl border border-border bg-card p-3 text-xs text-red-500 shadow-lg">{error}</p>}</div>;
+  return <div aria-busy={pending || refreshing}><ChoiceMenu compact label="Workspace" value={activeManagerId?`manager:${activeManagerId}`:`tenant:${activeTenantId??'all'}`} options={options} onChange={pick} disabled={pending || refreshing}/>{(pending || refreshing) && <span role="status" className="sr-only">Updating workspace access. Previous results remain visible until the new view is ready.</span>}{error&&<p role="alert" className="absolute right-4 mt-2 rounded-xl border border-border bg-card p-3 text-xs text-red-500 shadow-lg">{error}</p>}</div>;
 }

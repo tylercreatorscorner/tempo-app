@@ -60,6 +60,7 @@ export function StudioRosterTable(props: Props) {
   const partiallySelected = !allSelected && selectable.some(row => props.selected.has(row.id));
   const showBrand = props.brand === 'all';
   const name = (c: Creator) => c.real_name || c.handles?.[0] || c.account_1 || 'Creator';
+  const sortState = (key: RosterSortKey): 'ascending' | 'descending' | 'none' => props.sort !== key ? 'none' : props.direction === 'asc' ? 'ascending' : 'descending';
   const column = (label: string, key: RosterSortKey) => <button type="button" onClick={() => props.onSort(key)}>{label}{props.sort === key && (props.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</button>;
   const owner = (c: Creator) => c.grouped ? <><strong>By brand</strong><small>Expand owners</small></> : c.studio?.owner ? <><strong>{c.studio.owner.name}</strong><small>{c.studio.owner.role}</small></> : <><strong>{props.studioLoading ? 'Loading…' : c.studio?.ownerStatus === 'unassigned' ? 'Unassigned' : 'Not available'}</strong><small>Brand manager</small></>;
 
@@ -71,12 +72,12 @@ export function StudioRosterTable(props: Props) {
         <caption className="sr-only">Creators, cohort tags, selected-period performance, monthly agreements, recorded month publications, and assigned brand managers.</caption>
         <thead><tr>
           <th className={styles.selection}><label><input type="checkbox" aria-label="Select visible creators" checked={allSelected} ref={node => { if (node) node.indeterminate = partiallySelected; }} disabled={!selectable.length || props.loading} onChange={props.onSelectPage} /></label></th>
-          <th scope="col">{column('Creator', 'real_name')}</th>
+          <th scope="col" aria-sort={sortState('real_name')}>{column('Creator', 'real_name')}</th>
           {showBrand && <th scope="col">Brand</th>}
           <th scope="col">Tags</th>
-          <th scope="col">{column('GMV / change', 'gmv_period')}</th>
-          <th scope="col">{column('Published', 'posts_period')}</th>
-          <th scope="col">{column('Monthly agreement', 'retainer')}</th>
+          <th scope="col" aria-sort={sortState('gmv_period')}>{column('GMV / change', 'gmv_period')}</th>
+          <th scope="col" aria-sort={sortState('posts_period')}>{column('Published', 'posts_period')}</th>
+          <th scope="col" aria-sort={sortState('retainer')}>{column('Monthly agreement', 'retainer')}</th>
           <th scope="col">{props.monthLabel} delivery</th>
           <th scope="col">Owner</th>
         </tr></thead>
@@ -85,7 +86,7 @@ export function StudioRosterTable(props: Props) {
           {props.rows.map(c => <Fragment key={c.id}>
             <tr onClick={() => { if (!props.loading) props.onActivate(c); }} className={props.expanded.has(c.id) ? styles.expanded : undefined}>
               <td className={styles.selection} onClick={e => e.stopPropagation()}><label><input type="checkbox" aria-label={`Select ${name(c)}`} checked={props.selected.has(c.id)} disabled={props.loading || c.grouped || (c.is_managed && props.brand === 'all')} onChange={() => props.onSelect(c)} /></label></td>
-              <td data-label="Creator"><button type="button" className={styles.person} disabled={props.loading} aria-label={`${c.grouped ? 'Expand brands for' : c.is_managed ? 'Open creator overview for' : 'Add'} ${name(c)}`} aria-expanded={c.grouped ? props.expanded.has(c.id) : undefined} onClick={e => { e.stopPropagation(); props.onActivate(c); }}>
+              <td data-label="Creator"><button type="button" data-creator-overview={c.id} className={styles.person} disabled={props.loading} aria-label={`${c.grouped ? 'Expand brands for' : c.is_managed ? 'Open creator overview for' : 'Add'} ${name(c)}`} aria-expanded={c.grouped ? props.expanded.has(c.id) : undefined} onClick={e => { e.stopPropagation(); props.onActivate(c); }}>
                 {c.grouped && (props.expanded.has(c.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
                 <CreatorPortrait creatorId={c.creator_id} name={name(c)} source={c.discord_avatar} className={styles.avatar} />
                 <span><strong>{name(c)}</strong><small>{c.handles?.[0] || c.account_1 ? `@${c.handles?.[0] || c.account_1}` : 'Handle not linked'}{(c.handles?.length ?? 0) > 1 ? ` +${c.handles.length - 1}` : ''}</small>{!c.is_managed && <small>Unmanaged</small>}</span>
@@ -100,8 +101,8 @@ export function StudioRosterTable(props: Props) {
             </tr>
             {props.expanded.has(c.id) && c.brands?.map(child => {
               const childCreator: Creator = { ...c, ...child, id: child.row_id, monthly_post_requirement: child.studio?.agreement.requiredPosts ?? null, gmv_delta: null, posts_delta: null, creator_tags: [], joined: null, grouped: false, brands: undefined, studio: child.studio };
-              return <tr key={`${c.id}:${child.row_id}`} className={styles.child} onClick={() => props.onOpenChild(c, child)}>
-                <td /><td data-label="Creator"><button type="button" className={styles.childButton} onClick={e => { e.stopPropagation(); props.onOpenChild(c, child); }}>{child.brand ? props.label(child.brand) : 'Unassigned'}<ChevronRight size={13} /></button></td>
+              return <tr key={`${c.id}:${child.row_id}`} className={styles.child} onClick={() => { if (!props.loading) props.onOpenChild(c, child); }}>
+                <td /><td data-label="Creator"><button type="button" className={styles.childButton} disabled={props.loading} onClick={e => { e.stopPropagation(); props.onOpenChild(c, child); }}>{child.brand ? props.label(child.brand) : 'Unassigned'}<ChevronRight size={13} /></button></td>
                 {showBrand && <td />}
                 <td data-label="Tags">By brand</td><td data-label="GMV" className={styles.result}><strong>{formatCurrency(child.gmv_period)}</strong></td><td data-label="Published">{child.posts_period}</td>
                 <td data-label="Monthly agreement" className={styles.result}><RosterAgreementCell creator={childCreator} pending={props.studioLoading} /></td><td data-label={`${props.monthLabel} delivery`} className={styles.result}><RosterDeliveryCell creator={childCreator} pending={props.studioLoading} /></td><td data-label="Owner" className={styles.result}>{owner(childCreator)}</td>

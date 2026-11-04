@@ -19,6 +19,7 @@ import studioStyles from './dashboard-studio-shell.module.css';
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  navigationOpen?: boolean;
   tenantName?: string;
   userName?: string;
   userEmail?: string;
@@ -110,7 +111,7 @@ function StudioAgencyIdentity({ tenantName }: { tenantName?: string }) {
   </div>;
 }
 
-export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher, isAdmin, canInviteMembers, studio = false }: HeaderProps) {
+export function Header({ onMenuClick, navigationOpen = false, tenantName, userName, userEmail, tenantSwitcher, isAdmin, canInviteMembers, studio = false }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { label: overrideLabel } = useBreadcrumbOverride();
@@ -152,6 +153,9 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
           type="button"
           className={cn(styles.menuButton, studio && studioStyles.menuButton)}
           aria-label="Open navigation menu"
+          aria-haspopup="dialog"
+          aria-expanded={navigationOpen}
+          aria-controls="tempo-mobile-navigation"
         >
           <Menu className="h-5 w-5 text-muted-foreground" />
         </button>

@@ -5,8 +5,7 @@ import { BrandIdentity } from '@/components/creators/brand-identity';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { LatestRequest } from '@/lib/latest-request';
 
-import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useEffect, useCallback, useRef, useMemo, useId, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { RosterSegmentControls } from '@/components/segments/roster-segment-controls';
 import rosterLayout from '@/components/roster/roster-layout.module.css';
@@ -28,8 +27,8 @@ import { ProductTagPicker, ProductFilterSelect } from '@/components/roster/produ
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { useBrandList } from '@/hooks/use-brand-list';
-import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
-import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { RosterFormDialog, RosterFormClose } from '@/components/roster/roster-form-dialog';
+import { changedRosterTerms } from '@/components/roster/editor-values';
 
 import { DropdownMenu, Popover } from 'radix-ui';
 import { RefreshCw, SlidersHorizontal } from 'lucide-react';
@@ -106,6 +105,7 @@ function CreatorPanel({
   onSaved: (updated: Creator) => void;
   onRemoved: (id: string) => void;
 }) {
+  const formId = useId();
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
 
@@ -115,11 +115,14 @@ function CreatorPanel({
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState('');
   const [removing, setRemoving] = useState(false);
+  const writePending = useRef(false);
   // Inline confirm — replaces native confirm() which Chrome silently blocks
   // after a couple of dialogs from the same origin.
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const doRemove = async () => {
+    if (writePending.current) return;
+    writePending.current = true;
     setConfirmRemove(false);
     setRemoving(true);
     setSaveError('');
@@ -131,7 +134,7 @@ function CreatorPanel({
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Something went wrong');
       setRemoving(false);
-    }
+    } finally { writePending.current = false; }
   };
 
   // Initial handle list: prefer canonical `handles`, fall back to legacy cols.
@@ -146,9 +149,9 @@ function CreatorPanel({
   const [form, setForm] = useState({
     real_name:               creator.real_name || '',
     brand:                   creator.brand || '',
-    status:                  creator.status || 'Active',
+    status:                  creator.status || '',
     retainer:                String(creator.retainer ?? ''),
-    monthly_post_requirement: String(creator.monthly_post_requirement ?? 30),
+    monthly_post_requirement: String(creator.monthly_post_requirement ?? ''),
     discord_name:            creator.discord_name || '',
     notes:                   creator.notes || '',
   });
@@ -163,25 +166,22 @@ function CreatorPanel({
     setHandles((h) => (h.length === 1 ? [''] : h.filter((_, idx) => idx !== i)));
 
   const handleSave = async () => {
+    if (writePending.current) return;
+    writePending.current = true;
     setSaving(true);
     setSaveError('');
     try {
       const cleanHandles = Array.from(new Set(
         handles.map((h) => h.trim().replace(/^@/, '')).filter(Boolean),
       ));
+      const payload: Record<string, unknown> = { ...form, status: form.status || null, handles: cleanHandles, product_assignments: productTags };
+      delete payload.retainer;
+      delete payload.monthly_post_requirement;
+      Object.assign(payload, changedRosterTerms(form, creator));
       const res = await fetch(`/api/roster/${creator.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          handles: cleanHandles,
-          product_assignments: productTags,
-          retainer: form.retainer !== '' ? parseFloat(form.retainer) : 0,
-          // 0 is a real target (affiliate-only); only a blank box defaults to 30.
-          monthly_post_requirement: Number.isFinite(parseInt(form.monthly_post_requirement))
-            ? parseInt(form.monthly_post_requirement)
-            : 30,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Save failed');
@@ -190,52 +190,24 @@ function CreatorPanel({
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
+      writePending.current = false;
       setSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    setForm({
-      real_name:               creator.real_name || '',
-      brand:                   creator.brand || '',
-      status:                  creator.status || 'Active',
-      retainer:                String(creator.retainer ?? ''),
-      monthly_post_requirement: String(creator.monthly_post_requirement ?? 30),
-      discord_name:            creator.discord_name || '',
-      notes:                   creator.notes || '',
-    });
-    setHandles(initialHandles);
-    setSaveError('');
-    setEditing(false);
-  };
-
   const displayName = creator.real_name || primaryHandle(creator) || 'Creator';
 
-  // ── Portal target + body-scroll lock ──
-  // The panel was previously rendered inline inside the page tree, which lives
-  // under <main class="animate-fade-in">. The CSS `animation` on <main> creates
-  // a stacking context, trapping the panel's z-50 inside that subtree. The top
-  // app bar (a sibling of <main>, z-30) then paints OVER the panel header — so
-  // managers couldn't see the Remove/Edit/X buttons and couldn't enter edit
-  // mode. Portaling to <body> escapes the trap.
-  //
-  // Same fix solves the secondary report ("page scrolls behind the panel"):
-  // a fixed overlay rendered inline doesn't cleanly lock body scroll because
-  // wheel events bubble through to the (now-portaled-out-of) ancestor scroll
-  // container. The reference-counted lock keeps the body frozen for the panel's
-  // lifetime and composes safely with any modal opened on top of it.
-  const [portalReady, setPortalReady] = useState(false);
-  useEffect(() => { setPortalReady(true); }, []);
-  useBodyScrollLock();
+  const dirty = editing && (JSON.stringify(form) !== JSON.stringify({
+    real_name: creator.real_name || '', brand: creator.brand || '', status: creator.status || '',
+    retainer: String(creator.retainer ?? ''), monthly_post_requirement: String(creator.monthly_post_requirement ?? ''),
+    discord_name: creator.discord_name || '', notes: creator.notes || '',
+  }) || JSON.stringify(handles) !== JSON.stringify(initialHandles)
+    || JSON.stringify(productTags) !== JSON.stringify((creator.product_tags ?? []).map(tag => tag.key)));
 
-  if (!portalReady) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={editing ? undefined : onClose}>
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" onClick={editing ? undefined : onClose} />
+  return <RosterFormDialog title="Edit creator details" description={`${displayName}. Changes are only saved when you choose Save.`} busy={saving || removing} dirty={dirty} onClose={onClose} sheet
+    returnFocus={() => document.querySelector<HTMLButtonElement>(`[data-creator-overview="${CSS.escape(creator.id)}"]`)?.focus({ preventScroll: true })}>
       <div
         className={rosterLayout.panel}
-        style={{ animation: 'slideInRight 0.22s ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -266,19 +238,19 @@ function CreatorPanel({
                 >
                   <Pencil className="h-3.5 w-3.5" /> Edit
                 </button>
-                <button onClick={onClose} aria-label="Close panel" className="p-1.5 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
+                <RosterFormClose  aria-label="Close creator editor" className="p-1.5 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
                   <X className="h-5 w-5 text-muted-foreground" />
-                </button>
+                </RosterFormClose>
               </>
             ) : (
               <>
-                <button
-                  onClick={handleCancel}
+                <RosterFormClose
+
                   disabled={saving}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
                 >
                   Cancel
-                </button>
+                </RosterFormClose>
                 <button
                   onClick={handleSave}
                   disabled={saving}
@@ -293,9 +265,9 @@ function CreatorPanel({
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-5 flex-1">
+        <fieldset disabled={saving || removing} className="m-0 min-w-0 border-0 p-6 space-y-5 flex-1">
           {saveError && (
-            <p className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2">{saveError}</p>
+            <p role="alert" className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2">{saveError}</p>
           )}
 
           {confirmRemove && (
@@ -334,18 +306,18 @@ function CreatorPanel({
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Real Name</label>
+                  <label htmlFor={`${formId}-real_name`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Real Name</label>
                   <input
                     type="text"
-                    value={form.real_name}
+                    id={`${formId}-real_name`} value={form.real_name}
                     onChange={e => set('real_name', e.target.value)}
                     placeholder="Jane Smith"
                     className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Brand</label>
-                  <ChoiceMenu label="Creator brand" value={form.brand} onChange={value => set('brand', value)} triggerClassName="w-full" options={[{ value: '', label: 'No brand' }, ...brandOptions.map(b => ({ value: b.slug, label: b.name }))]} />
+                  <label htmlFor={`${formId}-brand`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Brand</label>
+                  <ChoiceMenu id={`${formId}-brand`} label="Creator brand" value={form.brand} onChange={value => set('brand', value)} triggerClassName="w-full" options={[{ value: '', label: 'No brand' }, ...brandOptions.map(b => ({ value: b.slug, label: b.name }))]} />
                 </div>
               </div>
 
@@ -357,14 +329,14 @@ function CreatorPanel({
               )}
 
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">TikTok Accounts</label>
+                <label htmlFor={`${formId}-handle-0`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">TikTok Accounts</label>
                 <div className="space-y-2">
                   {handles.map((h, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground w-4 shrink-0">{idx + 1}</span>
                       <input
                         type="text"
-                        value={h}
+                        id={`${formId}-handle-${idx}`} aria-label={`TikTok handle ${idx + 1}`} value={h}
                         onChange={(e) => setHandleAt(idx, e.target.value)}
                         placeholder={idx === 0 ? 'primary handle' : 'additional handle'}
                         className="flex-1 px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
@@ -394,26 +366,26 @@ function CreatorPanel({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Monthly Retainer ($)</label>
+                  <label htmlFor={`${formId}-retainer`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Monthly Retainer ($)</label>
                   <input
                     type="number"
                     min="0"
-                    step="50"
-                    value={form.retainer}
+                    step="0.01"
+                    id={`${formId}-retainer`} value={form.retainer}
                     onChange={e => set('retainer', e.target.value)}
-                    placeholder="0"
+                    placeholder="Not recorded"
                     className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Posts / Month</label>
+                  <label htmlFor={`${formId}-monthly_post_requirement`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Posts / Month</label>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     max="200"
-                    value={form.monthly_post_requirement}
+                    id={`${formId}-monthly_post_requirement`} value={form.monthly_post_requirement}
                     onChange={e => set('monthly_post_requirement', e.target.value)}
-                    placeholder="30"
+                    placeholder="Not recorded"
                     className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
@@ -421,14 +393,14 @@ function CreatorPanel({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Status</label>
-                  <ChoiceMenu label="Creator status" value={form.status} onChange={value => set('status', value)} triggerClassName="w-full" options={['Active', 'On Hold', 'Churned', 'Inactive'].map(status => ({ value: status, label: status }))} />
+                  <label htmlFor={`${formId}-status`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Status</label>
+                  <ChoiceMenu id={`${formId}-status`} label="Creator status" value={form.status} onChange={value => set('status', value)} triggerClassName="w-full" options={[{ value: '', label: 'Not set' }, ...['Active', 'On Hold', 'Churned', 'Inactive'].map(status => ({ value: status, label: status }))]} />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Discord</label>
+                  <label htmlFor={`${formId}-discord_name`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Discord</label>
                   <input
                     type="text"
-                    value={form.discord_name}
+                    id={`${formId}-discord_name`} value={form.discord_name}
                     onChange={e => set('discord_name', e.target.value)}
                     placeholder="username"
                     className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
@@ -437,10 +409,10 @@ function CreatorPanel({
               </div>
 
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Notes</label>
+                <label htmlFor={`${formId}-notes`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Notes</label>
                 <textarea
                   rows={3}
-                  value={form.notes}
+                  id={`${formId}-notes`} value={form.notes}
                   onChange={e => set('notes', e.target.value)}
                   placeholder="Any notes about this creator…"
                   className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
@@ -459,7 +431,7 @@ function CreatorPanel({
                 </div>
                 <div className="rounded-xl bg-muted p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Posts/Mo</p>
-                  <p className="text-base font-bold text-[var(--foreground)]">{creator.monthly_post_requirement ?? 30}</p>
+                  <p className="text-base font-bold text-[var(--foreground)]">{creator.monthly_post_requirement ?? 'Not recorded'}</p>
                 </div>
               </div>
 
@@ -537,7 +509,7 @@ function CreatorPanel({
 
               {creator.created_at && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Joined</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Roster record added</p>
                   <span className="text-sm text-muted-foreground">
                     {new Date(creator.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   </span>
@@ -555,11 +527,9 @@ function CreatorPanel({
               )}
             </>
           )}
-        </div>
+        </fieldset>
       </div>
-    </div>,
-    document.body,
-  );
+  </RosterFormDialog>;
 }
 
 interface AddCreatorModalProps {
@@ -569,6 +539,7 @@ interface AddCreatorModalProps {
 }
 
 function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) {
+  const formId = useId();
   const { brands: brandOptions } = useBrandList();
   const [form, setForm] = useState({
     real_name: '', brand: prefill?.brand || '',
@@ -579,6 +550,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
   const [productTags, setProductTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const writePending = useRef(false);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const setHandleAt = (i: number, v: string) =>
@@ -589,6 +561,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (writePending.current) return;
     if (!form.brand || form.brand === 'all') {
       setError('Please select a brand.');
       return;
@@ -600,6 +573,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
       setError('Name or at least one TikTok handle is required.');
       return;
     }
+    writePending.current = true;
     setSaving(true);
     setError('');
     try {
@@ -633,32 +607,31 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
+      writePending.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <ModalOverlay onClose={onClose}>
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+    <RosterFormDialog title="Add creator" description="Add a creator to one assigned brand. Nothing is saved until you choose Add creator." busy={saving} dirty={JSON.stringify(form) !== JSON.stringify({ real_name: '', brand: prefill?.brand || '', retainer: '', monthly_post_requirement: '30', discord_name: '', notes: '', email: '', phone: '', discord_id: '' }) || JSON.stringify(handles) !== JSON.stringify([prefill?.account_1 || '']) || productTags.length > 0} onClose={onClose}>
       <div
-        className="relative w-full max-w-lg bg-card rounded-xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
+        className="w-full bg-card"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
           <h2 className="text-base font-bold text-[var(--foreground)]">Add Creator</h2>
-          <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
+          <RosterFormClose  disabled={saving} aria-label="Close add creator" className="p-1.5 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
             <X className="h-5 w-5 text-muted-foreground" />
-          </button>
+          </RosterFormClose>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6"><fieldset disabled={saving} className="m-0 min-w-0 border-0 p-0 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Real Name</label>
+            <label htmlFor={`${formId}-real_name`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Real Name</label>
             <input
               type="text"
               placeholder="e.g. Jane Smith"
-              value={form.real_name}
+              id={`${formId}-real_name`} value={form.real_name}
               onChange={(e) => set('real_name', e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
@@ -666,7 +639,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 
           {/* Unlimited TikTok handles — persists to tiktok_accounts on save. */}
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">TikTok Handles</label>
+            <label htmlFor={`${formId}-handle-0`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">TikTok Handles</label>
             <div className="space-y-2">
               {handles.map((h, idx) => (
                 <div key={idx} className="flex items-center gap-2">
@@ -674,7 +647,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
                   <input
                     type="text"
                     placeholder={idx === 0 ? '@primary_handle' : '@additional_handle'}
-                    value={h}
+                    id={`${formId}-handle-${idx}`} aria-label={`TikTok handle ${idx + 1}`} value={h}
                     onChange={(e) => setHandleAt(idx, e.target.value)}
                     className="flex-1 px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
@@ -701,8 +674,8 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Brand</label>
-            <ChoiceMenu label="Brand" value={form.brand} onChange={value => set('brand', value)} triggerClassName="w-full" options={[{ value: '', label: 'Select brand…' }, ...brandOptions.map(b => ({ value: b.slug, label: b.name }))]} />
+            <label htmlFor={`${formId}-brand`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Brand</label>
+            <ChoiceMenu id={`${formId}-brand`} label="Brand" value={form.brand} onChange={value => set('brand', value)} triggerClassName="w-full" options={[{ value: '', label: 'Select brand…' }, ...brandOptions.map(b => ({ value: b.slug, label: b.name }))]} />
           </div>
 
           {form.brand && (
@@ -716,25 +689,25 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Monthly Retainer ($)</label>
+              <label htmlFor={`${formId}-retainer`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Monthly Retainer ($)</label>
               <input
                 type="number"
                 min="0"
-                step="50"
+                step="0.01"
                 placeholder="0"
-                value={form.retainer}
+                id={`${formId}-retainer`} value={form.retainer}
                 onChange={(e) => set('retainer', e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Posts / Month</label>
+              <label htmlFor={`${formId}-monthly_post_requirement`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Posts / Month</label>
               <input
                 type="number"
-                min="1"
+                min="0"
                 max="200"
                 placeholder="30"
-                value={form.monthly_post_requirement}
+                id={`${formId}-monthly_post_requirement`} value={form.monthly_post_requirement}
                 onChange={(e) => set('monthly_post_requirement', e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
@@ -742,11 +715,11 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Discord Username</label>
+            <label htmlFor={`${formId}-discord_name`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Discord Username</label>
             <input
               type="text"
               placeholder="e.g. janedoe#1234"
-              value={form.discord_name}
+              id={`${formId}-discord_name`} value={form.discord_name}
               onChange={(e) => set('discord_name', e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
@@ -754,21 +727,21 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Email</label>
+              <label htmlFor={`${formId}-email`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Email</label>
               <input
                 type="email"
                 placeholder="creator@email.com"
-                value={form.email}
+                id={`${formId}-email`} value={form.email}
                 onChange={(e) => set('email', e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Phone</label>
+              <label htmlFor={`${formId}-phone`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Phone</label>
               <input
                 type="tel"
                 placeholder="+1 555 123 4567"
-                value={form.phone}
+                id={`${formId}-phone`} value={form.phone}
                 onChange={(e) => set('phone', e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
@@ -776,14 +749,14 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            <label htmlFor={`${formId}-discord_id`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
               Discord ID <span className="font-normal text-muted-foreground normal-case">(optional)</span>
             </label>
             <input
               type="text"
               inputMode="numeric"
               placeholder="e.g. 1275246569070792704"
-              value={form.discord_id}
+              id={`${formId}-discord_id`} value={form.discord_id}
               onChange={(e) => set('discord_id', e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
@@ -794,22 +767,22 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
           </p>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Notes</label>
+            <label htmlFor={`${formId}-notes`} className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Notes</label>
             <textarea
               rows={2}
               placeholder="Any notes about this creator..."
-              value={form.notes}
+              id={`${formId}-notes`} value={form.notes}
               onChange={(e) => set('notes', e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
             />
           </div>
 
-          {error && <p className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p role="alert" className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
 
           <div className="flex items-center justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+            <RosterFormClose type="button"  className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
               Cancel
-            </button>
+            </RosterFormClose>
             <button
               type="submit"
               disabled={saving}
@@ -819,10 +792,9 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               {saving ? 'Adding...' : 'Add Creator'}
             </button>
           </div>
-        </form>
+        </fieldset></form>
       </div>
-      </div>
-    </ModalOverlay>
+    </RosterFormDialog>
   );
 }
 
@@ -1259,7 +1231,7 @@ function RosterContent() {
           <SearchInput className={rosterLayout.search} aria-label="Search creators" placeholder="Search creators or handles" value={searchInput} onChange={e=>setSearchInput(e.target.value)} onClear={()=>setSearchInput('')}/>
           <ChoiceMenu compact label="Brand" value={brand} options={[{value:'all',label:'All Brands'},...brandOptions.map(b=>({value:b.slug,label:b.name}))]} onChange={setBrand}/>
           <DateRangePicker appearance="studio" label="Roster period" value={preset} customRange={{start:customStart,end:customEnd}} displayRange={coreMatches&&resolvedPeriod?resolvedPeriod:undefined} onPresetChange={p=>{setPreset(p);if(p!=='custom'){setCustomStart(null);setCustomEnd(null);}}} onCustomChange={(start,end)=>{setPreset('custom');setCustomStart(start);setCustomEnd(end);}}/>
-          <RosterTagFilter selected={creatorView==='elite'?['elite']:groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onChange={(tags,mode)=>{setCreatorView('creators');setGroupFilter({brand,tags,mode});setPage(1);}}/>
+          <RosterTagFilter key={brand} selected={creatorView==='elite'?['elite']:groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onChange={(tags,mode)=>{setCreatorView('creators');setGroupFilter({brand,tags,mode});setPage(1);}}/>
           <Popover.Root open={filtersOpen} onOpenChange={setFiltersOpen}><Popover.Trigger className={rosterLayout.moreTrigger}><SlidersHorizontal size={14}/><span>More filters</span>{health!=='all'||productFilter||view!=='managed'||segFilters?<i aria-label="Additional filters active"/>:null}</Popover.Trigger>
             <Popover.Portal><Popover.Content className={rosterLayout.filterPanel} align="end" sideOffset={7} collisionPadding={12} data-lenis-prevent>
               <div className={rosterLayout.filterHeading}><strong>Creator filters</strong><Popover.Close aria-label="Close filters"><X size={15}/></Popover.Close></div>
@@ -1291,7 +1263,7 @@ function RosterContent() {
       </div>}</details>
       {overviewCreator&&<CreatorOverviewDrawer key={overviewCreator.id} creator={overviewCreator} periodLabel={periodLabel} start={coreMatches?resolvedPeriod?.start:null} end={coreMatches?resolvedPeriod?.end:null} range={preset} onClose={()=>setSelectedCreator(null)} onEdit={roster.some(c=>!c.grouped&&c.id===overviewCreator.id)?()=>{setEditingCreator(overviewCreator);setSelectedCreator(null);}:undefined} onEditTags={brand!=='all'&&overviewCreator.brand===brand?()=>{setTagIds([overviewCreator.id]);setSelectedCreator(null);}:undefined}/>}
       {editingCreator&&<CreatorPanel key={editingCreator.id} creator={editingCreator} onClose={()=>setEditingCreator(null)} onSaved={updated=>{setEditingCreator(updated);invalidateDetails();}} onRemoved={()=>{setEditingCreator(null);invalidateDetails();}}/>}
-      <RosterTagEditor ids={tagIds} open={tagIds.length>0} onOpenChange={open=>{if(!open)setTagIds([]);}} onSaved={()=>{setTagIds([]);setManagedSelection(new Set());invalidateDetails();}}/>
+      <RosterTagEditor ids={tagIds} open={tagIds.length>0} onOpenChange={open=>{if(!open)setTagIds([]);}} onChanged={invalidateDetails} onSaved={()=>{setTagIds([]);setManagedSelection(new Set());}}/>
 
       {/* Add Creator modal */}
       {addModalPrefill !== null && (

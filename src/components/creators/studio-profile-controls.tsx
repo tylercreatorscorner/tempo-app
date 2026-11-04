@@ -15,7 +15,7 @@ export function ProfileCreatorTags({ brand, managedId, tags }: { brand: string; 
   const router = useRouter();
   return <RosterTagsProvider brand={brand}>
     <RosterRowTags id={String(managedId)} brand={brand} tags={tags} onEditRequest={() => setOpen(true)} />
-    <RosterTagEditor ids={[String(managedId)]} open={open} onOpenChange={setOpen} onSaved={() => { setOpen(false); router.refresh(); }} />
+    <RosterTagEditor ids={[String(managedId)]} open={open} onOpenChange={setOpen} onChanged={() => router.refresh()} onSaved={() => setOpen(false)} />
   </RosterTagsProvider>;
 }
 

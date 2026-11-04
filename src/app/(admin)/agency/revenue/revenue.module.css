@@ -22,3 +22,5 @@
   .drawerMetrics .metric>small { grid-column:1; font-size:11px; }
 }
 @media(prefers-reduced-motion:reduce) { .backdrop,.drawer,.monthPopover { animation:none!important; }.tabs button { transition:none; } }
+.detailCard li a { display:inline-flex; align-items:center; gap:4px; min-height:28px; }
+.detailCard li a svg { flex-shrink:0; }

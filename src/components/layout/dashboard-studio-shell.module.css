@@ -261,5 +261,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mobileNavigation > div { transition: none; }
+  .themeToggle, .themeToggle * { transition: none !important; animation: none !important; }
   .sidebarLogo *, .sidebarLogo svg { animation: none !important; transition: none !important; }
 }

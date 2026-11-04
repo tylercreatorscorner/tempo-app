@@ -116,17 +116,18 @@ export function RosterRowTags({ id, brand, tags, isManaged = true, onEditRequest
     : <span className={styles.rowTagsReadOnly} title={context.brand === 'all' ? 'Choose a brand to edit creator tags' : values.join(', ')}>{content}</span>;
 }
 
-export function RosterTagEditor({ ids, open, onOpenChange, onSaved }: {
+export function RosterTagEditor({ ids, open, onOpenChange, onSaved, onChanged }: {
   ids: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  onChanged?: () => void;
 }) {
   const { brand } = useRosterTags();
-  return open ? <TagEditorSession key={`${brand}:${ids.join(',')}`} ids={ids} onOpenChange={onOpenChange} onSaved={onSaved} /> : null;
+  return open ? <TagEditorSession key={`${brand}:${ids.join(',')}`} ids={ids} onOpenChange={onOpenChange} onSaved={onSaved} onChanged={onChanged} /> : null;
 }
 
-function TagEditorSession({ ids, onOpenChange, onSaved }: { ids: string[]; onOpenChange: (open: boolean) => void; onSaved: () => void }) {
+function TagEditorSession({ ids, onOpenChange, onSaved, onChanged }: { ids: string[]; onOpenChange: (open: boolean) => void; onSaved: () => void; onChanged?: () => void }) {
   const { brand, tags, canWrite, loading, error: definitionError, reload } = useRosterTags();
   const [tag, setTag] = useState('');
   const [action, setAction] = useState<'add' | 'remove'>('add');
@@ -151,8 +152,12 @@ function TagEditorSession({ ids, onOpenChange, onSaved }: { ids: string[]; onOpe
       });
       const result = await response.json();
       if (!mounted.current) return;
-      if (Array.isArray(result.updated) && result.updated.length) { reload(); onSaved(); }
-      if (!response.ok) throw new Error(result.error || 'Could not update creator tags.');
+      const confirmed = Array.isArray(result.updated) ? result.updated.length : 0;
+      if (confirmed) { reload(); onChanged?.(); }
+      if (!response.ok) throw new Error(confirmed
+        ? `${confirmed} of ${numericIds.length} creators saved. The remaining changes could not be confirmed. Choose Save tag to retry safely.`
+        : result.error || 'Could not update creator tags.');
+      onSaved();
       onOpenChange(false);
     } catch (failure) {
       if (mounted.current) setError(failure instanceof Error ? failure.message : 'Could not update creator tags.');

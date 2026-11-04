@@ -78,6 +78,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
         <div className={styles.frame}>
           <Header
             onMenuClick={() => setMobileNavOpen(true)}
+            navigationOpen={mobileNavOpen}
             tenantName={tenant?.name}
             userName={userName}
             userEmail={userEmail}

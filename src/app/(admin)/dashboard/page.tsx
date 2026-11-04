@@ -556,7 +556,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <h1>{brandFilter ? `${activeBrandName} performance` : 'Brand workspace'}</h1>
           <p>{brandFilter ? 'Results, creator activity, and delivery within this brand.' : 'A clear view of your brands, your creators, and what is moving.'}</p>
         </div>
-        {canPrepareReports && <Link href="/reporting" className={studio.reportLink}>Prepare a report</Link>}
+        {canPrepareReports && <Link href={brandFilter ? `/reporting?${new URLSearchParams({ brand: brandFilter })}` : '/reporting'} className={studio.reportLink}>Prepare a report</Link>}
       </header>
 
       <div className={studio.toolbar} aria-label="Dashboard scope">
