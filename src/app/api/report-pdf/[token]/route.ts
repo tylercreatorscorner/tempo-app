@@ -14,6 +14,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { BrandClientReportPDF } from '@/lib/pdf/brand-client-report-pdf';
 import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
 import { brandLogoDataUri } from '@/lib/brand-logo';
+import { reportVideoCovers } from '@/lib/pdf/report-artwork';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -53,6 +54,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       logoUrl = (brandRow?.logo_url as string | null) ?? null;
     }
 
+    const [logo, videoCovers] = snapshot.reconciliation ? [null, {}] : await Promise.all([
+      brandLogoDataUri(logoUrl), reportVideoCovers(data.creatorsCorner.topVideos),
+    ]);
     const docElement = snapshot.reconciliation ? ReportReconciliationPDF({revision:snapshot.reconciliation,brandName:row.brand_name,periodLabel:`${data.startDate.toISOString().slice(0,10)} to ${data.endDate.toISOString().slice(0,10)}`}) : BrandClientReportPDF({
       data,
       // The attachment must carry the same human voice as the link.
@@ -64,13 +68,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       // are passed separately.
       movers: snapshot.movers ?? null,
       weekly: snapshot.weekly ?? [],
-      /**
-       * ⚠️ MUST be a converted data URI, never the stored URL. @react-pdf
-       * renders NOTHING for a webp and still returns a valid PDF, and six of
-       * the fourteen stored logos are webp. brandLogoDataUri also returns null
-       * on any failure, which renders the cover exactly as it did before.
-       */
-      logo: await brandLogoDataUri(logoUrl),
+      logo,
+      videoCovers,
+      generatedAt: snapshot.generatedAt,
+      reportUrl: new URL(`/r/${encodeURIComponent(token)}`, _req.url).href,
     });
     const pdf = await renderToBuffer(docElement);
 

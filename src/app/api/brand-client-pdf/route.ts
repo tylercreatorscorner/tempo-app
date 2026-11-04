@@ -2,11 +2,7 @@ import { reportGuard, clientReportContext, ClientReportAccessError } from '@/lib
 /**
  * Brand Client Report — PDF download endpoint.
  *
- * Renders the multi-page polished brand client report (cover · executive
- * summary · KPIs · managed/organic · new/returning · day-of-week ·
- * top creators · top videos · top products · per-product creator breakdown).
- * This replaces the throwaway one-pager with a deck-quality report matching
- * the old Netlify dashboard's report.
+ * Uses the same Studio document as the shared, frozen client report export.
  *
  * Forced to Node.js runtime — @react-pdf/renderer needs Node APIs.
  */
@@ -16,6 +12,9 @@ import { getBrandClientReportData, type ReportPeriod } from '@/lib/data/brand-cl
 import { BrandClientReportPDF } from '@/lib/pdf/brand-client-report-pdf';
 import { brandLabel } from '@/lib/data/brand-registry';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
+import { brandLogoDataUri } from '@/lib/brand-logo';
+import { reportVideoCovers } from '@/lib/pdf/report-artwork';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 // Allow up to 60s for the heavy multi-table data pull + PDF render
@@ -58,9 +57,22 @@ export async function GET(request: NextRequest) {
     // client_reports row; here it is a query param so an admin can pull a
     // monthly or weekly PDF live without first freezing a shareable link.
     const rt = searchParams.get('reportType');
+    let logoUrl: string | null = null;
+    if (brand !== 'all') {
+      const admin = await createAdminClient();
+      const { data: identity } = await admin.from('brands_v2').select('logo_url')
+        .eq('tenant_id', context.tenantId).eq('slug', brand).maybeSingle();
+      logoUrl = identity?.logo_url ?? null;
+    }
+    const [logo, videoCovers] = await Promise.all([
+      brandLogoDataUri(logoUrl),
+      reportVideoCovers(data.creatorsCorner.topVideos),
+    ]);
     const docElement = BrandClientReportPDF({
       data,
       reportType: rt === 'monthly' || rt === 'weekly' ? rt : 'performance',
+      logo,
+      videoCovers,
     });
     const pdf = await renderToBuffer(docElement);
 
