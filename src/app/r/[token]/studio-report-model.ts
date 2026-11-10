@@ -27,8 +27,21 @@ export function safeTikTokUrl(value: string | null | undefined): string | null {
 export function matchedRetainerReturn(report: PublicStudioReport) {
   const creators = (report.granular?.creators ?? []) as ReportCreator[];
   const window = classifySpendWindow(report.startDate, report.endDate);
-  const spend = window.kind === 'month' ? estimateDeliveredSpend(creators, window) : null;
-  const cohort = creators.filter(creator => creatorEarnedShare(creator) !== null);
+  const retained = creators.filter(creator => !creator.isAffiliate && !creator.departed && creator.retainer > 0);
+  // Legacy retainerHistoryExact verifies only an amount as of the period end.
+  // It cannot establish payment rules, quota history, or a full-month term.
+  // The saved comparable flag certifies one prorated-post agreement segment;
+  // require its dates and amounts to agree with every retained row as well.
+  const verifiedAgreements = window.kind === 'month' && retained.length > 0 && retained.every(creator => {
+    const agreement = creator.agreement;
+    return agreement?.reportPeriodComparable === true
+      && agreement.periodStart === report.startDate.toISOString().slice(0, 10)
+      && agreement.periodEnd === report.endDate.toISOString().slice(0, 10)
+      && finiteNumber(creator.retainer) !== null && agreement.retainer === creator.retainer
+      && finiteNumber(creator.quota) !== null && creator.quota! > 0 && agreement.quota === creator.quota;
+  });
+  const spend = window.kind === 'month' && verifiedAgreements ? estimateDeliveredSpend(retained, window) : null;
+  const cohort = spend ? retained.filter(creator => creatorEarnedShare(creator) !== null) : [];
   const gmv = cohort.reduce((sum, creator) => sum + creator.gmv, 0);
   const comparable = Boolean(spend && report.granular?.roster.retainerHistoryExact === true && report.videoCoverageComplete === true);
   return {
@@ -40,6 +53,7 @@ export function matchedRetainerReturn(report: PublicStudioReport) {
     excludedGmv: spend ? report.creatorsCorner.gmv - gmv : null,
     caveats: spend ? spendCaveats(spend.defaultQuotaShare, report.granular?.roster.retainerHistoryExact === true) : [],
     unavailableReason: window.kind !== 'month' ? 'A complete calendar month is needed to compare sales with a monthly retainer.'
+      : !verifiedAgreements ? 'Comparable agreement dates, payment rules, and post commitments were not saved for every retained creator.'
       : !spend ? 'Agreement periods, payment rules, or post commitments need review before estimating a comparable retainer cost.'
         : report.granular?.roster.retainerHistoryExact !== true ? 'The saved snapshot does not verify dated retainer history for the full cost cohort.'
           : report.videoCoverageComplete === false ? 'Video coverage was incomplete when this report was prepared.'

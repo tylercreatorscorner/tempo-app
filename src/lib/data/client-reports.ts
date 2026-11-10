@@ -486,9 +486,11 @@ export function draftClientReportNotes(s: ClientReportSnapshot): string {
           : ', which is the first thing we are correcting.'),
     );
   } else if (cc.newlyActivatedCount > 0) {
+    // This is current activity versus the prior comparison window, not an
+    // all-time first sale. Activity includes publishing without a sale.
     parts.push(
-      `${cc.newlyActivatedCount} creator${cc.newlyActivatedCount === 1 ? '' : 's'} made their ` +
-        `first sale for you this ${word}.`,
+      `${cc.newlyActivatedCount} managed creator${cc.newlyActivatedCount === 1 ? '' : 's'} posted or made sales ` +
+        `this ${word} after being inactive in the prior comparison period.`,
     );
   }
 

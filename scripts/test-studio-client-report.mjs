@@ -15,13 +15,15 @@ function load(path, dependencies = {}) {
 const spend = load('src/lib/data/delivered-spend.ts');
 const model = load('src/app/r/[token]/studio-report-model.ts', { '@/lib/data/delivered-spend': spend });
 const evidence = load('src/lib/data/published-video-evidence-types.ts');
-const creator = (name, extra = {}) => ({ name, realName: name, handle: name.toLowerCase(), isAffiliate: false, retainer: 1000, quota: 20, postsPublished: 10, gmv: 2500, orders: 50, videosEarning: 12, ...extra });
+const agreement = () => ({ reportPeriodComparable: true, ledgerVersion: 1, periodStart: '2026-09-01', periodEnd: '2026-09-30', retainer: 1000, quota: 20, status: 'active' });
+const creator = (name, extra = {}) => ({ name, realName: name, handle: name.toLowerCase(), isAffiliate: false, retainer: 1000, quota: 20, postsPublished: 10, gmv: 2500, orders: 50, videosEarning: 12, agreement: agreement(), ...extra });
 const make = (extra = {}) => ({
   brandName: 'Alpha', brandSlug: 'alpha', startDate: new Date('2026-09-01T00:00:00Z'), endDate: new Date('2026-09-30T00:00:00Z'), periodLengthDays: 30, periodLabel: 'September 2026',
   totalGmv: 10000, totalOrders: 150, totalItems: 170, totalVideos: 40, activeCreators: 4, avgOrderValue: 30, videoCoverageComplete: true, newCreators: { count: 1, gmv: 2000 }, returningCreators: { count: 3, gmv: 8000 },
   dailyPerformance: [], topProducts: [], productCreatorBreakdown: [], topVideos: [],
+  agreementSplit: { retainerGmv: 2500, affiliateGmv: 6500, unattributedGmv: -1e-10 },
   creatorsCorner: { gmv: 9000, pctOfStoreGmv: 90, gmvChangePct: 20, orders: 100, items: 120, orderChangePct: 10, videos: 35, newlyActivatedCount: 1, signedCreatorCount: 4, topVideos: [] },
-  granular: { roster: { retainerHistoryExact: true }, creators: [creator('Retained'), creator('Affiliate', { isAffiliate: true, retainer: 0, quota: null, gmv: 5000 }), creator('Departed', { departed: true, gmv: 1000 }), creator('NoTarget', { quota: null, gmv: 500 })] }, ...extra,
+  granular: { roster: { retainerHistoryExact: true }, creators: [creator('Retained'), creator('Affiliate', { isAffiliate: true, retainer: 0, quota: null, gmv: 5000, agreement: null }), creator('Departed', { departed: true, gmv: 1000, agreement: null }), creator('NoTarget', { isAffiliate: true, retainer: 0, quota: null, gmv: 500, agreement: null })] }, ...extra,
 });
 const report = make(), before = JSON.stringify(report);
 let result = model.matchedRetainerReturn(report);
@@ -41,7 +43,26 @@ const unknownHistory = make(); delete unknownHistory.granular.roster.retainerHis
 assert.equal(model.matchedRetainerReturn(unknownHistory).multiple, null, 'Absent historical status stays unknown');
 const nonComparable = make(); nonComparable.granular.creators[0].agreement = { reportPeriodComparable: false };
 assert.equal(model.matchedRetainerReturn(nonComparable).multiple, null, 'Different payment or credit rules withhold the result');
+const legacyTerms = make(); legacyTerms.granular.creators[0].agreement = null;
+result = model.matchedRetainerReturn(legacyTerms);
+assert.equal(result.spend, null, 'A dated legacy amount is not proof of agreement periods or payment rules');
+assert.equal(result.gmv, null); assert.equal(result.multiple, null);
+assert.match(result.unavailableReason, /not saved for every retained creator/);
+const missingTarget = make(); missingTarget.granular.creators.push(creator('Unmeasured', { quota: null, agreement: null, gmv: 500 }));
+assert.equal(model.matchedRetainerReturn(missingTarget).spend, null, 'Do not silently drop a retained creator with missing commitments and call the cost cohort verified');
+for (const change of [
+  { reportPeriodComparable: undefined }, { reportPeriodComparable: false },
+  { periodStart: undefined }, { periodStart: '2026-09-05' },
+  { periodEnd: undefined }, { periodEnd: '2026-10-04' },
+  { retainer: 900 }, { quota: 30 },
+]) {
+  const invalidTerms = make(); Object.assign(invalidTerms.granular.creators[0].agreement, change);
+  assert.equal(model.matchedRetainerReturn(invalidTerms).spend, null, 'Missing, different-period or inconsistent saved terms cannot verify cost: ' + JSON.stringify(change));
+}
+const mixedTerms = make(); mixedTerms.granular.creators.push(creator('Legacy', { agreement: null }));
+assert.equal(model.matchedRetainerReturn(mixedTerms).multiple, null, 'One verified agreement does not validate the rest of the retained cohort');
 const zeroEarned = make(); zeroEarned.granular.creators[0].postsPublished = 0;
+assert.equal(model.matchedRetainerReturn(zeroEarned).spend.earned, 0, 'A verified zero-publication cost stays zero, not missing');
 assert.equal(model.matchedRetainerReturn(zeroEarned).multiple, null, 'Zero denominator is unavailable, not infinity');
 const over = make(); over.granular.creators = [creator('Over', { postsPublished: 50 }), creator('Short', { postsPublished: 10 })];
 const delivered = model.reportDelivery(over);
@@ -78,8 +99,11 @@ assert.ok(html.includes('Your creator program, in focus.'));
 assert.ok(html.includes('Managed units')); assert.ok(html.includes('Not recorded'), 'Missing per-creator units are not fabricated');
 assert.ok(html.includes('$2,500')); assert.ok(html.includes('5.0x'));
 assert.ok(html.includes('Agreement dates not saved'));
+assert.ok(html.includes('managed creators posted or made sales this period after being inactive in the prior comparison period.'));
+assert.ok(!html.includes('for the first time'), 'Activity comparison does not prove a first-ever sale');
 assert.ok(html.includes('/r/saved-token/videos?preview=1'));
 assert.ok(!html.includes('NaN')); assert.ok(!html.includes('Infinity'));
+assert.ok(!html.includes('is not attributed to those two agreement groups'), 'Floating-point residue must not create a negative-zero discrepancy');
 const legacy = make(); delete legacy.granular; delete legacy.creatorsCorner.items;
 html = renderToStaticMarkup(React.createElement(StudioReport, { token: 'saved-token', report: legacy, snapshot: { generatedAt: snapshot.generatedAt, weekly: [] }, brandName: 'Alpha', periodLabel: 'September 2026', notes: null, plan: null }));
 assert.ok(html.includes('Not comparable')); assert.ok(html.includes('Not recorded')); assert.ok(!html.includes('NaN'));

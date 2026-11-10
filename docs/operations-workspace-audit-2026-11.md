@@ -28,3 +28,9 @@ This batch follows the released Agency month-handoff audit. It is a preview chan
 The owner's explicitly approved forecast assumptions and AFIL planning note were saved separately through the existing audited finance RPC and read back. Dr. G roster/compensation remain deferred. AFIL's eligible GMV cohort is unresolved; execution is a planning assumption, not verified signature evidence. Missing invoice payment/AP details still require real business inputs before issuing.
 
 See `messages-inbox-access.md` for the legacy history attribution limitation and the separation from Messages V1. Provider delivery, signed-in deployed pages, and live role sessions require deployment smoke testing; local fixtures do not establish those results.
+
+## Client report correctness follow-up
+
+The newest Lemme custom-period report was checked against its saved snapshot, public downloads, and read-only source aggregates. Core sales and published-video evidence reconcile. This preview also corrects activity wording that implied lifetime first sales, PDF active-person counts, ambiguous export-account denominators, end-of-period rate-history labels, unidentified-product labels and share denominators, and sub-cent residual display. Comparable retainer return now requires aligned saved agreement terms for every retained creator rather than treating dated rates alone as proof.
+
+Generator and actual Studio-render regressions are part of `test:report-workspace`; actual PDF-render tests run locally. Existing frozen report notes and source figures remain unchanged. Top-video units absent from saved snapshots, unidentified product names/grouping, missing agreement snapshots, and absent forward plans are separate unresolved data issues. Authenticated preview smoke testing remains pending because the browser-control kernel could not attach to the user's signed-in session; this is not a request for another sign-in.
