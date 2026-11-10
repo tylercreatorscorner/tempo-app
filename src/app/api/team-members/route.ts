@@ -9,7 +9,7 @@
  * arrangements per brand live in `brand_compensation`.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getBillingIdentityAccess } from '@/lib/auth/billing-identity-access';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
@@ -22,8 +22,8 @@ interface PostBody {
 }
 
 export async function GET(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getBillingIdentityAccess('read');
+  if (scope instanceof NextResponse) return scope;
 
   const url = req.nextUrl;
   const includeArchived = url.searchParams.get('include_archived') === 'true';
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from('team_members')
     .select('id, name, email, address, payment_instructions, is_archived, created_at')
-    .eq('tenant_id', profile.tenant_id)
+    .eq('tenant_id', scope.tenantId)
     .order('created_at', { ascending: true });
   if (!includeArchived) query = query.eq('is_archived', false);
 
@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getBillingIdentityAccess('configure');
+  if (scope instanceof NextResponse) return scope;
 
   let body: PostBody;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('team_members')
     .insert({
-      tenant_id: profile.tenant_id,
+      tenant_id: scope.tenantId,
       name: body.name.trim(),
       email: body.email ?? null,
       address: body.address ?? null,

@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, useId, Suspense } fr
 import { useSearchParams, useRouter } from 'next/navigation';
 import { RosterSegmentControls } from '@/components/segments/roster-segment-controls';
 import rosterLayout from '@/components/roster/roster-layout.module.css';
+import { RosterStats } from '@/components/roster/RosterStats';
 import { NewVideoGmvCard } from '@/components/dashboard/new-video-gmv';
 import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
@@ -812,7 +813,7 @@ function RosterContent() {
   const router = useRouter();
   const { startNav } = useNavigationPending();
   const brand = searchParams.get('brand') || 'all';
-  const { brands: brandOptions } = useBrandList();
+  const { brands: brandOptions, loading: brandsLoading } = useBrandList();
   const brandMeta = useBrandMeta();
 
   const setBrand = (next: string) => {
@@ -841,8 +842,8 @@ function RosterContent() {
   const [roster, setRoster] = useState<Creator[]>([]);
   const [segFilters, setSegFilters] = useState<{ name: string; min_gmv: number | null; max_gmv: number | null; min_posts: number | null } | null>(null);
   const [total, setTotal] = useState(0);
-  const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
-  const [summary, setSummary] = useState<{ affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number; total_retainer: number | null } | null>(null);
+  const [totalGmvPeriod, setTotalGmvPeriod] = useState<number | null>(null);
+  const [summary, setSummary] = useState<{ affiliate_gmv: number | null; total_retainer: number | null; retainer_complete: boolean; retainer_missing_count: number | null; videos_published: number | null; gmv_complete: boolean; videos_complete: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   // A failed roster load must NOT read as "0 creators / $0". Track it and render
   // an error surface (or keep the last-good rows), never a confident fake-empty.
@@ -986,9 +987,9 @@ function RosterContent() {
         setResolvedPeriod(json.period ?? null);
         setLoadedCoreScope(coreScope);
         setTotal(json.total || 0);
-        // Managed GMV + summary are computed page-1 only (period/brand-level, not
-        // page-level). Persist them across pagination instead of zeroing the cards.
-        if (json.total_gmv_period != null) setTotalGmvPeriod(json.total_gmv_period);
+        // An omitted summary is reused for pagination. An explicit null is an
+        // unavailable result and must replace the previous successful number.
+        if ('total_gmv_period' in json) setTotalGmvPeriod(json.total_gmv_period ?? null);
         // Health counts are over the FULL managed set (unaffected by the active
         // health filter), so the triage chips always show totals.
         setHealthCounts({
@@ -998,7 +999,7 @@ function RosterContent() {
           low_roi: json.low_roi_count ?? 0,
           affiliate: json.affiliate_count ?? 0,
         });
-        if (json.summary) { setSummary(json.summary); loadedSummaryKey.current = summaryContext; loadedSummaryAt.current = Date.now(); }
+        if ('summary' in json) { setSummary(json.summary ?? null); loadedSummaryKey.current = summaryContext; loadedSummaryAt.current = Date.now(); }
       },
       error: (err) => {
         console.error('Failed to fetch roster:', err);
@@ -1024,14 +1025,17 @@ function RosterContent() {
       loadedSummaryKey.current = '';
       setStudioRows({}); setResolvedPeriod(null); setLoadedCoreScope('');
       setRoster([]); setSummary(null); setHasLoadedOnce(false); setLoadError(false);
-      setTotal(0); setTotalGmvPeriod(0);
+      setTotal(0); setTotalGmvPeriod(null);
       setSelectedCreator(null); setEditingCreator(null); setTagIds([]);
       setManagedSelection(new Set()); setSelected(new Map());
-      void fetchRoster();
+      // Summary is fetched on page one. A new workspace must not retain a
+      // later-page closure that can return fresh rows without any totals.
+      setPage(1);
+      if (page === 1) void fetchRoster();
     };
     window.addEventListener('workspace-context-changed', reloadScope);
     return () => window.removeEventListener('workspace-context-changed', reloadScope);
-  }, [fetchRoster]);
+  }, [fetchRoster, page]);
 
   // Export the current view (all matching rows, not just the page) to CSV/Excel.
   const [exporting, setExporting] = useState(false);
@@ -1150,19 +1154,15 @@ function RosterContent() {
     min_posts: segFilters?.min_posts ?? null,
   };
 
-  // Derived KPI-card values (Affiliate/Managed GMV + prior-period deltas + ROI).
-  const pctDelta = (cur: number, prev: number): number | undefined => (prev > 0 ? ((cur - prev) / prev) * 100 : undefined);
-  const affiliateGmv = summary?.affiliate_gmv ?? 0;
-  const managed30 = summary?.managed_gmv_30d ?? 0;
-  // Keep the denominator in the same brand-level snapshot as managed GMV.
+  // Full brand totals remain independent of the table's search and filters.
+  const affiliateGmv = summary?.affiliate_gmv ?? null;
   const totalRetainer = summary?.total_retainer ?? null;
-  const roi = totalRetainer != null && totalRetainer > 0 ? managed30 / totalRetainer : 0;
-  // Cold load failure: no successful load yet, so the 0-initialized KPIs are not
-  // real numbers — show "—" instead of a fake $0. (A warm refetch failure keeps
-  // last-good values and shows the stale banner instead.)
-  const kpiFailed = loadError && !hasLoadedOnce;
 
   const coreMatches = loadedCoreScope === coreScope;
+  const summaryMatches = coreMatches && loadedSummaryKey.current === summaryContext;
+  const summaryLoading = !summaryMatches && !loadError;
+  const selectedBrandLabel = brand === 'all' ? 'All brands' : brandOptions.find(option => option.slug === brand)?.name ?? brandMeta.label(brand) ?? brand;
+  const summaryPeriodLabel = summaryMatches && resolvedPeriod ? `${fmtShortDate(resolvedPeriod.start)} – ${fmtShortDate(resolvedPeriod.end)}` : periodLabel;
   const studioIds = useMemo(() => roster.flatMap(c => c.grouped ? (c.brands ?? []).map(b=>b.row_id) : c.is_managed ? [c.id] : []).filter(id=>/^\d+$/.test(id)).sort(), [roster]);
   const studioKey = coreMatches && resolvedPeriod ? JSON.stringify([studioIds,resolvedPeriod.end,brand]) : '';
   useEffect(() => {
@@ -1214,6 +1214,17 @@ function RosterContent() {
           <button type="button" className={rosterLayout.primaryButton} onClick={()=>setAddModalPrefill({brand:brand!=='all'?brand:''})}><Plus size={15}/>Add creator</button>
         </div>
       </header>
+      <div className={rosterLayout.scopeToolbar} aria-label="Roster scope">
+        <div className={rosterLayout.scopeField}>
+          <label htmlFor="roster-brand">Brand</label>
+          <ChoiceMenu id="roster-brand" label="Brand" value={brand} disabled={brandsLoading} placeholder={brandsLoading ? 'Loading brands…' : 'Choose a brand'} triggerClassName={rosterLayout.brandTrigger} options={[{value:'all',label:'All brands'},...brandOptions.map(b=>({value:b.slug,label:b.name})),...(brand!=='all'&&!brandOptions.some(b=>b.slug===brand)?[{value:brand,label:brandsLoading?'Loading brand…':'Selected brand unavailable',disabled:true}]:[])]} onChange={setBrand}/>
+        </div>
+        <div className={rosterLayout.scopeField}>
+          <span className={rosterLayout.scopeLabel}>Period</span>
+          <DateRangePicker appearance="studio" label="Roster period" value={preset} customRange={{start:customStart,end:customEnd}} displayRange={coreMatches&&resolvedPeriod?resolvedPeriod:undefined} onPresetChange={p=>{setPreset(p);if(p!=='custom'){setCustomStart(null);setCustomEnd(null);}}} onCustomChange={(start,end)=>{setPreset('custom');setCustomStart(start);setCustomEnd(end);}}/>
+        </div>
+      </div>
+      <RosterStats retainerBudget={summaryMatches?totalRetainer:null} managedGmv={summaryMatches?totalGmvPeriod:null} videosPublished={summaryMatches?summary?.videos_published??null:null} retainerComplete={summary?.retainer_complete===true} retainerMissingCount={summaryMatches?summary?.retainer_missing_count??null:null} gmvComplete={summary?.gmv_complete===true} videosComplete={summary?.videos_complete===true} brandLabel={selectedBrandLabel} periodLabel={summaryPeriodLabel} loading={summaryLoading} refreshing={summaryMatches&&loading} stale={summaryMatches&&loadError}/>
       <div className={rosterLayout.tabsRow}>
         <div className={rosterLayout.tabs} role="tablist" aria-label="Creator views" onKeyDown={event=>{
           if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
@@ -1229,8 +1240,6 @@ function RosterContent() {
       <section id="roster-results" role="tabpanel" aria-labelledby={`roster-tab-${creatorView}`}>
         <div className={rosterLayout.toolbar}>
           <SearchInput className={rosterLayout.search} aria-label="Search creators" placeholder="Search creators or handles" value={searchInput} onChange={e=>setSearchInput(e.target.value)} onClear={()=>setSearchInput('')}/>
-          <ChoiceMenu compact label="Brand" value={brand} options={[{value:'all',label:'All Brands'},...brandOptions.map(b=>({value:b.slug,label:b.name}))]} onChange={setBrand}/>
-          <DateRangePicker appearance="studio" label="Roster period" value={preset} customRange={{start:customStart,end:customEnd}} displayRange={coreMatches&&resolvedPeriod?resolvedPeriod:undefined} onPresetChange={p=>{setPreset(p);if(p!=='custom'){setCustomStart(null);setCustomEnd(null);}}} onCustomChange={(start,end)=>{setPreset('custom');setCustomStart(start);setCustomEnd(end);}}/>
           <RosterTagFilter key={brand} selected={creatorView==='elite'?['elite']:groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onChange={(tags,mode)=>{setCreatorView('creators');setGroupFilter({brand,tags,mode});setPage(1);}}/>
           <Popover.Root open={filtersOpen} onOpenChange={setFiltersOpen}><Popover.Trigger className={rosterLayout.moreTrigger}><SlidersHorizontal size={14}/><span>More filters</span>{health!=='all'||productFilter||view!=='managed'||segFilters?<i aria-label="Additional filters active"/>:null}</Popover.Trigger>
             <Popover.Portal><Popover.Content className={rosterLayout.filterPanel} align="end" sideOffset={7} collisionPadding={12} data-lenis-prevent>
@@ -1245,7 +1254,7 @@ function RosterContent() {
           {activeFilters&&<button type="button" className={rosterLayout.textButton} onClick={clearFilters}>Clear filters</button>}
         </div>
         {segFilters&&<div className={rosterLayout.activeFilters}><span>Segment: {segFilters.name}</span><button type="button" onClick={()=>setSegFilters(null)} aria-label="Clear segment"><X size={13}/></button></div>}
-        <div className={rosterLayout.resultBar}><p role="status">{tableLoading?'Loading creator results…':!coreMatches||loadError&&!hasLoadedOnce?'Creator results unavailable':`${total.toLocaleString()} ${view==='managed'?'managed ':''}creators`}{creatorView==='top'?' · Ranked by GMV':creatorView==='elite'?' · Tagged Elite':''}</p><ChoiceMenu compact triggerClassName={rosterLayout.sortControl} label="Sort creators" value={`${sortBy}:${sortDir}`} options={sortOptions} onChange={value=>{const [key,dir]=value.split(':');setSortBy(key as SortCol);setSortDir(dir as 'asc'|'desc');if(creatorView==='top')setCreatorView('creators');}}/></div>
+        <div className={rosterLayout.resultBar}><p role="status">{tableLoading?'Loading creator results…':!coreMatches||loadError&&!hasLoadedOnce?'Creator results unavailable':`${total.toLocaleString()} ${view==='managed'?'managed ':''}${total===1?'creator':'creators'}`}{creatorView==='top'?' · Ranked by GMV':creatorView==='elite'?' · Tagged Elite':''}</p><ChoiceMenu compact triggerClassName={rosterLayout.sortControl} label="Sort creators" value={`${sortBy}:${sortDir}`} options={sortOptions} onChange={value=>{const [key,dir]=value.split(':');setSortBy(key as SortCol);setSortDir(dir as 'asc'|'desc');if(creatorView==='top')setCreatorView('creators');}}/></div>
         {(selected.size>0||managedSelection.size>0)&&<div className={rosterLayout.selectionBar}><span>{selected.size+managedSelection.size} selected</span><div><button type="button" onClick={()=>{setSelected(new Map());setManagedSelection(new Set());}}>Clear selection</button>{managedSelection.size>0&&<button type="button" onClick={()=>setTagIds([...managedSelection])}>Edit tags ({managedSelection.size})</button>}{selected.size>0&&<button type="button" onClick={openBulkFromSelection}>Add to roster ({selected.size})</button>}</div></div>}
         {loadError&&<div role="alert" className={rosterLayout.notice}><AlertTriangle size={16}/><span>{coreMatches&&roster.length?'Could not refresh. Showing the last loaded results.':'Could not load creators. Please try again.'}</span><button type="button" onClick={invalidateDetails}>Retry</button></div>}
         {exportError&&<div role="alert" className={rosterLayout.notice}>{exportError}<button type="button" onClick={()=>setExportError('')} aria-label="Dismiss export error"><X size={14}/></button></div>}
@@ -1254,11 +1263,8 @@ function RosterContent() {
       </section>
       <details className={rosterLayout.summary} open={summaryOpen} onToggle={e=>setSummaryOpen(e.currentTarget.open)}><summary>Performance summary<ChevronDown size={15}/></summary>{summaryOpen&&<div className={rosterLayout.overview}>
         <dl className={rosterLayout.metrics} aria-label="Roster performance">
-          <RosterMetric label="Affiliate GMV" value={!coreMatches||kpiFailed?'Unavailable':loading&&!summary?'Loading…':fmt(affiliateGmv)} trend={summary?pctDelta(affiliateGmv,summary.affiliate_gmv_prev):undefined} detail={periodLabel}/>
-          <RosterMetric label="Managed GMV" featured value={!coreMatches||kpiFailed?'Unavailable':loading&&!summary?'Loading…':fmt(totalGmvPeriod)} trend={summary?pctDelta(totalGmvPeriod,summary.managed_gmv_prev):undefined} detail={periodLabel}/>
-          <RosterMetric label="Managed share" value={!coreMatches||kpiFailed?'Unavailable':affiliateGmv>0?`${((totalGmvPeriod/affiliateGmv)*100).toFixed(0)}%`:'Unavailable'}/>
-          <RosterMetric label="Monthly retainers" value={!coreMatches||kpiFailed?'Unavailable':loading&&!summary?'Loading…':totalRetainer==null?'Unavailable':fmt(totalRetainer)} detail="Current commitments"/>
-          <RosterMetric label="GMV / retainer · 30d" value={!coreMatches||kpiFailed||totalRetainer==null?'Unavailable':roi>0?`${roi.toFixed(1)}x`:'N/A'}/>
+          <RosterMetric label="Affiliate GMV" value={summaryLoading?'Loading…':!summaryMatches||affiliateGmv==null?'Unavailable':fmt(affiliateGmv)} detail={summaryMatches&&summary?.gmv_complete===false?'Partial recorded data':summaryPeriodLabel}/>
+          <RosterMetric label="Managed share" value={summaryLoading?'Loading…':summaryMatches&&summary?.gmv_complete===true&&affiliateGmv!=null&&affiliateGmv>0&&totalGmvPeriod!=null?`${((totalGmvPeriod/affiliateGmv)*100).toFixed(0)}%`:'Unavailable'}/>
         </dl><div className={rosterLayout.videoSummary}><NewVideoGmvCard compact brand={brand} range={preset} start={customStart} end={customEnd} showCreators/></div>
       </div>}</details>
       {overviewCreator&&<CreatorOverviewDrawer key={overviewCreator.id} creator={overviewCreator} periodLabel={periodLabel} start={coreMatches?resolvedPeriod?.start:null} end={coreMatches?resolvedPeriod?.end:null} range={preset} onClose={()=>setSelectedCreator(null)} onEdit={roster.some(c=>!c.grouped&&c.id===overviewCreator.id)?()=>{setEditingCreator(overviewCreator);setSelectedCreator(null);}:undefined} onEditTags={brand!=='all'&&overviewCreator.brand===brand?()=>{setTagIds([overviewCreator.id]);setSelectedCreator(null);}:undefined}/>}

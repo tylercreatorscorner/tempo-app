@@ -29,6 +29,7 @@ export interface AuditLog {
 }
 
 interface Props {
+  error?: string | null;
   logs: AuditLog[];
   loading: boolean;
 }
@@ -43,7 +44,7 @@ function entityIconAndBg(type: string): { icon: React.ComponentType<{ className?
   }
 }
 
-export function AuditFeed({ logs, loading }: Props) {
+export function AuditFeed({ logs, loading, error }: Props) {
   const brandMeta = useBrandMeta();
   if (loading && logs.length === 0) {
     return (
@@ -54,6 +55,7 @@ export function AuditFeed({ logs, loading }: Props) {
   }
 
   if (logs.length === 0) {
+    if (error) return <p className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">Payment activity could not be loaded. Use Retry above to try again.</p>;
     return (
       <div className="rounded-[var(--workspace-surface-radius,14px)] bg-card border border-border p-6 text-center">
         <div className="mx-auto h-12 w-12 rounded-[var(--workspace-surface-radius,14px)] bg-muted flex items-center justify-center mb-3">

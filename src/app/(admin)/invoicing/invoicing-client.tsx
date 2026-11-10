@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Columns3, Plus, Rows3 } from 'lucide-react';
+import { AlertCircle, Columns3, Plus, RefreshCw, Rows3 } from 'lucide-react';
 import { todayIsoUtc } from '@/lib/finance/overdue';
 import { currentMonth } from '@/lib/utils/format';
 import { PageHeader } from '@/components/ui/page-header';
@@ -29,13 +29,15 @@ import { InvoiceList, type TeamMemberOption } from './components/invoice-list';
 export type InvoicingView = 'board' | 'list';
 
 interface Props {
+  canEdit: boolean;
+  canBulk: boolean;
   /** When set on initial load, auto-open the matching invoice in the detail drawer. */
   initialOpenId?: string | null;
   /** From ?view= — board is the default read. */
   initialView?: InvoicingView;
 }
 
-export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props) {
+export function InvoicingClient({ initialOpenId, initialView = 'board', canEdit, canBulk }: Props) {
   const router = useRouter();
   // ONE "today" per render — the board, list, and aging panel all read the
   // shared overdue rule against the same date so they can never disagree.
@@ -156,13 +158,16 @@ export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props)
                 },
               ]}
             />
-            <Button variant="primary" onClick={() => setCreating(true)}>
+            <Button variant="outline" size="sm" onClick={fetchInvoices} disabled={loading}><RefreshCw className="h-4 w-4" />Refresh</Button>
+            {canEdit && <Button variant="primary" onClick={() => setCreating(true)}>
               <Plus className="h-4 w-4" />
               Create Invoice
-            </Button>
+            </Button>}
           </div>
         }
       />
+
+      {!canEdit && <p className="text-xs text-muted-foreground">View-only access. You can review and export invoices.</p>}
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-[var(--pulse-neg)]/25 bg-[var(--pulse-neg-bg)] px-4 py-3 text-sm text-[var(--pulse-neg)]">
@@ -174,8 +179,9 @@ export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props)
         </div>
       )}
 
-      {view === 'board' ? (
+      {error && invoices.length === 0 ? null : view === 'board' ? (
         <InvoiceBoard
+          canEdit={canEdit}
           invoices={invoices}
           loading={loading}
           todayIso={todayIso}
@@ -185,6 +191,8 @@ export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props)
         />
       ) : (
         <InvoiceList
+          canEdit={canEdit}
+          canBulk={canBulk}
           invoices={invoices}
           loading={loading}
           todayIso={todayIso}
@@ -197,17 +205,18 @@ export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props)
       )}
 
       {/* New invoice modal */}
-      <NewInvoiceModal
+      {canEdit && <NewInvoiceModal
         open={creating}
         defaultMonth={currentMonth()}
         onClose={() => setCreating(false)}
         onCreated={handleCreated}
         onViewExisting={handleViewExisting}
-      />
+      />}
 
       {/* Detail drawer — shared by both views */}
       {activeInvoice && (
         <InvoiceDetailSheet
+          canEdit={canEdit}
           invoice={activeInvoice}
           onClose={() => setActiveInvoice(null)}
           onUpdated={(updated) => {

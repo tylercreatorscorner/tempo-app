@@ -7,11 +7,15 @@ import type { PublicStudioReport } from './studio-report-model';
 import { publicStudioReport, publicStudioSnapshot } from './studio-report-public';
 
 export interface ReportHistoryItem { token: string; label: string; reportType: string; periodStart: string; periodEnd: string }
+/** Private revision views supply only authenticated endpoints, never bearer-token URLs. */
+export interface StudioReportRoutes { report: string; pdf: string; csv: string; videoLibrary: string; videoCsv: string; videoCover: string }
 export interface StudioReportProps {
   token: string; preview?: boolean; report: BrandClientReportData; snapshot: ClientReportSnapshot;
   notes: string | null; plan: string | null; brandName: string; periodLabel: string;
   reportType?: ReportType; logoUrl?: string | null; history?: ReportHistoryItem[];
   historyUnavailable?: boolean;
+  routes?: StudioReportRoutes;
+  privateRevision?: boolean;
 }
 export type StudioReportClientProps = Omit<StudioReportProps, 'snapshot' | 'report'> & {
   report: PublicStudioReport;
@@ -25,5 +29,6 @@ export function StudioReportView(props: StudioReportProps) {
   return <StudioReport key={props.token} token={props.token} preview={props.preview}
     report={publicStudioReport(props.report)} snapshot={publicStudioSnapshot(props.snapshot)}
     notes={props.notes} plan={props.plan} brandName={props.brandName} periodLabel={props.periodLabel}
-    reportType={props.reportType} logoUrl={props.logoUrl} history={props.history} historyUnavailable={props.historyUnavailable} />;
+    reportType={props.reportType} logoUrl={props.logoUrl} history={props.history} historyUnavailable={props.historyUnavailable}
+    routes={props.routes} privateRevision={props.privateRevision} />;
 }

@@ -1,159 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { classifyCreator } from '@/lib/data/creator-status';
-import { STATUS_CONFIG } from '@/lib/data/creator-status';
-import { getBrandRegistry, uuidToSlug } from '@/lib/data/brand-registry';
+import { classifyCreator, STATUS_CONFIG } from '@/lib/data/creator-status';
+import { resolveUuids, uuidToSlug } from '@/lib/data/brand-registry-core';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { messageBrandRegistry, messageCreator, messageGuard, messageReply } from '@/lib/messages/access';
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ creatorId: string }> }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ creatorId: string }> }) {
   try {
     const scope = await getWorkspaceScope();
-    if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+    const denied = messageGuard(scope);
+    if (denied || !scope) return denied!;
     const { creatorId } = await params;
-    const supabase = await createAdminClient();
-    const reg = await getBrandRegistry();
-
-    // Get creator info from creators_v2 — tenant-pinned (service role bypasses RLS)
-    const { data: creator, error } = await supabase
-      .from('creators_v2')
-      .select('id, real_name, discord_id, discord_avatar')
-      .eq('id', creatorId)
-      .eq('tenant_id', scope.tenantId)
-      .single();
-
-    if (error || !creator) {
-      return NextResponse.json({ creator: null });
-    }
-
-    // Scoped (manager): creator must be linked to one of their brands.
-    if (scope.brandScope.kind === 'scoped') {
-      const ids = scope.brandScope.brandIds;
-      const { data: link } = await supabase
-        .from('creator_brands').select('id').eq('creator_id', creator.id)
-        .in('brand_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
-        .limit(1);
-      if (!link || link.length === 0) {
-        return NextResponse.json({ error: 'Forbidden: creator not in your brands' }, { status: 403 });
-      }
-    }
-
-    // Get brand-specific data
-    const { data: brandRow } = await supabase
-      .from('creator_brands')
-      .select('brand_id, retainer')
-      .eq('creator_id', creator.id)
-      .limit(1)
-      .single();
-
-    const brandSlug = brandRow ? (uuidToSlug(reg, brandRow.brand_id) ?? brandRow.brand_id) : null;
-
-    // Get TikTok handle from tiktok_accounts
-    const { data: account } = await supabase
-      .from('tiktok_accounts')
-      .select('tiktok_username')
-      .eq('creator_id', creator.id)
-      .limit(1)
-      .single();
-
-    const tiktokHandle = account?.tiktok_username || null;
-
-    let posts7d = 0;
-    let gmv7d = 0;
-    let lastActive: string | null = null;
-    const brandBreakdown: Array<{ brand: string; posts_7d: number; gmv_7d: number }> = [];
-
-    try {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const dateStr = sevenDaysAgo.toISOString().split('T')[0];
-
-      const { data: allAccounts } = await supabase
-        .from('tiktok_accounts')
-        .select('tiktok_username, brand_id')
-        .eq('creator_id', creator.id);
-
-      const usernames = (allAccounts ?? []).map(a => a.tiktok_username);
-      const usernameToBrand: Record<string, string> = {};
-      for (const a of allAccounts ?? []) {
-        usernameToBrand[a.tiktok_username.toLowerCase()] = uuidToSlug(reg, a.brand_id) ?? a.brand_id;
-      }
-
-      if (usernames.length > 0) {
-        // GMV from daily_video_product_stats
-        const { data: salesRows } = await supabase
-          .from('daily_video_product_stats')
-          .select('video_id, gmv, report_date, tiktok_username, brand_id')
-          .in('tiktok_username', usernames)
-          .gte('report_date', dateStr)
-          .order('report_date', { ascending: false });
-
-        if (salesRows && salesRows.length > 0) {
-          gmv7d = salesRows.reduce((sum: number, v: any) => sum + (Number(v.gmv) || 0), 0);
-          lastActive = salesRows[0].report_date;
-
-          const brandGmvMap = new Map<string, number>();
-          for (const v of salesRows) {
-            const b = uuidToSlug(reg, v.brand_id) ?? usernameToBrand[v.tiktok_username?.toLowerCase()] ?? 'unknown';
-            brandGmvMap.set(b, (brandGmvMap.get(b) || 0) + (Number(v.gmv) || 0));
+    const db = await createAdminClient();
+    const creator = await messageCreator(scope, db, creatorId);
+    if (creator instanceof NextResponse) return creator;
+    const registry = await messageBrandRegistry(scope, db);
+    const brandIds = registry.rows.map(brand => brand.id);
+    const [links, accounts] = await Promise.all([
+      db.from('creator_brands').select('brand_id,retainer', { count: 'exact' }).eq('tenant_id', scope.tenantId).eq('creator_id', creatorId).in('brand_id', brandIds),
+      db.from('tiktok_accounts').select('tiktok_username,brand_id', { count: 'exact' }).eq('tenant_id', scope.tenantId).eq('creator_id', creatorId).in('brand_id', brandIds),
+    ]);
+    if ([links, accounts].some(result => result.error || !result.data || result.count !== result.data.length)) throw new Error('Incomplete creator context');
+    const linkedBrandIds = [...new Set((links.data ?? []).map(row => row.brand_id as string))];
+    const dataBrandIds = [...new Set(linkedBrandIds.flatMap(id => resolveUuids(registry, uuidToSlug(registry, id), id) ?? []))];
+    const usernames = [...new Set((accounts.data ?? []).map(row => row.tiktok_username as string).filter(Boolean))];
+    const since = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const byBrand = new Map<string, { gmv: number; videos: Set<string> }>();
+    const allVideos = new Set<string>();
+    let gmv = 0, lastActive: string | null = null;
+    if (usernames.length && linkedBrandIds.length) {
+      for (const basis of ['report_date', 'post_date'] as const) {
+        for (let page = 0; ; page++) {
+          const result = await db.from('daily_video_product_stats').select('id,video_id,gmv,report_date,post_date,brand_id', { count: 'exact' })
+            .eq('tenant_id', scope.tenantId).in('brand_id', dataBrandIds).in('tiktok_username', usernames)
+            .gte(basis, since).order('id').range(page * 1000, page * 1000 + 999);
+          if (result.error || !result.data || result.count === null) throw new Error('Creator performance unavailable');
+          for (const row of result.data) {
+            const value = byBrand.get(row.brand_id) ?? { gmv: 0, videos: new Set<string>() };
+            if (basis === 'report_date') { value.gmv += Number(row.gmv) || 0; gmv += Number(row.gmv) || 0; }
+            else if (row.video_id) { value.videos.add(row.video_id); allVideos.add(row.video_id); }
+            const date = row[basis] as string | null;
+            if (date && (!lastActive || date > lastActive)) lastActive = date;
+            byBrand.set(row.brand_id, value);
           }
-
-          // Post counts. Source: daily_video_product_stats (rows are per
-          // video×product; Set<video_id> below dedupes correctly).
-          const { data: postRows } = await supabase
-            .from('daily_video_product_stats')
-            .select('video_id, tiktok_username, brand_id')
-            .in('tiktok_username', usernames)
-            .gte('post_date', dateStr);
-
-          const allPosts = new Set<string>();
-          const brandPostMap = new Map<string, Set<string>>();
-          for (const v of postRows ?? []) {
-            allPosts.add(v.video_id);
-            const b = uuidToSlug(reg, v.brand_id) ?? usernameToBrand[v.tiktok_username?.toLowerCase()] ?? 'unknown';
-            if (!brandPostMap.has(b)) brandPostMap.set(b, new Set());
-            brandPostMap.get(b)!.add(v.video_id);
-          }
-          posts7d = allPosts.size;
-
-          const allBrands = new Set([...brandGmvMap.keys(), ...brandPostMap.keys()]);
-          for (const brand of allBrands) {
-            brandBreakdown.push({
-              brand,
-              posts_7d: brandPostMap.get(brand)?.size || 0,
-              gmv_7d: Math.round((brandGmvMap.get(brand) || 0) * 100) / 100,
-            });
-          }
+          if ((page + 1) * 1000 >= result.count) break;
+          if (result.data.length !== 1000) throw new Error('Incomplete creator performance');
         }
       }
-    } catch {
-      // Performance tables may not exist
     }
-
-    const status = classifyCreator(posts7d);
-
-    return NextResponse.json({
-      creator: {
-        id: creator.id,
-        real_name: creator.real_name,
-        tiktok_handle: tiktokHandle,
-        brand: brandSlug,
-        discord_id: creator.discord_id,
-        retainer_amount: brandRow?.retainer != null ? Number(brandRow.retainer) : null,
-        discord_avatar: creator.discord_avatar,
-        status,
-        status_label: STATUS_CONFIG[status].label,
-        posts_7d: posts7d,
-        gmv_7d: Math.round(gmv7d * 100) / 100,
-        last_active: lastActive,
-        brand_breakdown: brandBreakdown,
-      },
-    });
-  } catch (err) {
-    console.error('Failed to fetch creator context:', err);
-    return NextResponse.json({ creator: null }, { status: 200 });
+    const brandRow = links.data?.[0];
+    const status = classifyCreator(allVideos.size);
+    return messageReply({ creator: {
+      id: creator.id, real_name: creator.real_name, tiktok_handle: usernames[0] ?? null,
+      brand: brandRow ? uuidToSlug(registry, brandRow.brand_id) : null, discord_id: creator.discord_id,
+      retainer_amount: brandRow?.retainer != null ? Number(brandRow.retainer) : null, discord_avatar: creator.discord_avatar,
+      status, status_label: STATUS_CONFIG[status].label, posts_7d: allVideos.size, gmv_7d: Math.round(gmv * 100) / 100, last_active: lastActive,
+      brand_breakdown: [...byBrand].map(([brandId, value]) => ({ brand: uuidToSlug(registry, brandId) ?? brandId, posts_7d: value.videos.size, gmv_7d: Math.round(value.gmv * 100) / 100 })),
+    } });
+  } catch {
+    return messageReply({ error: 'Could not load creator context. Please retry.' }, 503);
   }
 }

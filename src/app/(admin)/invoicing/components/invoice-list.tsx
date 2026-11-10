@@ -22,6 +22,7 @@ import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
 import { daysOverdue, isOverdue } from '@/lib/finance/overdue';
+import { receivedAmount } from '@/lib/finance/received-amount';
 import { formatCurrency, formatDate, formatPeriod } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
@@ -48,6 +49,8 @@ const STATUS_TABS: { value: Status; label: string; icon: React.ComponentType<{ c
 export interface TeamMemberOption { id: string; name: string }
 
 interface Props {
+  canEdit: boolean;
+  canBulk: boolean;
   invoices: Invoice[];
   loading: boolean;
   /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
@@ -60,7 +63,7 @@ interface Props {
   onMerge: (updated: Invoice[]) => void;
 }
 
-export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, onCreate, onRefresh, onMerge }: Props) {
+export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, onCreate, onRefresh, onMerge, canEdit, canBulk }: Props) {
   const brandMeta = useBrandMeta();
   const [status, setStatus] = useState<Status>('all');
   const [brand, setBrand] = useState<string>('all');
@@ -107,7 +110,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
       if (inv.status === 'sent') { sentAmount += amt; sentCount += 1; }
       if (inv.status !== 'paid' && inv.status !== 'void') outstandingAmount += amt;
       if (inv.status === 'paid' && inv.paid_at && inv.paid_at >= yearStart) {
-        paidThisYearAmount += amt;
+        paidThisYearAmount += receivedAmount(inv);
         paidThisYearCount += 1;
       }
     }
@@ -155,7 +158,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
   };
 
   const handleBulk = useCallback(async (action: 'sent' | 'paid' | 'void') => {
-    if (selectedIds.size === 0) return;
+    if (!canBulk || selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
     if (action === 'void' && !confirm(`Void ${ids.length} invoice${ids.length === 1 ? '' : 's'}? They stay on file but won't count toward outstanding.`)) {
       return;
@@ -177,11 +180,10 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
     } finally {
       setBulkAction(null);
     }
-  }, [selectedIds, onMerge]);
+  }, [selectedIds, onMerge, canBulk]);
 
   const buildExportRows = useCallback(() => {
-    const list = filteredInvoices.length > 0 ? filteredInvoices : invoices;
-    return list.map((inv) => ({
+    return filteredInvoices.map((inv) => ({
       invoice_number: inv.invoice_number,
       brand: brandMeta.label(inv.brand),
       brand_slug: inv.brand,
@@ -202,7 +204,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
       bill_to_name: inv.bill_to_name ?? '',
       bill_to_email: inv.bill_to_email ?? '',
     }));
-  }, [filteredInvoices, invoices, brandMeta]);
+  }, [filteredInvoices, brandMeta]);
 
   const handleExportCsv = useCallback(() => {
     const rows = buildExportRows();
@@ -232,11 +234,11 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
       <Card className="relative min-w-0 overflow-hidden">
         <TableLoadBar active={showBar} />
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-          <div><h2 className="text-sm font-semibold text-foreground">Invoice ledger</h2><p className="mt-0.5 text-xs text-muted-foreground">{filteredInvoices.length} of {invoices.length} invoices · select rows for bulk actions</p></div>
+          <div><h2 className="text-sm font-semibold text-foreground">Invoice ledger</h2><p className="mt-0.5 text-xs text-muted-foreground">{filteredInvoices.length} of {invoices.length} invoices{canBulk && ' · select rows for bulk actions'}</p></div>
           <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading} title="Refresh"><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />Refresh</Button>
-          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={loading || invoices.length === 0} title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to CSV` : `Export all ${invoices.length} invoices to CSV`}><FileDown className="h-3.5 w-3.5" />CSV</Button>
-          <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={loading || invoices.length === 0} title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to Excel` : `Export all ${invoices.length} invoices to Excel`}><FileSpreadsheet className="h-3.5 w-3.5" />Excel</Button>
+          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={loading || filteredInvoices.length === 0} title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to CSV` : `Export all ${invoices.length} invoices to CSV`}><FileDown className="h-3.5 w-3.5" />CSV</Button>
+          <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={loading || filteredInvoices.length === 0} title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to Excel` : `Export all ${invoices.length} invoices to Excel`}><FileSpreadsheet className="h-3.5 w-3.5" />Excel</Button>
           </div>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border px-4 py-3">
@@ -296,7 +298,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-border border-t-[var(--primary)]" />
           </div>
         ) : invoices.length === 0 ? (
-          <ListEmptyState onCreate={onCreate} />
+          <ListEmptyState onCreate={canEdit ? onCreate : undefined} />
         ) : filteredInvoices.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--workspace-surface-radius,14px)] bg-muted">
@@ -313,6 +315,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                   <th className="w-10 px-4 py-3">
                     <input
                       type="checkbox"
+                      disabled={!canBulk}
                       checked={allVisibleSelected}
                       onChange={toggleAllVisible}
                       className="h-3.5 w-3.5 cursor-pointer rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/30"
@@ -344,6 +347,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
+                          disabled={!canBulk}
                           checked={isSelected}
                           onChange={() => toggleOne(inv.id)}
                           className="h-3.5 w-3.5 cursor-pointer rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/30"
@@ -397,7 +401,7 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {isOverdue(inv, todayIso) && (
+                          {canEdit && isOverdue(inv, todayIso) && (
                             <NudgeButton invoice={inv} onDone={onRefresh} />
                           )}
                           <a
@@ -421,9 +425,9 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
       </Card>
 
       {/* Bulk action bar (sticky bottom) */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 animate-in slide-in-from-bottom-4">
-          <div className="flex items-center gap-3 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-foreground px-5 py-3 text-background shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))]">
+      {canBulk && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 animate-in slide-in-from-bottom-4">
+          <div className="flex flex-wrap items-center gap-3 rounded-[var(--workspace-surface-radius,14px)] border border-border bg-foreground px-5 py-3 text-background shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))]">
             <span className="text-sm">
               <span className="font-bold">{selectedIds.size}</span> selected
             </span>
@@ -568,7 +572,7 @@ function TeamMemberFilter({ value, onChange, members }: {
   );
 }
 
-function ListEmptyState({ onCreate }: { onCreate: () => void }) {
+function ListEmptyState({ onCreate }: { onCreate?: () => void }) {
   return (
     <div className="px-6 py-16 text-center">
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[var(--workspace-surface-radius,14px)] bg-muted">
@@ -578,10 +582,10 @@ function ListEmptyState({ onCreate }: { onCreate: () => void }) {
       <p className="mx-auto mb-6 max-w-sm text-sm text-muted-foreground">
         Generate your first invoice: pick a brand and a month, and the line items come from your earnings.
       </p>
-      <Button variant="primary" onClick={onCreate} className="mx-auto">
+      {onCreate && <Button variant="primary" onClick={onCreate} className="mx-auto">
         <Plus className="h-4 w-4" />
         Create Invoice
-      </Button>
+      </Button>}
     </div>
   );
 }

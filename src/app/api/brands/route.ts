@@ -1,51 +1,58 @@
 /**
  * /api/brands
  *
- * GET  — list all brands (active + archived) with their financial settings
+ * GET  — list authorized brands; metadata=1 omits optional financial settings
  * POST — create a new brand (brands_v2 row); brand_settings row is created
  *        lazily on first edit via the existing upsert path.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getBrandWriteAccess } from '@/lib/auth/brand-settings-access';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
+import { getFinanceAccess } from '@/lib/finance/access';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
-  // Any Workspace user may list brands they can see (managers need this for
-  // the reporting/brand pickers). owner/admin/viewer → all brands + financial
-  // settings; manager → only their user_brand_access brands, and NO financial
-  // settings (brand_settings is finance — owner/admin only).
+export async function GET(req: NextRequest) {
+  // Shared reporting/brand pickers may read tenant-scoped metadata. Financial
+  // settings additionally require finance access and unambiguous legacy slugs.
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope?.tenantId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const bs = scope.brandScope;
   const managerScoped = bs.kind === 'scoped';
 
   const supabase = await createAdminClient();
   let brandsQuery = supabase
     .from('brands_v2')
-    .select('id, slug, name, display_name, color, logo_url, is_archived, is_umbrella, parent_brand_id, created_at')
+    .select('id, slug, name, display_name, color, logo_url, is_archived, is_umbrella, parent_brand_id, created_at', { count: 'exact' })
+    .eq('tenant_id', scope.tenantId)
     .order('is_archived', { ascending: true })
     .order('name');
   if (bs.kind === 'scoped') {
     const ids = bs.brandIds;
     brandsQuery = brandsQuery.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
   }
-  const { data: brandsRows, error: brandsErr } = await brandsQuery;
+  const { data: brandsRows, error: brandsErr, count } = await brandsQuery;
   if (brandsErr) return NextResponse.json({ error: brandsErr.message }, { status: 500 });
+  if (!brandsRows || count !== brandsRows.length) return NextResponse.json({ error: 'The complete brand list could not be loaded.' }, { status: 503 });
 
-  // Managers never get financial settings.
-  if (managerScoped) {
+  // Pickers need only authorized metadata. Optional billing availability must
+  // not block their brand choices; default finance consumers retain all guards.
+  const metadataOnly = req?.nextUrl.searchParams.get('metadata') === '1';
+  if (metadataOnly || managerScoped || !can(scope, 'earnings', 'read')) {
     const brands = (brandsRows ?? []).map((b) => ({ ...b, settings: null }));
-    return NextResponse.json({ brands, scoped: true });
+    return NextResponse.json({ brands, scoped: managerScoped, financeAvailable: false });
   }
 
-  const slugs = (brandsRows ?? []).map((b: { slug: string }) => b.slug);
-  const { data: settingsRows } = await supabase
+  const finance = await getFinanceAccess('earnings', 'read');
+  if (finance instanceof NextResponse) return finance;
+  const slugs = brandsRows.map((b: { slug: string }) => b.slug).filter(slug => finance.brandSlugs.includes(slug));
+  const { data: settingsRows, error: settingsError } = await supabase
     .from('brand_settings')
     .select('*')
     .in('brand', slugs);
+  if (settingsError) return NextResponse.json({ error: 'Brand billing settings could not be loaded.' }, { status: 503 });
 
   const settingsBySlug = new Map<string, Record<string, unknown>>();
   for (const s of (settingsRows as Array<Record<string, unknown> & { brand: string }> | null) ?? []) {
@@ -57,7 +64,7 @@ export async function GET() {
     settings: settingsBySlug.get(b.slug) ?? null,
   }));
 
-  return NextResponse.json({ brands, scoped: false });
+  return NextResponse.json({ brands, scoped: false, financeAvailable: true });
 }
 
 interface PostBody {
@@ -67,8 +74,8 @@ interface PostBody {
 }
 
 export async function POST(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getBrandWriteAccess();
+  if (scope instanceof NextResponse) return scope;
 
   let body: PostBody;
   try { body = await req.json(); }
@@ -84,9 +91,6 @@ export async function POST(req: NextRequest) {
   if (!name) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
-  if (!profile.tenant_id) {
-    return NextResponse.json({ error: 'No tenant on your profile — cannot create brand' }, { status: 400 });
-  }
 
   const supabase = await createAdminClient();
   const { data, error } = await supabase
@@ -95,7 +99,7 @@ export async function POST(req: NextRequest) {
       slug,
       name,
       color,
-      tenant_id: profile.tenant_id,
+      tenant_id: scope.tenantId,
       is_archived: false,
       is_umbrella: false,
     })

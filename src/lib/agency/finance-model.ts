@@ -73,6 +73,13 @@ export function buildInvoice(client: ClientRecord, record: FinanceRecord, month:
   if (record.settings.termsReviewRequired) throw new Error('Review the contract differences and confirm the billing agreement before preparing an invoice.');
   if (!readiness(record.settings)) throw new Error('Complete the legal name, billing email, and billing address first.');
   if (!record.settings.agencyName || !record.settings.agencyAddress || !record.settings.paymentInstructions) throw new Error('Add the issuing agency name, address, and payment instructions before invoicing.');
+  return buildServiceSnapshot(client, record, month, gmvCents, issuedDate);
+}
+
+/** Shared financial calculation; forecast estimates are not draft invoices. */
+function buildServiceSnapshot(client: ClientRecord, record: FinanceRecord, month: string, gmvCents: number | null, issuedDate: string): InvoiceSnapshot {
+  if (client.historical) throw new Error('Past agreements are kept for history. Reactivate this client before preparing a new invoice.');
+  if (record.settings.termsReviewRequired) throw new Error('Review the contract differences and confirm the billing agreement before preparing an invoice.');
   const bounds = agencyMonthBounds(month);
   const terms = selectMonthTerms(client.terms, month);
   const manager = managerFor(record.settings, month);
@@ -129,8 +136,13 @@ export function forecast(clients: ClientRecord[], records: FinanceRecord[], invo
       const month = shiftMonth(today.slice(0, 7), offset), bounds = agencyMonthBounds(month);
       if (client.serviceStart && (client.serviceStart > bounds.end || (client.serviceEnd && client.serviceEnd < bounds.start))) continue;
       if (invoices.some(i => i.client_id === client.id && i.month === month && i.status !== 'void')) continue;
-      const creatorFee = selectMonthTerms(client.terms, month)?.feeModel === 'per_creator';
+      const terms = selectMonthTerms(client.terms, month);
+      const creatorFee = terms?.feeModel === 'per_creator';
       const manager = record ? managerFor(record.settings, month) : null;
+      // An explicit no-fee relationship has no new receivable to forecast.
+      // Existing invoices above and any recorded manager obligation remain visible.
+      if (terms?.feeModel === 'fixed' && terms.monthlyRetainer === 0 && terms.revSharePercent === 0
+        && manager === null && !record?.settings.termsReviewRequired) continue;
       const needsGmv = !creatorFee || Boolean(manager && managerAllocations(manager).some(recipient => recipient.gmvPercent !== 0));
       const ledger = record?.settings.creatorBillingPeriods?.find(period => period.month === month);
       const gmv = record?.settings.forecastGmv.find(f => f.month === month);
@@ -143,7 +155,7 @@ export function forecast(clients: ClientRecord[], records: FinanceRecord[], invo
       if (creatorFee && !ledger?.rosterConfirmed) { addMissing(client, month, 'confirm the actual creator roster for this service month'); continue; }
       if (needsGmv && !gmv) { addMissing(client, month, `add a GMV estimate${creatorFee ? ' for manager pay' : ''}`); continue; }
       try {
-        const s = buildInvoice(client, record, month, needsGmv && gmv ? Math.round(gmv.amount * 100) : null, `${shiftMonth(month, 1)}-${String(record.settings.invoiceDay).padStart(2, '0')}`);
+        const s = buildServiceSnapshot(client, record, month, needsGmv && gmv ? Math.round(gmv.amount * 100) : null, `${shiftMonth(month, 1)}-${String(record.settings.invoiceDay).padStart(2, '0')}`);
         const expected = addDays(s.expectedDate, delay), receiptDate = expected < today ? today : expected;
         events.push({ clientId: client.id, clientName: client.name, month, source: 'Estimate', receiptDate, payoutDate: addDays(receiptDate, 7), receiptCents: s.feeCents, payoutCents: s.managerCents, overdue: expected < today });
       } catch (error) { addMissing(client, month, (error as Error).message); }

@@ -73,7 +73,7 @@ export function publicStudioReport(row: BrandClientReportData): PublicStudioRepo
     dailyPerformance: (row.dailyPerformance ?? []).map(value => ({ date: value.date, weekday: value.weekday, gmv: value.gmv, orders: value.orders, creators: value.creators, isPeak: value.isPeak })),
     topCreators: (row.topCreators ?? []).map(value => ({ name: value.name, videos: value.videos, gmv: value.gmv, orders: value.orders, pctOfTotal: value.pctOfTotal })),
     topVideos: (row.topVideos ?? []).map(publicVideo),
-    topProducts: (row.topProducts ?? []).map(value => ({ name: value.name, gmv: value.gmv, orders: value.orders, pctOfTotal: value.pctOfTotal })),
+    topProducts: (row.topProducts ?? []).map(value => ({ name: value.name, gmv: value.gmv, orders: value.orders, pctOfTotal: value.pctOfTotal, productId: typeof (value as { productId?: unknown }).productId === 'string' ? (value as { productId?: string }).productId : undefined })),
     activity: activity ? { rosterPosted: activity.rosterPosted, rosterPostedPrior: activity.rosterPostedPrior, rosterSold: activity.rosterSold, rosterSoldNotPosted: activity.rosterSoldNotPosted, rosterDeparted: activity.rosterDeparted, storeCreatorsPosted: activity.storeCreatorsPosted, storeCreatorsSold: activity.storeCreatorsSold } : undefined,
     channels: channels ? { rosterVideoGmv: channels.rosterVideoGmv, rosterLiveGmv: channels.rosterLiveGmv, rosterCardGmv: channels.rosterCardGmv, rosterLiveStreams: channels.rosterLiveStreams, storeVideoGmv: channels.storeVideoGmv, storeLiveGmv: channels.storeLiveGmv, storeCardGmv: channels.storeCardGmv, storeLiveStreams: channels.storeLiveStreams } : undefined,
     signings: signings ? { monthLabel: signings.monthLabel, priorMonthLabel: signings.priorMonthLabel, signed: signings.signed, signedRetained: signings.signedRetained, signedPrior: signings.signedPrior, isFirstMonth: signings.isFirstMonth, priorComparable: signings.priorComparable } : undefined,
@@ -81,7 +81,7 @@ export function publicStudioReport(row: BrandClientReportData): PublicStudioRepo
     topLive: row.topLive?.map(value => ({ handle: value.handle, liveGmv: value.liveGmv, lives: value.lives })),
     agreementSplit: split ? { retainerGmv: split.retainerGmv, affiliateGmv: split.affiliateGmv, retainerCreators: split.retainerCreators, affiliateCreators: split.affiliateCreators, unattributedGmv: split.unattributedGmv } : undefined,
     granular: row.granular ? granular(row.granular) : undefined,
-    productCreatorBreakdown: (row.productCreatorBreakdown ?? []).map(value => ({ productName: value.productName, productGmv: value.productGmv, productOrders: value.productOrders, pctOfTotal: value.pctOfTotal, topCreators: value.topCreators.map(creator => ({ name: creator.name, gmv: creator.gmv })) })),
+    productCreatorBreakdown: (row.productCreatorBreakdown ?? []).map(value => ({ productId: typeof (value as { productId?: unknown }).productId === 'string' ? (value as { productId?: string }).productId : undefined, productName: value.productName, productGmv: value.productGmv, productOrders: value.productOrders, pctOfTotal: value.pctOfTotal, topCreators: value.topCreators.map(creator => ({ name: creator.name, gmv: creator.gmv })) })),
   };
 }
 export function publicStudioSnapshot(source: ClientReportSnapshot): Pick<ClientReportSnapshot, 'generatedAt' | 'weekly' | 'movers'> {

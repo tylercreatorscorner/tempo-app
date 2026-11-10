@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireScreen } from "@/lib/auth/require-screen";
+import { can } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { TeamMembersSection } from "@/components/settings/team-members-section";
@@ -8,6 +9,7 @@ export default async function Page() {
   const scope = await requireScreen("earnings");
   if (scope.impersonating || !["owner", "admin"].includes(scope.role))
     redirect("/earnings");
+  const canEdit = can(scope, "earnings", "configure");
   const db = await createAdminClient();
   const { data, error } = await db
     .from("brands_v2")
@@ -24,8 +26,8 @@ export default async function Page() {
         subtitle="Billing identities and brand compensation arrangements."
       />
       <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.5fr)]">
-        <div className="min-w-0"><TeamMembersSection /></div>
-        <div className="min-w-0"><CompensationArrangementsSection brands={data ?? []} /></div>
+        <div className="min-w-0"><TeamMembersSection canEdit={canEdit} /></div>
+        <div className="min-w-0"><CompensationArrangementsSection brands={data ?? []} canEdit={canEdit} /></div>
       </div>
     </div>
   );

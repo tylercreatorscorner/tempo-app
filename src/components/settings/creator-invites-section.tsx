@@ -9,7 +9,7 @@
  * The brand list is passed in from the server component so we don't refetch.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Copy, Plus, Check, UserPlus } from 'lucide-react';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 
@@ -41,7 +41,14 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
   const [brand, setBrand] = useState(initialBrand && brands.some(item => item.slug === initialBrand) ? initialBrand : brands[0]?.slug ?? '');
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const copyRequest = useRef(0);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => () => {
+    copyRequest.current++;
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+  }, []);
 
   const createInvite = async () => {
     if (!brand) return;
@@ -66,11 +73,20 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
     }
   };
 
-  const copyLink = (code: string) => {
+  const copyLink = async (code: string) => {
+    const request = ++copyRequest.current;
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    setCopied(null);
+    setCopyError(null);
     const url = `${window.location.origin}/join/${code}`;
-    navigator.clipboard.writeText(url);
-    setCopied(code);
-    setTimeout(() => setCopied(null), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      if (request !== copyRequest.current) return;
+      setCopied(code);
+      copyTimer.current = setTimeout(() => setCopied(null), 2000);
+    } catch {
+      if (request === copyRequest.current) setCopyError('Could not copy the link. Select and copy the link below.');
+    }
   };
 
   return (
@@ -106,8 +122,9 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
         </div>
 
         {error && (
-          <p className="text-sm text-red-600">{error}</p>
+          <p role="alert" className="text-sm text-red-600">{error}</p>
         )}
+        {copyError && <p role="alert" className="text-sm text-red-600">{copyError}</p>}
 
         {/* Just-generated invites (session-only — page reload clears) */}
         {invites.length > 0 && (
@@ -118,7 +135,7 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
             {invites.map((inv) => (
               <div
                 key={inv.id}
-                className="flex items-center justify-between p-3 rounded-lg border border-border/50"
+                className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-border/50"
               >
                 <div className="min-w-0">
                   <p className="font-medium text-sm capitalize truncate">{inv.brand.replace(/_/g, ' ')}</p>
@@ -126,10 +143,11 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
                     /join/{inv.code} · {inv.current_uses}/{inv.max_uses} used · expires{' '}
                     {new Date(inv.expires_at).toLocaleDateString()}
                   </p>
+                  {copyError && <p className="select-all break-all text-xs mt-1">{`${window.location.origin}/join/${inv.code}`}</p>}
                 </div>
                 <button
                   onClick={() => copyLink(inv.code)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted/40 transition-colors flex-shrink-0 ml-3"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted/40 transition-colors flex-shrink-0"
                 >
                   {copied === inv.code ? (
                     <>

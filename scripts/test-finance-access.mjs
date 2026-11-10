@@ -113,6 +113,13 @@ assert.equal((await detail.GET(req('GET'), { params: Promise.resolve({ id: 'fore
 assert.equal((await detail.GET(req('GET'), { params: Promise.resolve({ id: 'local' }) })).status, 200);
 assert.equal((await detail.PATCH(req('PATCH', { notes: 'Updated' }), { params: Promise.resolve({ id: 'local' }) })).status, 200);
 writes = [];
+assert.equal((await detail.PATCH(req('PATCH', { status: 'paid', amount_received: 800, payment_method: 'wire', payment_reference: 'FIXTURE' }), { params: Promise.resolve({ id: 'local' }) })).status, 200);
+const paymentWrites = writes.filter(write => write.table === 'invoices' && write.op === 'update');
+assert.equal(paymentWrites.length, 1, 'Receipt and paid status must persist atomically');
+assert.equal(paymentWrites[0].patch.amount_received, 800);
+assert.equal(paymentWrites[0].patch.status, 'paid');
+assert.ok(paymentWrites[0].patch.paid_at);
+writes = [];
 assert.equal((await routes['invoices/bulk/route.ts'].POST(req('POST', { ids: ['local', 'foreign'], status: 'paid' }))).status, 403);
 assert.equal(writes.length, 0);
 assert.equal((await routes['invoices/bulk/route.ts'].POST(req('POST', { ids: ['local'], status: 'paid' }))).status, 200);

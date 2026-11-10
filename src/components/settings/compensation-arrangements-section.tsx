@@ -10,7 +10,7 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
  * rate, launch fee, compensation model.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { currentMonth } from '@/lib/utils/format';
 import { Loader2, Check, X } from 'lucide-react';
 
@@ -48,7 +48,7 @@ const COMP_MODELS: Array<{ value: string; label: string }> = [
   { value: 'retainer_only', label: 'Retainer only' },
 ];
 
-export function CompensationArrangementsSection({ brands }: { brands: Brand[] }) {
+export function CompensationArrangementsSection({ brands, canEdit = false }: { brands: Brand[]; canEdit?: boolean }) {
   const [month, setMonth] = useState(currentMonth);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [arrangements, setArrangements] = useState<Arrangement[]>([]);
@@ -57,9 +57,14 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
   const [form, setForm] = useState<Partial<Arrangement>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
+    setLoadedMonth(null);
+    setError(null);
     try {
       const [tmRes, baRes] = await Promise.all([
         fetch('/api/team-members'),
@@ -68,22 +73,27 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
       if (!tmRes.ok || !baRes.ok) throw new Error('Compensation arrangements could not be loaded.');
       const tmJson = await tmRes.json();
       const baJson = await baRes.json();
+      if (id !== requestId.current) return;
       setMembers(tmJson.teamMembers ?? []);
       setArrangements(baJson.arrangements ?? []);
+      setLoadedMonth(month);
     } catch (e) {
+      if (id !== requestId.current) return;
       setError(e instanceof Error ? e.message : 'Load failed');
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }, [month]);
 
-  useEffect(() => { load(); }, [load]);
+  const invalidateRequests = useCallback(() => { requestId.current++; }, []);
+  useEffect(() => { load(); return invalidateRequests; }, [load, invalidateRequests]);
 
   function findArr(brand: string, memberId: string): Arrangement | undefined {
     return arrangements.find(a => a.brand === brand && a.team_member_id === memberId);
   }
 
   function startEdit(brand: string, memberId: string) {
+    if (!canEdit || loading || loadedMonth !== month) return;
     const existing = findArr(brand, memberId);
     setEditing({ brand, teamMemberId: memberId });
     setForm(existing ? { ...existing } : {
@@ -101,13 +111,14 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
   }
 
   function cancelEdit() {
+    if (saving) return;
     setEditing(null);
     setForm({});
     setError(null);
   }
 
   async function save() {
-    if (!editing) return;
+    if (!canEdit || !editing || saving || loadedMonth !== month) return;
     setSaving(true);
     setError(null);
     try {
@@ -132,7 +143,8 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Save failed');
-      cancelEdit();
+      setEditing(null);
+      setForm({});
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -149,7 +161,7 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
     );
   }
 
-  if (members.length === 0) {
+  if (!error && loadedMonth === month && members.length === 0) {
     return null; // hide until at least one team member exists
   }
 
@@ -158,14 +170,14 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
       <div className="px-4 py-3 border-b border-border">
         <div>
           <h2 className="font-semibold text-sm">Compensation arrangements</h2>
-          <label className="mt-2 block text-xs">Terms month <input type="month" required value={month} onChange={event => setMonth(event.target.value)} className="ml-2 rounded border border-border bg-background px-2 py-1" /></label>
+          <label className="mt-2 block text-xs">Terms month <input type="month" required value={month} disabled={saving || !!editing} onChange={event => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)) setMonth(event.target.value); }} className="ml-2 rounded border border-border bg-background px-2 py-1" /></label>
           <p className="mt-0.5 text-xs text-muted-foreground">Select a brand and payee cell to edit its earnings and invoicing terms.</p>
         </div>
       </div>
 
-      {error && <p className="mx-6 mt-4 text-xs text-red-600 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <div role="alert" className="mx-6 my-4 text-xs text-red-600 bg-red-500/10 rounded-lg px-3 py-2">{error} {loadedMonth !== month && <button type="button" onClick={load} className="ml-2 underline">Retry</button>}</div>}
 
-      <div className="overflow-x-auto">
+      {loadedMonth === month && <div className="overflow-x-auto">
         <table className="w-full min-w-[440px] text-sm">
           <thead className="bg-muted/40 border-b border-border">
             <tr>
@@ -187,6 +199,7 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
                     <td key={m.id} className="px-4 py-3">
                       <button
                         onClick={() => startEdit(b.slug, m.id)}
+                        disabled={!canEdit}
                         aria-label={`Edit ${b.display_name || b.name} compensation for ${m.name}`}
                         className="text-left hover:bg-muted/40 rounded-md px-2 py-1 -mx-2 -my-1 transition-colors w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                       >
@@ -214,7 +227,7 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {editing && (
         <EditModal

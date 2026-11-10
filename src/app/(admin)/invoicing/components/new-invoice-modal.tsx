@@ -90,11 +90,17 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
     if (!open) return;
     let cancelled = false;
     setLoadingPreview(true);
+    setSelectedBrand(null);
+    setBrands([]);
     setError(null);
     setConflict(null);
     const tmParam = teamMemberId ? `&team_member_id=${teamMemberId}` : '';
     fetch(`/api/earnings?month=${month}${tmParam}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error || 'Failed to load brands');
+        return json;
+      })
       .then((j) => {
         if (cancelled) return;
         if (j.error) throw new Error(j.error);
@@ -110,7 +116,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
   }, [open, month, teamMemberId]);
 
   const handleCreate = useCallback(async () => {
-    if (!selectedBrand) return;
+    if (!selectedBrand || loadingPreview || creating) return;
     setCreating(true);
     setError(null);
     setConflict(null);
@@ -138,16 +144,17 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
     } finally {
       setCreating(false);
     }
-  }, [selectedBrand, month, teamMemberId, onCreated]);
+  }, [selectedBrand, month, teamMemberId, onCreated, loadingPreview, creating]);
 
   if (!open) return null;
 
   const selectedBrandData = brands.find((b) => b.brand === selectedBrand) ?? null;
+  const requestClose = () => { if (!creating) onClose(); };
 
   return (
-    <ModalOverlay onClose={onClose} closeOnBackdropClick={false}>
+    <ModalOverlay onClose={requestClose} closeOnBackdropClick={false}>
     <div className="absolute inset-0 flex items-center justify-center p-4">
-      <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={requestClose} />
 
       <Card role="dialog" aria-modal="true" aria-label="Create invoice" className="relative w-full max-w-2xl shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col max-h-[90dvh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
@@ -162,7 +169,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
               <p className="text-xs text-muted-foreground mt-0.5">Pulls live earnings data and creates an invoice for one brand &amp; month.</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0">
+          <Button variant="ghost" size="icon" onClick={requestClose} disabled={creating} aria-label="Close" className="flex-shrink-0">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -288,13 +295,13 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
 
         {/* Footer */}
         <div className="px-4 py-3 sm:px-5 border-t border-border flex items-center justify-end gap-2 bg-muted/40">
-          <Button variant="ghost" onClick={onClose} disabled={creating}>
+          <Button variant="ghost" onClick={requestClose} disabled={creating}>
             Cancel
           </Button>
           <Button
             variant="primary"
             onClick={handleCreate}
-            disabled={creating || !selectedBrand || !!conflict}
+            disabled={creating || loadingPreview || !selectedBrand || !!conflict}
           >
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
             {creating ? 'Generating…' : 'Generate Invoice'}

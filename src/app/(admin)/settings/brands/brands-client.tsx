@@ -60,7 +60,7 @@ const MODEL_BADGE: Record<Exclude<CompensationModel, 'standard'>, { label: strin
   retainer_only:  { label: 'Retainer only', bg: 'bg-emerald-500/10 border-emerald-500/25', text: 'text-emerald-500' },
 };
 
-export function BrandsSettingsClient() {
+export function BrandsSettingsClient({ canEditBrand = false, canEditBilling = false }: { canEditBrand?: boolean; canEditBilling?: boolean }) {
   const [brands, setBrands] = useState<BrandRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +70,8 @@ export function BrandsSettingsClient() {
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [financeAvailable, setFinanceAvailable] = useState(false);
 
   const setArchived = useCallback(async (brand: BrandRow, archived: boolean) => {
     if (archived) {
@@ -148,6 +150,8 @@ export function BrandsSettingsClient() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       setBrands(j.brands ?? []);
+      setFinanceAvailable(j.financeAvailable === true);
+      setHasLoaded(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load brands');
     } finally {
@@ -169,7 +173,7 @@ export function BrandsSettingsClient() {
       <PageHeader eyebrow="Settings" title="Brands" subtitle="Manage brand details, compensation and invoice defaults."
         actions={<div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={fetchBrands} disabled={loading}><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />Refresh</Button>
-          <Button size="sm" onClick={() => setAdding(true)}><Plus className="h-4 w-4" />New client</Button>
+          {canEditBrand && canEditBilling && <Button size="sm" onClick={() => setAdding(true)}><Plus className="h-4 w-4" />New client</Button>}
         </div>}
       />
 
@@ -182,9 +186,9 @@ export function BrandsSettingsClient() {
 
       {/* Stats */}
       <div className={layout.cardMetrics}>
-        <Stat label="Active" value={String(stats.active)} />
-        <Stat label="Archived" value={String(stats.archived)} />
-        <Stat label="Monthly Retainer Commit" value={formatCurrency(stats.monthlyCommit)} />
+        <Stat label="Active" value={hasLoaded ? String(stats.active) : 'Unavailable'} />
+        <Stat label="Archived" value={hasLoaded ? String(stats.archived) : 'Unavailable'} />
+        <Stat label="Monthly Retainer Commit" value={hasLoaded && financeAvailable ? formatCurrency(stats.monthlyCommit) : 'Unavailable'} />
       </div>
 
       <div className={layout.toolbar}>
@@ -197,7 +201,7 @@ export function BrandsSettingsClient() {
         <div className="rounded-xl bg-card border border-border p-6 text-center">
           <LoadingStatus label="Loading brands" />
         </div>
-      ) : brands.length === 0 ? (
+      ) : brands.length === 0 && error ? null : brands.length === 0 ? (
         <div className="rounded-xl bg-card border border-border p-6 text-center">
           <div className="mx-auto h-12 w-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
             <Settings2 className="h-5 w-5 text-muted-foreground" />
@@ -205,6 +209,7 @@ export function BrandsSettingsClient() {
           <p className="text-sm font-bold text-[var(--foreground)]">No clients yet</p>
           <p className="text-xs text-muted-foreground mt-1 mb-4">Onboard your first client to get started.</p>
           <button
+            disabled={!canEditBrand || !canEditBilling}
             onClick={() => setAdding(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[var(--primary)] transition-colors"
           >
@@ -215,6 +220,8 @@ export function BrandsSettingsClient() {
       ) : (
         <>
           <BrandTable
+            canEditBrand={canEditBrand}
+            canEditBilling={canEditBilling && financeAvailable}
             brands={active.filter(b => `${b.name} ${b.slug}`.toLowerCase().includes(search.trim().toLowerCase()))}
             heading="Active"
             busyId={busyId}
@@ -239,6 +246,8 @@ export function BrandsSettingsClient() {
               {showArchived && (
                 <div className="mt-2">
                   <BrandTable
+                    canEditBrand={canEditBrand}
+                    canEditBilling={canEditBilling && financeAvailable}
                     brands={archived.filter(b => `${b.name} ${b.slug}`.toLowerCase().includes(search.trim().toLowerCase()))}
                     heading="Archived"
                     archived
@@ -259,7 +268,7 @@ export function BrandsSettingsClient() {
       )}
 
       {/* Edit drawer — context-free (no month) */}
-      {editing && (
+      {editing && canEditBilling && financeAvailable && (
         <BrandEditSheet
           open
           billingOnly
@@ -310,10 +319,12 @@ function Stat({ label, value }: { label: string; value: string }) {
 // ── Brand table ─────────────────────────────────────────────────────
 
 function BrandTable({
-  brands, heading, archived = false, busyId, menuOpenId,
+  brands, heading, archived = false, busyId, menuOpenId, canEditBrand, canEditBilling,
   onRowClick, onMenuToggle, onArchive, onUnarchive, onUploadLogo, onRemoveLogo,
 }: {
   brands: BrandRow[];
+  canEditBrand: boolean;
+  canEditBilling: boolean;
   heading: string;
   archived?: boolean;
   busyId: string | null;
@@ -354,9 +365,10 @@ function BrandTable({
               return (
                 <tr
                   key={b.id}
-                  onClick={() => !isBusy && onRowClick(b)}
+                  onClick={() => canEditBilling && !isBusy && onRowClick(b)}
                   className={cn(
-                    'border-b border-border hover:bg-primary/5 cursor-pointer transition-colors',
+                    'border-b border-border transition-colors',
+                    canEditBilling && 'hover:bg-primary/5 cursor-pointer',
                     archived && 'opacity-60',
                     isBusy && 'opacity-40 pointer-events-none',
                   )}
@@ -384,6 +396,7 @@ function BrandTable({
                           {b.logo_url ? 'Change' : 'Add'}
                         </span>
                         <input
+                          disabled={!canEditBrand || isBusy}
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
                           className="hidden"
@@ -395,7 +408,7 @@ function BrandTable({
                           }}
                         />
                       </label>
-                      {b.logo_url && (
+                      {canEditBrand && b.logo_url && (
                         <button
                           type="button"
                           title="Remove logo"
@@ -406,7 +419,7 @@ function BrandTable({
                         </button>
                       )}
                       <div className="min-w-0">
-                        <p className="font-bold text-[var(--foreground)]">{b.name}</p>
+                        <button type="button" disabled={!canEditBilling || isBusy} onClick={event => { event.stopPropagation(); onRowClick(b); }} className="text-left font-bold text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-primary">{b.name}</button>
                         <p className="text-[10px] font-mono text-muted-foreground">{b.slug}</p>
                       </div>
                       {modelBadge && (
@@ -443,6 +456,7 @@ function BrandTable({
                   </td>
                   <td className="px-2 py-3 text-right relative">
                     <button
+                      disabled={!canEditBrand && !canEditBilling}
                       onClick={(e) => { e.stopPropagation(); onMenuToggle(b.id); }}
                       className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="Actions"
@@ -451,6 +465,8 @@ function BrandTable({
                     </button>
                     {menuOpen && (
                       <RowMenu
+                        canEditBrand={canEditBrand}
+                        canEditBilling={canEditBilling}
                         archived={archived}
                         onArchive={(e) => { e.stopPropagation(); onArchive(b); }}
                         onUnarchive={(e) => { e.stopPropagation(); onUnarchive(b); }}
@@ -470,8 +486,10 @@ function BrandTable({
 }
 
 function RowMenu({
-  archived, onArchive, onUnarchive, onEdit, onDismiss,
+  archived, onArchive, onUnarchive, onEdit, onDismiss, canEditBrand, canEditBilling,
 }: {
+  canEditBrand: boolean;
+  canEditBilling: boolean;
   archived: boolean;
   onArchive: (e: React.MouseEvent) => void;
   onUnarchive: (e: React.MouseEvent) => void;
@@ -490,6 +508,7 @@ function RowMenu({
       className="absolute right-2 top-9 z-20 w-48 rounded-xl border border-border bg-card shadow-lg overflow-hidden"
     >
       <button
+        disabled={!canEditBilling}
         onClick={onEdit}
         className="w-full px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-muted flex items-center gap-2"
       >
@@ -498,6 +517,7 @@ function RowMenu({
       </button>
       {archived ? (
         <button
+          disabled={!canEditBrand}
           onClick={onUnarchive}
           className="w-full px-3 py-2 text-left text-xs font-medium text-emerald-500 hover:bg-emerald-500/10 flex items-center gap-2 border-t border-border"
         >
@@ -506,6 +526,7 @@ function RowMenu({
         </button>
       ) : (
         <button
+          disabled={!canEditBrand}
           onClick={onArchive}
           className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-500/10 flex items-center gap-2 border-t border-border"
         >

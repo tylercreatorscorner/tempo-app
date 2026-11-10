@@ -48,7 +48,7 @@ export function TemplateSidebar({ creatorName, brandName, postCount, gmv, onSele
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 w-80 bg-card shadow-2xl border-l border-border z-40 flex flex-col animate-in slide-in-from-right duration-200">
+    <div className="fixed inset-y-0 right-0 w-80 max-w-full bg-card shadow-2xl border-l border-border z-40 flex flex-col animate-in slide-in-from-right duration-200">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
@@ -57,6 +57,7 @@ export function TemplateSidebar({ creatorName, brandName, postCount, gmv, onSele
         </div>
         <button
           onClick={() => setOpen(false)}
+          aria-label="Close message templates"
           className="text-muted-foreground hover:text-muted-foreground transition-colors"
         >
           <ChevronRight className="h-4 w-4" />
@@ -69,6 +70,7 @@ export function TemplateSidebar({ creatorName, brandName, postCount, gmv, onSele
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input
             type="text"
+            aria-label="Search message templates"
             placeholder="Search templates..."
             value={search}
             onChange={e => setSearch(e.target.value)}

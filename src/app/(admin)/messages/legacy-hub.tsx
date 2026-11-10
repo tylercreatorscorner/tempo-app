@@ -60,8 +60,8 @@ function CommsHub() {
   const setTab = useCallback(
     (next: Tab) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (next === 'broadcasts') params.delete('tab');
-      else params.set('tab', next);
+      // An explicit legacy tab keeps Operations-enabled users in this hub.
+      params.set('tab', next);
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },

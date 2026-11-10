@@ -24,7 +24,8 @@ import {
 import { MESSAGE_TOPICS, TOPIC_LABELS, TOPIC_COLORS, type MessageTopic } from '@/lib/messages/classify-topic';
 
 export interface Conversation {
-  creator_id: number;
+  conversation_key?: string;
+  creator_id: number | string;
   creator_name: string;
   discord_user_id: string | null;
   tiktok_handle: string | null;
@@ -36,8 +37,9 @@ export interface Conversation {
   direction: string | null;
   unread_count: number;
   message_count: number;
-  total_videos_7d: number;
-  total_gmv_7d: number;
+  total_videos_7d: number | null;
+  total_gmv_7d: number | null;
+  performance_available?: boolean;
   status: string;
   discord_avatar: string | null;
   channel?: string;
@@ -48,7 +50,7 @@ export interface Conversation {
 }
 
 export function convKey(conv: Conversation): string {
-  return conv.discord_user_id || `creator:${conv.creator_id}`;
+  return conv.conversation_key || conv.discord_user_id || `creator:${conv.creator_id}`;
 }
 
 /** "Needs attention" staleness: no message ever, or none in 7+ days.
@@ -195,11 +197,11 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
         case 'name_asc':
           return a.creator_name.localeCompare(b.creator_name);
         case 'gmv_desc': {
-          const diff = b.total_gmv_7d - a.total_gmv_7d;
+          const diff = (b.total_gmv_7d ?? -1) - (a.total_gmv_7d ?? -1);
           return diff !== 0 ? diff : a.creator_name.localeCompare(b.creator_name);
         }
         case 'posts_desc': {
-          const diff = b.total_videos_7d - a.total_videos_7d;
+          const diff = (b.total_videos_7d ?? -1) - (a.total_videos_7d ?? -1);
           return diff !== 0 ? diff : a.creator_name.localeCompare(b.creator_name);
         }
         case 'retainer_desc': {
@@ -238,6 +240,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
+              aria-label="Search conversations"
               placeholder="Search creators..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -247,6 +250,8 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
           {/* Filter toggle */}
           <button
             onClick={() => setFiltersOpen(!filtersOpen)}
+            aria-label="Conversation filters"
+            aria-expanded={filtersOpen}
             className={cn(
               'relative p-2.5 rounded-xl border transition-all',
               filtersOpen
@@ -265,6 +270,8 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
           <div className="relative">
             <button
               onClick={() => setSortOpen(!sortOpen)}
+              aria-label="Sort conversations"
+              aria-expanded={sortOpen}
               className="p-2.5 rounded-xl border border-border bg-muted text-muted-foreground hover:bg-muted transition-all"
             >
               <ArrowUpDown className="h-4 w-4" />
@@ -554,7 +561,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                       <span className="font-medium text-sm text-[var(--foreground)] truncate block">
                         {conv.creator_name}
                       </span>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {conv.brands && conv.brands.length > 0 ? (
                           conv.brands.map(b => (
                             <span
@@ -573,7 +580,8 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                             {brandNameOf(conv.brand)}
                           </span>
                         ) : null}
-                        {sortBy === 'gmv_desc' && conv.total_gmv_7d > 0 && (
+                        {conv.performance_available === false && <span className="text-[10px] text-muted-foreground">Performance unavailable</span>}
+                        {sortBy === 'gmv_desc' && conv.total_gmv_7d !== null && conv.total_gmv_7d > 0 && (
                           <span className="text-[10px] text-muted-foreground">
                             ${Math.round(conv.total_gmv_7d).toLocaleString()} GMV
                           </span>
@@ -583,12 +591,12 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                             ${conv.retainer_amount.toLocaleString()} retainer
                           </span>
                         )}
-                        {sortBy === 'posts_desc' && conv.total_videos_7d > 0 && (
+                        {sortBy === 'posts_desc' && conv.total_videos_7d !== null && conv.total_videos_7d > 0 && (
                           <span className="text-[10px] text-muted-foreground">
                             {conv.total_videos_7d} posts
                           </span>
                         )}
-                        {sortBy !== 'gmv_desc' && sortBy !== 'retainer_desc' && sortBy !== 'posts_desc' && conv.total_videos_7d > 0 && (
+                        {sortBy !== 'gmv_desc' && sortBy !== 'retainer_desc' && sortBy !== 'posts_desc' && conv.total_videos_7d !== null && conv.total_videos_7d > 0 && (
                           <span className="text-[10px] text-muted-foreground">
                             {conv.total_videos_7d} posts
                           </span>

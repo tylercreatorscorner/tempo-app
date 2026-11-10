@@ -32,6 +32,7 @@ export interface EarningsRowInvoice {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  amountReceived: number | null;
   dueDate: string | null;
   paidAt: string | null;
 }
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
       const [invoicesRes, ledgerRes] = await Promise.all([
         supabase
           .from('invoices')
-          .select('id, brand, invoice_number, status, total_amount, due_date, paid_at, team_member_id')
+          .select('id, brand, invoice_number, status, total_amount, amount_received, due_date, paid_at, team_member_id')
           .eq('period_month', month)
           // NULL-payee legacy invoices count as this brand-month's invoice —
           // .eq skips NULLs, which rendered legacy-invoiced months as
@@ -102,7 +103,7 @@ export async function GET(request: NextRequest) {
       const seenOwnInvoice = new Set<string>();
       for (const inv of (invoicesRes.data as Array<{
         id: string; brand: string; invoice_number: string; status: string;
-        total_amount: number | string | null; due_date: string | null; paid_at: string | null;
+        total_amount: number | string | null; amount_received: number | string | null; due_date: string | null; paid_at: string | null;
         team_member_id: string | null;
       }> | null) ?? []) {
         const isOwn = inv.team_member_id !== null;
@@ -113,6 +114,7 @@ export async function GET(request: NextRequest) {
           invoiceNumber: inv.invoice_number,
           status: inv.status,
           totalAmount: Number(inv.total_amount ?? 0),
+          amountReceived: inv.amount_received == null ? null : Number(inv.amount_received),
           dueDate: inv.due_date,
           paidAt: inv.paid_at,
         });

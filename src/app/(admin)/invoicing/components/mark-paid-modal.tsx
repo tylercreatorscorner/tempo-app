@@ -6,7 +6,7 @@
  * the invoice to status='paid' along with these fields.
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { X, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
@@ -36,6 +36,7 @@ interface Props {
   defaultReference?: string | null;
   defaultNotes?: string | null;
   saving: boolean;
+  serverError?: string | null;
   onClose: () => void;
   onConfirm: (payload: {
     payment_method: string;
@@ -45,28 +46,20 @@ interface Props {
   }) => void;
 }
 
-export function MarkPaidModal({
-  open, invoiceNumber, totalAmount,
+export function MarkPaidModal(props: Props) {
+  return props.open ? <PaymentForm {...props} /> : null;
+}
+
+function PaymentForm({
+  invoiceNumber, totalAmount,
   defaultAmount, defaultMethod, defaultReference, defaultNotes,
-  saving, onClose, onConfirm,
+  saving, onClose, onConfirm, serverError,
 }: Props) {
   const [method, setMethod] = useState<string>(defaultMethod ?? 'wire');
   const [reference, setReference] = useState<string>(defaultReference ?? '');
   const [amount, setAmount] = useState<string>(String(defaultAmount ?? totalAmount));
   const [notes, setNotes] = useState<string>(defaultNotes ?? '');
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setMethod(defaultMethod ?? 'wire');
-      setReference(defaultReference ?? '');
-      setAmount(String(defaultAmount ?? totalAmount));
-      setNotes(defaultNotes ?? '');
-      setError(null);
-    }
-  }, [open, defaultMethod, defaultReference, defaultAmount, defaultNotes, totalAmount]);
-
-  if (!open) return null;
 
   const amountNum = parseFloat(amount);
   const amountValid = Number.isFinite(amountNum) && amountNum >= 0;
@@ -167,8 +160,8 @@ export function MarkPaidModal({
             />
           </Field>
 
-          {error && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">{error}</div>
+          {(error || serverError) && (
+            <div role="alert" className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">{error || serverError}</div>
           )}
         </div>
 

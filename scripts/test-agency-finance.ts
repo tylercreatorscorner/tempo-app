@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { buildInvoice, calculateManagerCompensation, emptyFinanceSettings, financeSettingsSchema, forecast, managerFor, type AgencyInvoice, type ManagerTerms } from '../src/lib/agency/finance-model';
 import type { ClientRecord } from '../src/lib/agency/model';
-import { forecastAmountsAvailable, forecastSetupHref } from '../src/app/(admin)/agency/finance/forecast-presentation';
+import { forecastAmountsAvailable, forecastSetupHref, groupForecastGaps } from '../src/app/(admin)/agency/finance/forecast-presentation';
 const client: ClientRecord = { id: '00000000-0000-4000-8000-000000000010', revision: 1, name: 'Example', brandIds: [], serviceStart: '2026-01-01', serviceEnd: null, exitReason: null, updatedAt: null, terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 1000, revSharePercent: 5, feeModel: 'additive' }] };
 const settings = { ...emptyFinanceSettings(), agencyName: 'Example Agency LLC', agencyAddress: '200 Example Avenue', paymentInstructions: 'Use the agreed bank transfer reference.', legalName: 'Example LLC', billingEmail: 'ap@example.com', billingAddress: 'Example address', managerTerms: [{ effectiveMonth: '2026-01', managerId: '00000000-0000-4000-8000-000000000020', fixedMonthly: 500, gmvPercent: 1, payoutDays: 7 as const }], forecastGmv: [{ month: '2026-09', amount: 100000 }] };
 const record = { client_id: client.id, revision: 1, settings };
@@ -11,14 +11,35 @@ assert.ok(unknownForecast.missing.length > 0);
 assert.equal(forecastAmountsAvailable(unknownForecast), false, 'Missing setup alone must display Not calculated, not a fabricated zero');
 assert.deepEqual(unknownForecast.missing, unknownForecast.missingDetails.map(gap => `${gap.clientName} · ${gap.month}: ${gap.message}`), 'Structured setup links retain every original missing message');
 assert.ok(unknownForecast.missingDetails.every(gap => gap.clientId === client.id));
+const groupedGaps = groupForecastGaps([
+  { clientId: 'one', clientName: 'Same name', month: '2026-11', message: 'add a GMV estimate' },
+  { clientId: 'two', clientName: 'Same name', month: '2026-11', message: 'add a GMV estimate' },
+  { clientId: 'one', clientName: 'Same name', month: '2026-12', message: 'add a GMV estimate' },
+  { clientId: 'one', clientName: 'Same name', month: '2027-01', message: 'confirm the actual creator roster' },
+]);
+assert.equal(groupedGaps.length, 2, 'Repeated months collapse by client identity, not display name');
+assert.deepEqual(groupedGaps[0].issues.map(issue => issue.months.map(gap => gap.month)), [['2026-11', '2026-12'], ['2027-01']], 'Keep distinct reasons and exact service month destinations');
 assert.equal(unknownForecast.missingDetails[0].month, '2026-09');
 const zeroClient: ClientRecord = { ...client, serviceEnd: '2026-09-30', terms: [{ effectiveMonth: '2026-01', monthlyRetainer: 0, revSharePercent: 0, feeModel: 'fixed' }] };
 const zeroRecord = { ...record, settings: { ...settings, managerTerms: [{ ...settings.managerTerms[0], fixedMonthly: 0, gmvPercent: 0 }], forecastGmv: [{ month: '2026-09', amount: 0 }] } };
 const knownZeroForecast = forecast([zeroClient], [zeroRecord], [], '2026-10-01');
+const noFeeForecast = forecast([zeroClient], [], [], '2026-10-01');
+assert.equal(noFeeForecast.missing.length, 0, 'Explicit no-fee clients do not ask for invented GMV or finance setup');
+assert.equal(noFeeForecast.events.length, 0, 'A no-fee relationship does not create a receivable');
+assert.ok(forecast([zeroClient], [{ ...zeroRecord, settings: { ...zeroRecord.settings, managerTerms: [], termsReviewRequired: true, forecastGmv: [] } }], [], '2026-10-01').missing.length > 0, 'A flagged contract review is not suppressed by zero fees');
+assert.ok(forecast([zeroClient], [record], [], '2026-10-01').events.some(event => event.payoutCents > 0), 'Known manager obligations remain even when agency fees are zero');
 assert.equal(knownZeroForecast.events.length, 1);
 assert.equal(knownZeroForecast.events[0].receiptCents, 0);
 assert.equal(forecastAmountsAvailable(knownZeroForecast), true, 'A configured zero event still displays $0.00');
 const incompleteForecast = forecast([client], [record], [], '2026-10-01');
+const missingInvoiceDetails = { ...record, settings: { ...settings, legalName: '', billingEmail: '', billingAddress: '', agencyName: '', agencyAddress: '', paymentInstructions: '' } };
+const planningWithoutInvoice = forecast([client], [missingInvoiceDetails], [], '2026-10-01');
+assert.deepEqual(planningWithoutInvoice.events, incompleteForecast.events, 'Missing mailing and payment details do not change a supported planning estimate');
+assert.throws(() => buildInvoice(client, missingInvoiceDetails, '2026-09', 10000000, '2026-10-01'), /legal name/, 'Actual invoice preparation still requires billing identity');
+assert.throws(() => buildInvoice(client, { ...record, settings: { ...settings, paymentInstructions: '' } }, '2026-09', 10000000, '2026-10-01'), /payment instructions/, 'Forecast separation cannot bypass invoice payment details');
+const reviewedForecast = forecast([client], [{ ...missingInvoiceDetails, settings: { ...missingInvoiceDetails.settings, termsReviewRequired: true } }], [], '2026-10-01');
+assert.equal(reviewedForecast.events.length, 0, 'Unresolved contract terms still block planning amounts');
+assert.ok(reviewedForecast.missing.some(message => message.includes('contract differences')));
 assert.ok(incompleteForecast.events.length && incompleteForecast.missing.length);
 assert.equal(forecastAmountsAvailable(incompleteForecast), true, 'Known configured amounts remain visible when other months are incomplete');
 const setupUrl = new URL(forecastSetupHref(unknownForecast.missingDetails[0]), 'https://fixture.invalid');
@@ -70,6 +91,7 @@ assert.equal(snapshot.dueDate, '2026-10-31');
 assert.throws(() => buildInvoice({ ...client, serviceStart: '2026-09-15' }, record, '2026-09', 1000, '2026-10-01'), /Partial/);
 assert.throws(() => buildInvoice(client, { ...record, settings: { ...settings, managerTerms: [{ ...settings.managerTerms[0], effectiveMonth: '2026-10' }] } }, '2026-09', 1000, '2026-10-01'), /manager/);
 const invoice: AgencyInvoice = { id: 'test', client_id: client.id, month: '2026-09', revision: 1, status: 'issued', snapshot, collected_on: null, manager_paid_on: null };
+assert.equal(forecast([zeroClient], [], [invoice], '2026-10-19').events[0].receiptCents, snapshot.feeCents, 'Current no-fee terms do not erase an existing receivable');
 let result = forecast([client], [record], [invoice], '2026-10-19');
 assert.equal(result.events.length, 1, 'invoice replaces same-month estimate');
 assert.equal(result.events[0].payoutDate, '2026-11-07');

@@ -1,71 +1,47 @@
 'use client';
 
-import { Users, DollarSign, UserCheck, Pause } from 'lucide-react';
+import styles from './roster-layout.module.css';
 
-interface RosterEntry {
-  status: string;
-  retainer_amount: number | null;
-  retainer_period: string;
-}
+type Props = {
+  retainerBudget: number | null;
+  managedGmv: number | null;
+  videosPublished: number | null;
+  retainerComplete: boolean;
+  retainerMissingCount: number | null;
+  gmvComplete: boolean;
+  videosComplete: boolean;
+  brandLabel: string;
+  periodLabel: string;
+  loading?: boolean;
+  refreshing?: boolean;
+  stale?: boolean;
+};
 
-export function RosterStats({ roster }: { roster: RosterEntry[] }) {
-  const total = roster.length;
-  const active = roster.filter((r) => r.status === 'active').length;
-  const paused = roster.filter((r) => r.status === 'paused').length;
+const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const count = new Intl.NumberFormat('en-US');
 
-  const monthlySpend = roster
-    .filter((r) => r.status === 'active' && r.retainer_amount)
-    .reduce((sum, r) => {
-      const amt = r.retainer_amount ?? 0;
-      if (r.retainer_period === 'weekly') return sum + amt * 4;
-      if (r.retainer_period === 'yearly') return sum + amt / 12;
-      return sum + amt; // monthly default
-    }, 0);
-
-  const stats = [
-    {
-      label: 'Total Managed',
-      value: total.toString(),
-      icon: Users,
-      iconBg: 'bg-primary/10',
-      iconColor: 'text-[var(--primary)]',
-    },
-    {
-      label: 'Monthly Retainer Spend',
-      value: `$${monthlySpend.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
-      icon: DollarSign,
-      iconBg: 'bg-green-500/10',
-      iconColor: 'text-green-600',
-    },
-    {
-      label: 'Active',
-      value: active.toString(),
-      icon: UserCheck,
-      iconBg: 'bg-blue-500/10',
-      iconColor: 'text-blue-600',
-    },
-    {
-      label: 'Paused',
-      value: paused.toString(),
-      icon: Pause,
-      iconBg: 'bg-yellow-500/10',
-      iconColor: 'text-yellow-600',
-    },
+/** Authorized brand aggregates supplied by the API, never sums of the visible page. */
+export function RosterStats({ retainerBudget, managedGmv, videosPublished, retainerComplete, retainerMissingCount, gmvComplete, videosComplete, brandLabel, periodLabel, loading = false, refreshing = false, stale = false }: Props) {
+  const value = (amount: number | null, money = false) => loading ? 'Loading…'
+    : amount == null || !Number.isFinite(amount) ? 'Unavailable'
+    : money ? currency.format(amount) : count.format(amount);
+  const metrics = [
+    { label: 'Retainer budget', value: value(retainerBudget, true), detail: 'Current recorded monthly commitments', partial: !loading && retainerBudget != null && !retainerComplete },
+    { label: 'Managed GMV', value: value(managedGmv, true), detail: periodLabel, partial: !loading && managedGmv != null && !gmvComplete },
+    { label: 'Videos published', value: value(videosPublished), detail: periodLabel, partial: !loading && videosPublished != null && !videosComplete },
   ];
-
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {stats.map((s) => (
-        <div key={s.label} className="rounded-2xl bg-card border border-border shadow-sm p-5">
-          <div className="flex items-center gap-3 mb-2">
-            <div className={`h-9 w-9 rounded-xl ${s.iconBg} flex items-center justify-center`}>
-              <s.icon className={`h-4 w-4 ${s.iconColor}`} />
-            </div>
-            <span className="text-xs text-muted-foreground font-medium">{s.label}</span>
-          </div>
-          <p className="text-2xl font-bold text-[var(--foreground)]">{s.value}</p>
-        </div>
-      ))}
+  return <section className={styles.stats} aria-label="Managed creator totals" aria-busy={loading || refreshing}>
+    <div className={styles.statsHeading}>
+      <p>Managed creators <span>· {brandLabel}</span></p>
+      {(stale || refreshing) && <span role="status">{stale ? 'Last loaded totals · refresh failed' : 'Updating totals…'}</span>}
     </div>
-  );
+    <dl className={styles.statsGrid}>
+      {metrics.map(metric => <div className={styles.stat} key={metric.label}>
+        <dt>{metric.label}<span>{metric.detail}</span>{metric.partial && <small>{metric.label === 'Retainer budget' ? 'Partial recorded terms' : 'Partial recorded data'}</small>}</dt>
+        <dd data-unavailable={metric.value === 'Unavailable' || metric.value === 'Loading…' || undefined}>{metric.value}</dd>
+      </div>)}
+    </dl>
+    {metrics[0].partial && <p className={styles.statsCoverage}>Retainer budget excludes {retainerMissingCount != null && retainerMissingCount > 0 ? `${count.format(retainerMissingCount)} ${retainerMissingCount === 1 ? 'creator' : 'creators'}` : 'creators'} without a recorded rate.</p>}
+    {metrics.slice(1).some(metric => metric.partial) && <p className={styles.statsCoverage}>Some selected dates or brands have missing source data. Partial figures show recorded data only.</p>}
+  </section>;
 }

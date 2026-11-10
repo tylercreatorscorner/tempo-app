@@ -7,7 +7,7 @@
  *          pickers and their arrangements stop counting toward earnings.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getBillingIdentityAccess } from '@/lib/auth/billing-identity-access';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
@@ -18,8 +18,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getBillingIdentityAccess('configure');
+  if (scope instanceof NextResponse) return scope;
 
   const { id } = await params;
   let body: Record<string, unknown>;
@@ -38,11 +38,12 @@ export async function PATCH(
     .from('team_members')
     .update(updates)
     .eq('id', id)
-    .eq('tenant_id', profile.tenant_id)
+    .eq('tenant_id', scope.tenantId)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: 'Billing identity not found' }, { status: 404 });
   return NextResponse.json({ teamMember: data });
 }
 
@@ -50,18 +51,21 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getBillingIdentityAccess('configure');
+  if (scope instanceof NextResponse) return scope;
 
   const { id } = await params;
   const supabase = await createAdminClient();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('team_members')
     .update({ is_archived: true, archived_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('tenant_id', profile.tenant_id);
+    .eq('tenant_id', scope.tenantId)
+    .select('id')
+    .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: 'Billing identity not found' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
