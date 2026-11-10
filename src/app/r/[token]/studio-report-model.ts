@@ -10,9 +10,11 @@ export type ReportVideo = BrandClientReportData['creatorsCorner']['topVideos'][n
   items?: number | null; units?: number | null; unitsSold?: number | null; postedAt?: string | null; postDate?: string | null; thumbnailUrl?: string | null;
 };
 type PublicGranular = Pick<NonNullable<BrandClientReportData['granular']>, 'roster' | 'vintageAge' | 'netNew'> & { creators: ReportCreator[] };
-export type PublicStudioReport = Omit<BrandClientReportData, 'granular' | 'monthToDate'> & {
+export type PublicStudioReport = Omit<BrandClientReportData, 'granular' | 'monthToDate' | 'topProducts' | 'productCreatorBreakdown'> & {
   granular?: PublicGranular;
   monthToDate?: Omit<NonNullable<BrandClientReportData['monthToDate']>, 'granular'> & { granular: PublicGranular };
+  topProducts: Array<BrandClientReportData['topProducts'][number] & { productId?: string }>;
+  productCreatorBreakdown: Array<BrandClientReportData['productCreatorBreakdown'][number] & { productId?: string }>;
 };
 export const finiteNumber = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
 export const reportUnits = (row: { items?: number | null; units?: number | null; unitsSold?: number | null }) => finiteNumber(row.items) ?? finiteNumber(row.units) ?? finiteNumber(row.unitsSold);
@@ -65,11 +67,13 @@ export function reportDelivery(report: PublicStudioReport) {
   const source = wholeMonth ? report.granular : report.monthToDate?.granular;
   const creators = (source?.creators ?? []) as ReportCreator[];
   const retained = creators.filter(creator => !creator.isAffiliate && !creator.departed && creator.retainer > 0 && (creator.quota ?? 0) > 0);
+  const unmeasured = creators.filter(creator => !creator.isAffiliate && !creator.departed && creator.retainer > 0 && (finiteNumber(creator.quota) ?? 0) <= 0).length;
+  const unverifiedTerms = creators.filter(creator => !creator.isAffiliate && !creator.departed && creator.retainer > 0 && !creator.agreement).length;
   const comparable = retained.length > 0 && !retained.some(creator => creator.agreement && !creator.agreement.reportPeriodComparable);
   const committed = retained.reduce((sum, creator) => sum + (creator.quota ?? 0), 0);
   const published = retained.reduce((sum, creator) => sum + creator.postsPublished, 0);
   const credited = retained.reduce((sum, creator) => sum + Math.min(creator.postsPublished, creator.quota ?? 0), 0);
-  return { wholeMonth, retained, comparable, committed, published, credited, remaining: Math.max(0, committed - credited), source,
+  return { wholeMonth, retained, unmeasured, unverifiedTerms, comparable, committed, published, credited, remaining: Math.max(0, committed - credited), source,
     start: wholeMonth ? report.startDate : report.monthToDate?.start,
     end: wholeMonth ? report.endDate : report.monthToDate?.end,
   };

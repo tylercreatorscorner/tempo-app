@@ -8,6 +8,7 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { type PublishedVideoEvidenceItem, type ReportVideoLibrary } from '@/lib/data/published-video-evidence-types';
 import styles from './evidence.module.css';
+import type { StudioReportRoutes } from '../studio-report-view';
 
 const PAGE_SIZE = 25;
 type VideoSort = 'newest' | 'oldest' | 'creator';
@@ -40,7 +41,7 @@ export function evidenceWatchUrl(video: PublishedVideoEvidenceItem): string | nu
   } catch { return null; }
 }
 
-export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCreator = '', initialQuery = '', initialSort = 'newest', initialPage = 0 }: {
+export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCreator = '', initialQuery = '', initialSort = 'newest', initialPage = 0, routes, privateRevision = false }: {
   library: ReportVideoLibrary;
   recordedTotal: number;
   filteredTotal: number;
@@ -48,6 +49,8 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
   initialQuery?: string;
   initialSort?: string;
   initialPage?: number;
+  routes?: Pick<StudioReportRoutes, 'report' | 'videoLibrary' | 'videoCsv'>;
+  privateRevision?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -75,13 +78,13 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
   const csvParams = new URLSearchParams();
   if (creatorKey) csvParams.set('creator', creatorKey);
   if (initialQuery.trim()) csvParams.set('q', initialQuery.trim());
-  const csvHref = `/api/report-videos/${encodeURIComponent(library.token)}${csvParams.size ? `?${csvParams}` : ''}`;
+  const csvHref = `${routes?.videoCsv ?? `/api/report-videos/${encodeURIComponent(library.token)}`}${csvParams.size ? `?${csvParams}` : ''}`;
 
   function updateUrl(next: { creator?: string; q?: string; sort?: string; page?: number }) {
     navigationSequence.current += 1;
     if (searchTimer.current) clearTimeout(searchTimer.current);
     const params = new URLSearchParams();
-    if (library.preview) params.set('preview', '1');
+    if (library.preview && !privateRevision) params.set('preview', '1');
     const nextCreator = next.creator ?? creatorKey;
     const nextQuery = next.q ?? query;
     const nextSort = next.sort ?? sort;
@@ -91,7 +94,7 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
     if (nextSort !== 'newest') params.set('sort', nextSort);
     if (nextPage > 0) params.set('page', String(nextPage));
     setLastRequestedQuery(nextQuery);
-    startTransition(() => router.replace(`/r/${encodeURIComponent(library.token)}/videos${params.size ? `?${params}` : ''}`, { scroll: false }));
+    startTransition(() => router.replace(`${routes?.videoLibrary ?? `/r/${encodeURIComponent(library.token)}/videos`}${params.size ? `?${params}` : ''}`, { scroll: false }));
   }
 
   function changeSearch(value: string) {
@@ -110,7 +113,8 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
 
   return <main className={styles.page}>
     <div className={styles.content}>
-      <Link href={`/r/${encodeURIComponent(library.token)}${library.preview ? '?preview=1' : ''}#creators`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b7093] hover:text-[#4b45ff]"><InterfaceIcon name="back" className="size-3.5"/>Back to report</Link>
+      {privateRevision && <p role="status" className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-950">Private corrected revision. The original report remains unchanged.</p>}
+      <Link href={`${routes?.report ?? `/r/${encodeURIComponent(library.token)}${library.preview ? '?preview=1' : ''}`}#creators`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b7093] hover:text-[#4b45ff]"><InterfaceIcon name="back" className="size-3.5"/>Back to report</Link>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-[11px] font-semibold uppercase tracking-wider text-[#8a8fb0]">{library.brandName}</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Published videos</h1><p className="mt-1 text-sm text-[#6b7093]">{library.periodLabel}</p></div>
         {available && <a href={csvHref} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[#e7e7f2] bg-white px-3 py-2 text-xs font-semibold text-[#4b45ff] hover:bg-[#f6f6fb]"><Download className="size-3.5" aria-hidden="true"/>Download filtered CSV</a>}
@@ -126,7 +130,7 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
       </section>
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[#e7e7f2] bg-[#e7e7f2]">
-        <div className="bg-white px-4 py-3"><p className="text-[11px] text-[#6b7093]">Published count in report as sent</p><p className="mt-1 text-xl font-semibold tabular-nums">{library.reportCount === null ? 'Not recorded' : number(library.reportCount)}</p></div>
+        <div className="bg-white px-4 py-3"><p className="text-[11px] text-[#6b7093]">{privateRevision ? 'Published count in this revision' : 'Published count in report as sent'}</p><p className="mt-1 text-xl font-semibold tabular-nums">{library.reportCount === null ? 'Not recorded' : number(library.reportCount)}</p></div>
         <div className="bg-white px-4 py-3"><p className="text-[11px] text-[#6b7093]">{library.basis === 'reconstructed' ? 'Videos found in current records' : 'Video records captured'}</p><p className="mt-1 text-xl font-semibold tabular-nums">{available ? number(recordedTotal) : 'Unavailable'}</p></div>
       </div>
 
