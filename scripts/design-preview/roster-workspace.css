@@ -1,4 +1,5 @@
 body { margin:0; background:var(--background); color:var(--foreground); }
 .rosterFixture { max-width:1480px; margin:auto; padding:28px; }
 .fixtureNotice { margin-bottom:24px; color:var(--muted-foreground); font-size:11px; }
+.fixtureReferenceTitle { margin:0 0 20px; font-size:28px; font-weight:600; letter-spacing:-.7px; }
 @media(max-width:600px) { .rosterFixture { padding:16px; } .fixtureNotice { margin-bottom:18px; } }

@@ -14,16 +14,7 @@
 .statsHeading p { margin:0; font-weight:600; }
 .statsHeading p span { font-weight:400; }
 .statsHeading > span { font-size:10px; }
-.statsGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin:0; border:1px solid var(--studio-line,var(--border)); border-radius:10px; background:var(--studio-surface,var(--card)); }
-.stat { display:flex; flex-direction:column; gap:10px; min-width:0; padding:16px 18px; border-left:1px solid var(--studio-line,var(--border)); }
-.stat:first-child { border-left:0; }
-.stat dt { color:var(--studio-ink,var(--foreground)); font-size:12px; font-weight:500; line-height:18px; }
-.stat dt span { display:block; margin-top:2px; color:var(--studio-muted,var(--muted-foreground)); font-size:10px; font-weight:400; line-height:16px; }
-.stat dt small { display:block; margin-top:3px; color:var(--studio-muted,var(--muted-foreground)); font-size:10px; font-weight:600; line-height:16px; }
 .statsCoverage { margin:8px 0 0; color:var(--studio-muted,var(--muted-foreground)); font-size:11px; line-height:17px; }
-.stat dd { margin:0; color:var(--studio-ink,var(--foreground)); font-size:clamp(21px,3cqw,30px); font-weight:600; line-height:1.2; letter-spacing:-.8px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-.stat:nth-child(2) dd { color:var(--studio-purple,var(--primary)); }
-.stat dd[data-unavailable] { color:var(--studio-muted,var(--muted-foreground)); font-size:18px; font-weight:500; letter-spacing:-.3px; }
 .button,.primaryButton,.moreTrigger { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:36px; padding:7px 11px; border:1px solid var(--studio-boundary,var(--input)); border-radius:8px; background:var(--studio-surface,var(--card)); color:var(--studio-ink,var(--foreground)); font-size:12px; font-weight:500; line-height:20px; white-space:nowrap; }
 .primaryButton { background:var(--studio-deep,var(--foreground)); color:var(--studio-on-deep,var(--background)); border-color:var(--studio-deep,var(--foreground)); }
 .button:hover:not(:disabled),.moreTrigger:hover:not(:disabled) { border-color:var(--studio-purple,var(--primary)); background:var(--studio-canvas,var(--secondary)); }
@@ -147,7 +138,6 @@
   .scopeField:first-child { width:auto; }
   .scopeField > div { min-width:0; }
   .scopeField button { width:100%; min-height:44px; }
-  .stat { padding:14px 12px; }
   .button,.primaryButton,.moreTrigger { min-height:44px; font-size:13px; }
   .tabsRow { gap:8px; padding-bottom:0; border:0; }
   .tabs { width:100%; gap:6px; }
@@ -215,11 +205,6 @@
   .scopeToolbar { grid-template-columns:minmax(0,1fr); gap:10px; }
   .scopeField { display:grid; grid-template-columns:42px minmax(0,1fr); align-items:center; gap:8px; }
   .scopeField > label,.scopeLabel { font-size:11px; }
-  .statsGrid { grid-template-columns:1fr; }
-  .stat { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px 14px; border-left:0; border-top:1px solid var(--studio-line,var(--border)); }
-  .stat:first-child { border-top:0; }
-  .stat dd { font-size:23px; text-align:right; max-width:145px; }
-  .stat dd[data-unavailable] { font-size:16px; }
 }
 @media (pointer:coarse) { .button,.primaryButton,.moreTrigger,.tabs button,.freshness button,.filterPanel button,.pagination button,.textButton,.childButton { min-height:44px; } .toolbar input { min-height:44px; height:44px; font-size:16px; } .table th button { min-height:44px; } .selection label { min-height:44px; } }
 @media (prefers-reduced-motion:reduce) { .table tbody > tr { transition:none; } .filterPanel,.skeletonRow { animation:none; } }

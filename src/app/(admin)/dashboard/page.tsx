@@ -21,6 +21,7 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { can } from '@/lib/auth/permissions';
 
 import { StatCard } from '@/components/dashboard/stat-card';
+import { MetricGrid } from '@/components/ui/metric-grid';
 import { NewVideoGmvCard } from '@/components/dashboard/new-video-gmv';
 import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
 import { DashboardCharts, DashboardSeriesProvider } from '@/components/dashboard/dashboard-charts';
@@ -576,7 +577,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </nav>
       </div>
 
-      <section className={studio.metrics} aria-label="Selected-period performance">
+      <MetricGrid columns={6} label="Selected-period performance">
         <StatCard
           label="Total GMV"
           value={totalsFailed ? '—' : formatCurrency(totals.gmv)}
@@ -602,10 +603,10 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard label="Average order value" value={!totalsFailed && totals.orders > 0 ? formatCurrencyExact(totals.gmv / totals.orders) : '—'}
           trend={canCompare && comparison.current.orders > 0 && comparison.previous.orders > 0 ? pctChange(comparison.current.gmv / comparison.current.orders, comparison.previous.gmv / comparison.previous.orders) : undefined}
           trendLabel={comparisonLabel} info="Affiliate GMV divided by affiliate orders. The comparison uses the same fully recorded brands in both periods; this is a weighted average, not an average of brand averages." />
-        <Suspense fallback={<StatCard label="Videos published" value="…" detail="Counting published videos…" />}>
+        <Suspense fallback={<StatCard label="Videos published" value="…" state="loading" detail="Counting published videos…" />}>
           <PublishedVideosStat counts={publishedVideosPromise} canReviewUploads={canReviewUploads} />
         </Suspense>
-      </section>
+      </MetricGrid>
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
