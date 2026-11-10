@@ -30,12 +30,13 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { getBrandRegistry, activeBrandSlugs } from '@/lib/data/brand-registry';
 import { fetchAllRows } from '@/lib/data/fetch-all-rows';
 import { isOverdue } from '@/lib/finance/overdue';
+import { receivedAmount } from '@/lib/finance/received-amount';
 
 export const runtime = 'nodejs';
 
 interface RetainerRow { id: string; creator_id: string | null; brand: string | null; retainer: number | null }
 interface OpenInvoiceRow { id: string; total_amount: number | null; brand: string | null; status: string; due_date: string | null }
-interface PaidInvoiceRow { id: string; total_amount: number | null; brand: string | null; paid_at: string | null }
+interface PaidInvoiceRow { id: string; total_amount: number | null; amount_received: number | null; brand: string | null; paid_at: string | null }
 
 export async function GET() {
   const finance = await getFinanceAccess('payments', 'read');
@@ -86,7 +87,7 @@ export async function GET() {
       fetchAllRows<PaidInvoiceRow>(() => {
         let q = supabase
           .from('invoices')
-          .select('id, total_amount, brand, paid_at')
+          .select('id, total_amount, amount_received, brand, paid_at')
           .eq('status', 'paid')
           .gte('paid_at', monthStart)
           .lt('paid_at', nextMonthStart);
@@ -140,7 +141,7 @@ export async function GET() {
       }
     }
 
-    const collectedAmount = paidInvoices.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
+    const collectedAmount = paidInvoices.reduce((sum, invoice) => sum + receivedAmount(invoice), 0);
 
     return NextResponse.json({
       retainerBook,

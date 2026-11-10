@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 import { currentMonth } from '@/lib/utils/format';
 import { PageHeader } from '@/components/ui/page-header';
 import { EarningsClient } from './earnings-client';
@@ -17,11 +18,11 @@ export default async function EarningsPage({ searchParams }: Props) {
   // member the owner walled off from finance is bounced here + at the API.
   const scope = await getWorkspaceScope();
   if (!scope) redirect('/dashboard');
-  if (!scope.canViewFinance) redirect('/dashboard');
+  if (!can(scope, 'earnings', 'read')) redirect('/dashboard');
   const scoped = scope.brandScope.kind === 'scoped';
 
   const params = await searchParams;
-  const month = /^\d{4}-\d{2}$/.test(params.month ?? '') ? params.month! : currentMonth();
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '') ? params.month! : currentMonth();
   // ?view=year renders the folded-in YTD lens (the old /ytd page 308s here).
   const view: 'month' | 'year' = params.view === 'year' ? 'year' : 'month';
   const yearParam = parseInt(params.year ?? '', 10);
@@ -38,7 +39,10 @@ export default async function EarningsPage({ searchParams }: Props) {
             : 'What every brand owes for the month, and where its invoice stands.'
         }
       />
-      <EarningsClient initialMonth={month} initialView={view} initialYear={year} />
+      <EarningsClient initialMonth={month} initialView={view} initialYear={year}
+        canInvoice={!scope.impersonating && can(scope, 'invoicing', 'write')}
+        canConfigure={!scope.impersonating && ['owner', 'admin'].includes(scope.role) && can(scope, 'earnings', 'configure')}
+      />
     </div>
   );
 }

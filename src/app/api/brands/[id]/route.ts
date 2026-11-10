@@ -11,7 +11,7 @@
  * preserving historical data. Unarchive by PATCHing is_archived = false.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getBrandWriteAccess } from '@/lib/auth/brand-settings-access';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
@@ -25,8 +25,8 @@ interface PatchBody {
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getBrandWriteAccess();
+  if (scope instanceof NextResponse) return scope;
 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'Missing brand id' }, { status: 400 });
@@ -75,12 +75,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     .from('brands_v2')
     .update(patch)
     .eq('id', id)
+    .eq('tenant_id', scope.tenantId)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  if (!data) return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
 
   return NextResponse.json({ brand: data });
 }

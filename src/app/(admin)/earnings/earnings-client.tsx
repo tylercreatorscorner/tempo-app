@@ -34,7 +34,9 @@ import type { BrandRow, EarningsResponse, RunPlan } from './components/types';
 
 type View = 'month' | 'year';
 
-export function EarningsClient({ initialMonth, initialView, initialYear }: {
+export function EarningsClient({ initialMonth, initialView, initialYear, canInvoice = false, canConfigure = false }: {
+  canInvoice?: boolean;
+  canConfigure?: boolean;
   initialMonth: string;
   initialView: View;
   initialYear: number;
@@ -107,16 +109,16 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
       const [earningsRes, seriesRes, planRes] = await Promise.all([
         fetch(`/api/earnings?month=${m}${tmParam}`, { cache: 'no-store' }),
         fetch(`/api/earnings/series?endMonth=${m}&months=12${tmParam}`, { cache: 'no-store' }),
-        fetch(`/api/invoices/run?month=${m}${tmParam}`, { cache: 'no-store' }),
+        canInvoice ? fetch(`/api/invoices/run?month=${m}${tmParam}`, { cache: 'no-store' }) : null,
       ]);
       const earningsJson = await earningsRes.json();
       const seriesJson = seriesRes.ok ? await seriesRes.json() : null;
-      const planJson = planRes.ok ? await planRes.json() : null;
+      const planJson = planRes?.ok ? await planRes.json() : null;
       if (seq !== fetchSeq.current) return false; // stale — a newer selection owns the UI
       if (!earningsRes.ok) throw new Error(earningsJson.error || `HTTP ${earningsRes.status}`);
       setData(earningsJson);
 
-      if (seriesJson) setSeries(seriesJson.series);
+      setSeries(seriesJson?.series ?? null);
       // Plan failure is non-fatal: the run button falls back to counts derived
       // from the (same-source) enriched earnings rows.
       setPlan(planJson);
@@ -128,7 +130,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
     } finally {
       if (seq === fetchSeq.current) setLoading(false);
     }
-  }, []);
+  }, [canInvoice]);
 
   // Month-view data. The Year view owns its own /api/earnings/ytd fetch.
   useEffect(() => {
@@ -143,6 +145,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
   // Single-brand draft generation from the "Ready to invoice" chip. Stays on
   // the cockpit: the chip flips to Draft on the refetch and links to Invoicing.
   const handleGenerateInvoice = useCallback(async (brand: string) => {
+    if (!canInvoice || generatingBrand) return;
     setGeneratingBrand(brand);
     setToast(null);
     try {
@@ -167,7 +170,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
     } finally {
       setGeneratingBrand(null);
     }
-  }, [month, teamMemberId, fetchAll]);
+  }, [month, teamMemberId, fetchAll, canInvoice, generatingBrand]);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -371,7 +374,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
               <FileSpreadsheet />
               Excel
             </Button>
-            {readyCount > 0 && (
+            {canInvoice && readyCount > 0 && (
               <Button variant="primary" size="sm" className="sm:ml-auto" disabled={loading || !!error} onClick={() => setRunOpen(true)}>
                 <Receipt />
                 Run {monthName} invoices · {readyCount} ready
@@ -416,12 +419,14 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
                   <div className="p-8"><div className="h-[240px] w-full animate-pulse rounded-xl bg-muted" /></div>
                 ) : (
                   <BrandEarningsTable
+                    canInvoice={canInvoice}
+                    canConfigure={canConfigure}
                     rows={sortedBrands}
                     todayIso={todayIso}
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={handleSort}
-                    onEdit={(row) => setEditingBrandKey(row.brand)}
+                    onEdit={(row) => { if (canConfigure) setEditingBrandKey(row.brand); }}
                     onGenerateInvoice={handleGenerateInvoice}
                     generatingBrand={generatingBrand}
                     reconcilingBrand={reconcilingBrand}
@@ -463,7 +468,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
       )}
 
       {/* Run modal */}
-      {runOpen && (
+      {canInvoice && runOpen && (
         <RunInvoicesModal
           month={month}
           teamMemberId={teamMemberId}
@@ -475,7 +480,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
       {/* Edit drawer — keyed by brand so each open is a fresh mount, and fed
           from editingRow (derived from the CURRENT rows array) so a reopen
           during the post-save refetch shows the optimistic values. */}
-      {editingRow && (
+      {canConfigure && editingRow && (
         <BrandEditSheet
           key={editingRow.brand}
           open

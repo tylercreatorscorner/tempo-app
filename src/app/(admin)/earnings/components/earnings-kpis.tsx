@@ -62,7 +62,7 @@ export function EarningsKpis({ data, series, todayIso }: {
   const invoicedAmount = invoicedRows.reduce((s, r) => s + (r.invoice?.totalAmount ?? 0), 0);
   const collectedAmount = invoicedRows
     .filter((r) => r.invoice?.status === 'paid')
-    .reduce((s, r) => s + (r.invoice?.totalAmount ?? 0), 0);
+    .reduce((s, r) => s + (r.invoice?.amountReceived ?? r.invoice?.totalAmount ?? 0), 0);
   // THE shared overdue rule (lib/finance/overdue) — drafts count.
   const overdueCount = invoicedRows.filter((r) => r.invoice && isOverdue(r.invoice, todayIso)).length;
 

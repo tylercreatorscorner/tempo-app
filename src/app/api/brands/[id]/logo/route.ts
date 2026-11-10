@@ -10,7 +10,7 @@
  *
  * ── Trust model ─────────────────────────────────────────────────────────────
  *
- * requireAdmin gates the route, and the write itself uses the service role.
+ * Tenant-scoped leadership capabilities gate the route; writes use the service role.
  * The `brand-logos` bucket grants write to service_role ONLY (migration 145),
  * so an ordinary authenticated session cannot put objects there even with a
  * valid JWT. This route is the only writer.
@@ -25,7 +25,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getBrandWriteAccess } from '@/lib/auth/brand-settings-access';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
@@ -55,8 +55,8 @@ function sniffImage(buf: Buffer): { mime: string; ext: string } | null {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getBrandWriteAccess();
+  if (scope instanceof NextResponse) return scope;
 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'Missing brand id' }, { status: 400 });
@@ -96,6 +96,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .from('brands_v2')
     .select('id, slug, logo_url')
     .eq('id', id)
+    .eq('tenant_id', scope.tenantId)
     .maybeSingle();
   if (brandErr) return NextResponse.json({ error: `brand lookup failed: ${brandErr.message}` }, { status: 500 });
   if (!brand) return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { error: saveErr } = await admin
     .from('brands_v2')
     .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
-    .eq('id', brand.id);
+    .eq('id', brand.id).eq('tenant_id', scope.tenantId);
   if (saveErr) {
     // Don't leave the object behind if the row never got the pointer.
     await admin.storage.from(BUCKET).remove([key]);
@@ -133,21 +134,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getBrandWriteAccess();
+  if (scope instanceof NextResponse) return scope;
 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'Missing brand id' }, { status: 400 });
 
   const admin = await createAdminClient();
   const { data: brand } = await admin
-    .from('brands_v2').select('id, logo_url').eq('id', id).maybeSingle();
+    .from('brands_v2').select('id, logo_url').eq('id', id).eq('tenant_id', scope.tenantId).maybeSingle();
   if (!brand) return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
 
   const { error } = await admin
     .from('brands_v2')
     .update({ logo_url: null, updated_at: new Date().toISOString() })
-    .eq('id', brand.id);
+    .eq('id', brand.id).eq('tenant_id', scope.tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const key = keyFromPublicUrl(brand.logo_url);

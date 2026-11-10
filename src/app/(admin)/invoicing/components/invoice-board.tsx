@@ -25,6 +25,7 @@ import { useMemo, useState } from 'react';
 import { Plus, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { daysOverdue, isOverdue } from '@/lib/finance/overdue';
+import { receivedAmount } from '@/lib/finance/received-amount';
 import { formatCurrency, formatDate, formatPeriod, currentMonth, buildMonthOptions } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { Card } from '@/components/ui/card';
@@ -36,6 +37,7 @@ import type { Invoice } from './invoice-detail-sheet';
 import { NudgeButton, NudgedSpan, ViewedSpan } from './invoice-telemetry';
 
 interface Props {
+  canEdit: boolean;
   invoices: Invoice[];
   loading: boolean;
   /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
@@ -67,7 +69,7 @@ interface Column {
   tone: string;
 }
 
-export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, onRefresh }: Props) {
+export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, onRefresh, canEdit }: Props) {
   const brandMeta = useBrandMeta();
   const [paidMonth, setPaidMonth] = useState(currentMonth());
   const [columnFilter, setColumnFilter] = useState<ColumnKey | 'all'>('all');
@@ -99,7 +101,7 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
       { key: 'draft',   title: 'Draft',   rows: draft,   sum: sum(draft),   tone: 'text-muted-foreground' },
       { key: 'sent',    title: 'Sent',    rows: sent,    sum: sum(sent),    tone: 'text-muted-foreground' },
       { key: 'overdue', title: 'Overdue', rows: overdue, sum: sum(overdue), tone: 'text-[var(--pulse-neg)]' },
-      { key: 'paid',    title: `Paid · ${formatPeriod(paidMonth, { short: true })}`, rows: paid, sum: sum(paid), tone: 'text-[var(--pulse-pos)]' },
+      { key: 'paid',    title: `Paid · ${formatPeriod(paidMonth, { short: true })}`, rows: paid, sum: paid.reduce((total, inv) => total + receivedAmount(inv), 0), tone: 'text-[var(--pulse-pos)]' },
     ];
   }, [invoices, paidMonth, todayIso]);
 
@@ -122,10 +124,10 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
         title="No invoices yet"
         description="Generate your first invoice: pick a brand and a month, and the line items come from your earnings."
         action={
-          <Button variant="primary" onClick={onCreate}>
+          canEdit ? <Button variant="primary" onClick={onCreate}>
             <Plus className="h-4 w-4" />
             Create Invoice
-          </Button>
+          </Button> : undefined
         }
       />
     );
@@ -165,6 +167,7 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, on
               <div className={cn('space-y-2 p-2', columnFilter !== 'all' && 'grid gap-2 space-y-0 sm:grid-cols-2 xl:grid-cols-3')}>
                 {col.rows.map((inv) => (
                   <BoardCard
+                    canEdit={canEdit}
                     key={inv.id}
                     invoice={inv}
                     hot={col.key === 'overdue'}
@@ -232,8 +235,9 @@ function MetaLine({ inv, kind, todayIso }: { inv: Invoice; kind: ColumnKey; toda
 }
 
 function BoardCard({
-  invoice, hot, metaKind, todayIso, brandLabel, brandColor, onOpen, onRefresh,
+  invoice, hot, metaKind, todayIso, brandLabel, brandColor, onOpen, onRefresh, canEdit,
 }: {
+  canEdit: boolean;
   invoice: Invoice;
   hot: boolean;
   metaKind: ColumnKey;
@@ -271,12 +275,12 @@ function BoardCard({
       </span>
       <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{invoice.invoice_number}</span>
       <span className="mt-2 block text-lg font-semibold tracking-tight tabular-nums text-foreground">
-        {formatCurrency(Number(invoice.total_amount))}
+        {formatCurrency(metaKind === 'paid' ? receivedAmount(invoice) : Number(invoice.total_amount))}
       </span>
       <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
         <MetaLine inv={invoice} kind={metaKind} todayIso={todayIso} />
       </span>
-      {metaKind === 'overdue' && (
+      {canEdit && metaKind === 'overdue' && (
         <span className="mt-1.5 block">
           <NudgeButton invoice={invoice} onDone={onRefresh} />
         </span>

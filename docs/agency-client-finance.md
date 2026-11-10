@@ -46,6 +46,10 @@ Per-creator sourcing forecasts use the confirmed monthly creator ledger. A GMV-i
 
 Future fees use recorded effective terms and explicit monthly GMV estimates. No automatic proration, growth extrapolation, or unverified contract interpretation is used. The schedule includes the prior unbilled month and current/next three service months. Older unbilled periods need invoice preparation to enter the schedule.
 
+Planning estimates require supported financial terms, service dates, manager arrangements, and the applicable GMV estimate or confirmed creator ledger. Missing invoice addresses, AP contacts, and payment instructions do not block a planning calculation; those remain mandatory when preparing an invoice. Contract-review flags still block an uncertain calculation. Forecast assumptions remain editable, with their source and approval notes available in Client finance / GMV estimates.
+
+Explicit fixed-zero agency relationships without a saved manager arrangement are excluded from new forecast estimates, consistent with Revenue's No agency fees category. This is not confirmation that no manager compensation is owed. Saved manager obligations and existing invoices remain included. Setup issues are grouped by client and reason, with a separate exact service-month link for each item.
+
 ## Boundaries
 
 This adds agency client receivables; historical individual-payee invoices remain in the existing Finance / Invoicing system and are not included in these forecast totals. Existing issued invoices and earnings are not migrated or recalculated. Only full collections and full manager payments are recorded in this first release; split receipts, refunds, taxes, credits, per-recipient payment tracking, and non-USD billing require a later extension. Multiple manager allocations are supported, with one aggregate paid flag that means every allocation was settled. Adding arrangements or allocations records terms only and makes no payments. A manager selected here is a finance pay arrangement; it does not grant brand access or change user permissions.

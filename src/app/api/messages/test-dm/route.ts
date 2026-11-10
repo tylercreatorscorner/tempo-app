@@ -1,93 +1,36 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { isDiscordId, messageGuard, messageReply } from '@/lib/messages/access';
+import { deliverCreatorMessage } from '@/lib/messages/delivery';
 
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-
-// Diagnostic: DMs an arbitrary Discord user id. Owner/admin only — an
-// arbitrary-DM primitive must never be reachable by managers.
+// Use the inbox's consent and delivery path, restricted to a verified creator
+// in this administrator's tenant. Arbitrary Discord accounts are not targets.
 export async function POST(request: NextRequest) {
   try {
-    const profile = await requireAdmin();
-    if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-    const { discordUserId, content } = await request.json();
-
-    if (!discordUserId?.trim() || !content?.trim()) {
-      return NextResponse.json({ error: 'Discord user ID and message are required' }, { status: 400 });
-    }
-
-    if (!DISCORD_BOT_TOKEN) {
-      return NextResponse.json({ error: 'Bot token not configured' }, { status: 500 });
-    }
-
-    // Step 1: Open DM channel
-    const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ recipient_id: discordUserId.trim() }),
-    });
-
-    if (!dmRes.ok) {
-      const err = await dmRes.json().catch(() => ({}));
-      return NextResponse.json({
-        delivered: false,
-        error: `Could not open DM channel: ${err.message || dmRes.statusText}`,
-      });
-    }
-
-    const dmChannel = await dmRes.json();
-
-    // Step 2: Send message
-    const msgRes = await fetch(`https://discord.com/api/v10/channels/${dmChannel.id}/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ content: content.trim() }),
-    });
-
-    if (!msgRes.ok) {
-      const err = await msgRes.json().catch(() => ({}));
-      return NextResponse.json({
-        delivered: false,
-        error: `Failed to send: ${err.message || msgRes.statusText}`,
-      });
-    }
-
-    // Step 3: Log to database so it shows in Messages page
-    try {
-      const supabase = await createAdminClient();
-
-      // Try to find creator by discord_id or discord_user_id
-      const { data: creator } = await supabase
-        .from('creators_v2')
-        .select('id')
-        .eq('discord_id', discordUserId.trim())
-        .limit(1)
-        .single();
-
-      await supabase.from('creator_messages').insert({
-        creator_id: creator?.id ?? null,
-        discord_user_id: discordUserId.trim(),
-        direction: 'outbound',
-        channel: 'dm',
-        content: content.trim(),
-        status: 'delivered',
-        sent_by: 'admin',
-      });
-    } catch {
-      // Don't fail the DM send if logging fails
-      console.error('[test-dm] Failed to log message to database');
-    }
-
-    return NextResponse.json({ delivered: true });
-  } catch (err) {
-    console.error('Test DM failed:', err);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    const scope = await getWorkspaceScope();
+    const denied = messageGuard(scope, true);
+    if (denied || !scope) return denied!;
+    if (!['owner', 'admin'].includes(scope.role) || scope.brandScope.kind !== 'all') return messageReply({ error: 'Forbidden' }, 403);
+    if (request.headers.get('origin') !== request.nextUrl.origin) return messageReply({ error: 'Invalid request origin' }, 403);
+    if (!request.headers.get('content-type')?.includes('application/json')) return messageReply({ error: 'Send JSON message content' }, 415);
+    const raw = await request.text();
+    if (raw.length > 12000) return messageReply({ error: 'Message is too large' }, 413);
+    let body: unknown;
+    try { body = JSON.parse(raw); } catch { return messageReply({ error: 'Invalid message content' }, 400); }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return messageReply({ error: 'Invalid message content' }, 400);
+    const input = body as Record<string, unknown>;
+    const discordId = typeof input.discordUserId === 'string' ? input.discordUserId.trim() : '';
+    const content = typeof input.content === 'string' ? input.content.trim() : '';
+    if (!isDiscordId(discordId) || !content || content.length > 2000) return messageReply({ error: 'A valid Discord account and message of 1–2,000 characters are required' }, 400);
+    const db = await createAdminClient();
+    const creator = await db.from('creators_v2').select('id,discord_id').eq('tenant_id', scope.tenantId).eq('discord_id', discordId).maybeSingle();
+    if (creator.error) return messageReply({ error: 'Could not verify this creator. No message was sent.' }, 503);
+    if (!creator.data) return messageReply({ error: 'This Discord account is not linked to a creator in your workspace. No message was sent.' }, 404);
+    const delivered = await deliverCreatorMessage(scope, db, creator.data, content);
+    const result = await delivered.json();
+    return messageReply({ ...result, delivered: delivered.ok && result.message?.status === 'delivered' }, delivered.status);
+  } catch {
+    return messageReply({ error: 'Could not prepare this message. No message was sent.' }, 503);
   }
 }

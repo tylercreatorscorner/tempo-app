@@ -31,20 +31,24 @@ interface FormState {
 
 const EMPTY: FormState = { name: '', email: '', address: '', payment_instructions: '' };
 
-export function TeamMembersSection() {
+export function TeamMembersSection({ canEdit = false }: { canEdit?: boolean }) {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/team-members');
       const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to load team members');
       setMembers(json.teamMembers ?? []);
+      setHasLoaded(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load team members');
     } finally {
@@ -79,6 +83,7 @@ export function TeamMembersSection() {
   }
 
   async function save() {
+    if (!canEdit || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -107,6 +112,7 @@ export function TeamMembersSection() {
   }
 
   async function remove(id: string, name: string) {
+    if (!canEdit) return;
     if (!confirm(`Archive ${name}? Their historical invoices stay intact and they can be restored later.`)) return;
     try {
       const res = await fetch(`/api/team-members/${id}`, { method: 'DELETE' });
@@ -127,7 +133,7 @@ export function TeamMembersSection() {
             <h2 className="font-semibold text-sm">Billing identities</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">Invoice issuers and their payment details.</p>
           </div>
-        {editingId === null && (
+        {canEdit && editingId === null && (
           <button
             onClick={startAdd}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border hover:bg-muted/40 transition-colors"
@@ -140,9 +146,9 @@ export function TeamMembersSection() {
       <div className="p-3 space-y-2">
         {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
-        {error && <p className="text-xs text-red-600 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
+        {error && <div role="alert" className="text-xs text-red-600 bg-red-500/10 rounded-lg px-3 py-2">{error} <button type="button" onClick={load} disabled={loading} className="ml-2 underline">Retry</button></div>}
 
-        {!loading && members.length === 0 && editingId !== 'new' && (
+        {!loading && hasLoaded && !error && members.length === 0 && editingId !== 'new' && (
           <p className="text-sm text-muted-foreground text-center py-4">No team members yet. Add yourself or a collaborator to start invoicing.</p>
         )}
 
@@ -156,7 +162,7 @@ export function TeamMembersSection() {
                 {m.email && <p className="break-all text-xs text-muted-foreground mt-0.5">{m.email}</p>}
                 {m.payment_instructions && <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 max-w-md">{m.payment_instructions.replace(/\n/g, ' · ')}</p>}
               </div>
-              {editingId === null && (
+              {canEdit && editingId === null && (
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button onClick={() => startEdit(m)} className="p-1.5 rounded-lg hover:bg-muted/40 text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />

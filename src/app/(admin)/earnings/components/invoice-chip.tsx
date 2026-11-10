@@ -49,7 +49,9 @@ export function InvoiceChip({
   todayIso,
   generating,
   onGenerate,
+  canGenerate = false,
 }: {
+  canGenerate?: boolean;
   row: BrandRow;
   /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
   todayIso: string;
@@ -85,7 +87,7 @@ export function InvoiceChip({
         <button
           type="button"
           onClick={() => onGenerate(row.brand)}
-          disabled={generating}
+          disabled={generating || !canGenerate}
           title="Generate a draft invoice for this brand and month"
           className={cn(
             'inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold leading-none text-primary',

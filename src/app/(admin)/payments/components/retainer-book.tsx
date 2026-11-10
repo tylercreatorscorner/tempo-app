@@ -33,6 +33,7 @@ const PAGE_SIZE = 25;
 const MAX_ACCOUNT_CHIPS = 3;
 
 interface Props {
+  error?: string | null;
   creators: RetainerBookRow[];
   loading: boolean;
   brandFilter: string;
@@ -44,7 +45,7 @@ interface Props {
 }
 
 export function RetainerBook({
-  creators, loading, brandFilter, availableBrands = [], onBrandFilterChange, refetching = false,
+  creators, loading, brandFilter, availableBrands = [], onBrandFilterChange, refetching = false, error,
 }: Props) {
   const brandMeta = useBrandMeta();
   const [search, setSearch] = useState('');
@@ -84,7 +85,7 @@ export function RetainerBook({
         <div>
           <h3 className="text-sm font-bold text-foreground">Retainer book</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {total === 0
+            {loading && !creators.length ? 'Loading retainers…' : error && !creators.length ? 'Retainers unavailable' : total === 0
               ? 'No creators on retainer'
               : `${total} creator${total === 1 ? '' : 's'} on a monthly retainer`}
           </p>
@@ -106,8 +107,8 @@ export function RetainerBook({
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--workspace-surface-radius,14px)] bg-muted">
               <Users className="h-5 w-5 text-muted-foreground" />
             </div>
-            <p className="text-sm font-bold text-foreground">No creators on retainer</p>
-            <p className="mt-1 text-xs text-muted-foreground">Try changing the brand filter or clearing search.</p>
+            <p className="text-sm font-bold text-foreground">{error ? 'Retainers could not be loaded' : 'No creators on retainer'}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{error ? 'Use Retry above to load the retainer book.' : 'Try changing the brand filter or clearing search.'}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

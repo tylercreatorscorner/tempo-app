@@ -12,6 +12,7 @@ export interface RowInvoice {
   invoiceNumber: string;
   status: InvoiceStatus;
   totalAmount: number;
+  amountReceived?: number | null;
   dueDate: string | null;
   paidAt: string | null;
 }

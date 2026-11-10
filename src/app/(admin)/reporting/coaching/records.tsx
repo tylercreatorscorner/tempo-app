@@ -85,15 +85,41 @@ export function CoachingRecords() {
     return () => window.removeEventListener("workspace-context-changed", reset);
   }, [load]);
   useEffect(() => {
+    // Capture shell tabs and sidebar links before Next handles client navigation.
+    // A normal full-page link uses the same confirmation, without a second
+    // beforeunload prompt during that navigation.
+    let navigationApproved = false;
+    let approvalTimer: ReturnType<typeof setTimeout> | undefined;
     const warn = (e: BeforeUnloadEvent) => {
-      if (dirty) {
+      if (busy || (dirty && !navigationApproved)) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
+    const navigate = (event: MouseEvent) => {
+      if ((!dirty && !busy) || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
+      if (!anchor || anchor.hasAttribute('download') || (anchor.target && anchor.target.toLowerCase() !== '_self')) return;
+      const current = new URL(window.location.href);
+      const destination = new URL(anchor.href, current);
+      if (!['http:', 'https:'].includes(destination.protocol)) return;
+      if (destination.origin === current.origin && destination.pathname === current.pathname && destination.search === current.search && destination.href.includes('#')) return;
+      if (busy || !window.confirm("Discard unsaved changes? Save your draft to keep them.")) {
+        event.preventDefault();
+        event.stopPropagation();
+      } else {
+        navigationApproved = true;
+        approvalTimer = setTimeout(() => { navigationApproved = false; }, 0);
+      }
+    };
     window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+    document.addEventListener('click', navigate, true);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      document.removeEventListener('click', navigate, true);
+      clearTimeout(approvalTimer);
+    };
+  }, [dirty, busy]);
   const change = () =>
     !dirty ||
     window.confirm("Discard unsaved changes? Save your draft to keep them.");
@@ -128,7 +154,7 @@ export function CoachingRecords() {
     <div className={styles.workspace}>
       <PageHeader
         title="Coaching"
-        actions={<Link href="/reporting/coaching/elite" className={buttonVariants({variant:"outline",size:"sm"})}>Elite performance</Link>}
+        actions={<Link href="/reporting/coaching/elite" aria-disabled={busy} className={buttonVariants({variant:"outline",size:"sm"})}>Elite performance</Link>}
         subtitle="Weekly responsibilities, coach submissions and review history."
       />
       <div className={styles.recordMetrics} aria-label="Weekly coaching status"><div><span>Assignments</span><strong>{loading?'…':data?data.assignments.length:'—'}</strong></div><div><span>Awaiting review</span><strong>{loading?'…':data?data.reports.filter(r=>r.status==='submitted').length:'—'}</strong></div><div><span>Reviewed</span><strong>{loading?'…':data?data.reports.filter(r=>r.status==='reviewed').length:'—'}</strong></div><div><span>Changes requested</span><strong>{loading?'…':data?data.reports.filter(r=>r.status==='changes_requested').length:'—'}</strong></div></div>

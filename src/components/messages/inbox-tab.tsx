@@ -160,6 +160,7 @@ export function InboxTab({
   const activeKey = activeConv ? convKey(activeConv) : null;
 
   const handleSelect = (conv: Conversation) => {
+    setDraftToInject(null);
     setActiveConv(conv);
     setMobileShowThread(true);
     onMarkReadLocal(convKey(conv));
@@ -249,13 +250,13 @@ export function InboxTab({
         <div className={cn('min-w-0 flex-1', mobileShowThread ? 'block' : 'hidden md:block')}>
           {activeConv ? (
             <ChatThread
-              key={activeConv.creator_id}
+              key={convKey(activeConv)}
               creatorId={activeConv.creator_id}
               creatorName={activeConv.creator_name}
               discordUserId={activeConv.discord_user_id}
               brandName={activeConv.brand ? brandMeta.label(activeConv.brand) : undefined}
-              postCount={activeConv.total_videos_7d}
-              gmv={activeConv.total_gmv_7d}
+              postCount={activeConv.total_videos_7d ?? undefined}
+              gmv={activeConv.total_gmv_7d ?? undefined}
               draftToInject={draftToInject}
               onDraftConsumed={() => setDraftToInject(null)}
             />
@@ -269,7 +270,7 @@ export function InboxTab({
         </div>
 
         {/* Right — creator context */}
-        {activeConv && activeConv.creator_id > 0 && (
+        {activeConv && Boolean(activeConv.creator_id) && String(activeConv.creator_id) !== '0' && (
           <CreatorContextPanel
             creatorId={activeConv.creator_id}
             topic={activeConv.latest_topic ?? null}

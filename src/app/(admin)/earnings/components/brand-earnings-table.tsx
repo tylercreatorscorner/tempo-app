@@ -20,8 +20,10 @@ export type SortKey = 'brandLabel' | 'totalGmv' | 'commission' | 'retainer' | 't
 
 export function BrandEarningsTable({
   rows, todayIso, sortKey, sortDir, onSort, onEdit, onGenerateInvoice, generatingBrand,
-  totals, month, onMarketingSaved, onMarketingError, reconcilingBrand, flashBrand,
+  totals, month, onMarketingSaved, onMarketingError, reconcilingBrand, flashBrand, canInvoice = false, canConfigure = false,
 }: {
+  canInvoice?: boolean;
+  canConfigure?: boolean;
   rows: BrandRow[];
   /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
   todayIso: string;
@@ -129,7 +131,7 @@ export function BrandEarningsTable({
                     <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                       <span className="uppercase tracking-wide">affiliate</span>
                       <span aria-hidden="true">·</span>
-                      <MarketingGmvEditor row={row} month={month} onSaved={onMarketingSaved} onError={onMarketingError} />
+                      {canConfigure ? <MarketingGmvEditor row={row} month={month} onSaved={onMarketingSaved} onError={onMarketingError} /> : <span>{formatCurrency(row.marketingGmv)} marketing</span>}
                     </div>
                     {row.marketingGmv > 0 && (
                       <div className="mt-0.5 text-[10px] tabular-nums text-muted-foreground" title="Affiliate GMV + marketing GMV">
@@ -183,13 +185,14 @@ export function BrandEarningsTable({
                   </td>
                   {/* Invoice lifecycle */}
                   <td className="px-4 py-3">
-                    <InvoiceChip row={row} todayIso={todayIso} generating={generatingBrand === row.brand} onGenerate={onGenerateInvoice} />
+                    <InvoiceChip row={row} todayIso={todayIso} generating={generatingBrand === row.brand} onGenerate={onGenerateInvoice} canGenerate={canInvoice && !generatingBrand} />
                   </td>
                   {/* Actions + expander */}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
+                        disabled={!canConfigure}
                         onClick={(e) => { e.stopPropagation(); onEdit(row); }}
                         className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                         title="Edit brand settings"

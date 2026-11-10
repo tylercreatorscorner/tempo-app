@@ -14,7 +14,7 @@ interface BrandBreakdown {
 }
 
 interface CreatorContext {
-  id: number;
+  id: number | string;
   real_name: string;
   tiktok_handle: string | null;
   brand: string;
@@ -29,7 +29,7 @@ interface CreatorContext {
 }
 
 interface Props {
-  creatorId: number;
+  creatorId: number | string;
   /** Topic of the most recent inbound message — drives the Topic Context Card */
   topic?: string | null;
   /** Pushes a draft reply into the chat thread's compose box */
@@ -103,7 +103,7 @@ export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
   // Loading derives from whether the loaded payload matches the current
   // creator (render-time reset — no setState at effect start), which also
   // guards against a slow response landing after the selection changed.
-  const [loaded, setLoaded] = useState<{ id: number; context: CreatorContext | null } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: number | string; context: CreatorContext | null } | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const loading = loaded?.id !== creatorId;
   const context = loaded?.id === creatorId ? loaded.context : null;

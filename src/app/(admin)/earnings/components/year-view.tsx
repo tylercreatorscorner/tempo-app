@@ -8,7 +8,7 @@
  * contribution bars, and the monthly breakdown table — all from
  * /api/earnings/ytd. Money errors render an em-dash, never a fake $0.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Download, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
@@ -77,23 +77,28 @@ export function YearView({ initialYear, teamMemberId, viewControl }: { initialYe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const showBar = useDelayedFlag(loading);
+  const requestId = useRef(0);
 
   const fetchData = useCallback(async (y: number) => {
+    const id = ++requestId.current;
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/earnings/ytd?year=${y}${teamMemberId ? `&team_member_id=${encodeURIComponent(teamMemberId)}` : ''}`, { cache: 'no-store' });
       const j = await res.json().catch(() => ({}));
+      if (id !== requestId.current) return;
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       setData(j);
     } catch (e) {
+      if (id !== requestId.current) return;
       setError(e instanceof Error ? e.message : 'Failed to load the year view');
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }, [teamMemberId]);
 
-  useEffect(() => { fetchData(year); }, [year, fetchData]);
+  const invalidateRequests = useCallback(() => { requestId.current++; }, []);
+  useEffect(() => { fetchData(year); return invalidateRequests; }, [year, fetchData, invalidateRequests]);
 
   const handleExport = useCallback(() => {
     if (!data) return;
@@ -159,7 +164,7 @@ export function YearView({ initialYear, teamMemberId, viewControl }: { initialYe
           <RefreshCw className={cn(loading && 'animate-spin')} />
           Refresh
         </Button>
-        <Button variant="outline" size="sm" onClick={handleExport} disabled={!data || loading} title="Export monthly breakdown to CSV">
+        <Button variant="outline" size="sm" onClick={handleExport} disabled={!data || loading || !!error || data.year !== year} title="Export monthly breakdown to CSV">
           <Download />
           CSV
         </Button>
@@ -178,11 +183,12 @@ export function YearView({ initialYear, teamMemberId, viewControl }: { initialYe
       )}
 
       <div className="relative">
+        {data && (loading || error || data.year !== year) && <p role="status" className="mb-2 text-xs text-muted-foreground">Showing the last loaded {data.year} results until the selected year loads successfully.</p>}
         <TableLoadBar active={showBar} />
         <div className={cn('space-y-4', showBar && data && 'opacity-60 transition-opacity duration-200')}>
           {/* Stat cards */}
           <FinanceMetricStrip label="Annual earnings summary" metrics={[
-            { label: `${year} earnings`, value: data ? formatCurrency(data.totals.earnings) : '—', tone: 'primary' },
+            { label: `${data?.year ?? year} earnings`, value: data ? formatCurrency(data.totals.earnings) : '—', tone: 'primary' },
             { label: 'Total GMV', value: data ? formatCurrency(data.totals.totalGmv) : '—' },
             { label: 'Commission', value: data ? formatCurrency(data.totals.commission) : '—' },
             { label: 'Retainers', value: data ? formatCurrency(data.totals.retainers) : '—' },
@@ -196,7 +202,7 @@ export function YearView({ initialYear, teamMemberId, viewControl }: { initialYe
             ) : data && data.months.length > 0 ? (
               <EarningsTrendChart data={trendData} height={280} />
             ) : (
-              <div className="py-12 text-center text-sm text-muted-foreground">No data for this year yet</div>
+              <div className="py-12 text-center text-sm text-muted-foreground">{error ? 'Year data could not be loaded' : 'No data for this year yet'}</div>
             )}
           </Panel>
 
@@ -206,7 +212,7 @@ export function YearView({ initialYear, teamMemberId, viewControl }: { initialYe
               ) : data && data.brands.length > 0 ? (
                 <HorizontalBars rows={contributionRows} />
               ) : (
-                <div className="py-12 text-center text-sm text-muted-foreground">No brand data yet</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">{error ? 'Brand data could not be loaded' : 'No brand data yet'}</div>
               )}
             </Panel>
           </div>

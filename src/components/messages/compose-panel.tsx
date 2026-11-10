@@ -310,15 +310,15 @@ export function ComposePanel({
                     ? `${emailPreview.eligible} of ${emailPreview.eligible + skippedTotal(emailPreview)} have an address`
                     : '—'
                 }
-                sub="Phase B · grows with portal onboarding"
+                sub="Not available"
               />
               <ChannelRow
                 disabled
                 gated
                 name="SMS"
                 metaTone="warn"
-                meta="0 opted in - gated"
-                sub="carrier registration + legal copy"
+                meta="Not available"
+                sub=""
               />
             </div>
             {previewError && <div className="mt-2"><InlineError>{previewError}</InlineError></div>}
@@ -461,8 +461,7 @@ function ChannelRow({
         >
           {meta}
         </span>
-        <br />
-        {sub}
+        {sub && <><br />{sub}</>}
       </span>
     </div>
   );

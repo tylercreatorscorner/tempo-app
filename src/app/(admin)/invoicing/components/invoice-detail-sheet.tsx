@@ -64,13 +64,14 @@ export interface Invoice {
 
 interface Props {
   invoice: Invoice;
+  canEdit?: boolean;
   onClose: () => void;
   onUpdated: (inv: Invoice) => void;
   onDeleted: (id: string) => void;
 }
 
-export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: Props) {
-  const [draft, setDraft] = useState({
+function invoiceDraft(invoice: Invoice) {
+  return {
     commission: Number(invoice.commission),
     retainer: Number(invoice.retainer),
     product_retainer: Number(invoice.product_retainer),
@@ -82,7 +83,11 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     bill_to_address: invoice.bill_to_address ?? '',
     payment_instructions: invoice.payment_instructions ?? '',
     share_note: invoice.share_note ?? '',
-  });
+  };
+}
+
+export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted, canEdit = false }: Props) {
+  const [draft, setDraft] = useState(() => invoiceDraft(invoice));
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,19 +103,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDraft({
-      commission: Number(invoice.commission),
-      retainer: Number(invoice.retainer),
-      product_retainer: Number(invoice.product_retainer),
-      launch_fee: Number(invoice.launch_fee),
-      due_date: invoice.due_date ?? '',
-      notes: invoice.notes ?? '',
-      bill_to_name: invoice.bill_to_name ?? '',
-      bill_to_email: invoice.bill_to_email ?? '',
-      bill_to_address: invoice.bill_to_address ?? '',
-      payment_instructions: invoice.payment_instructions ?? '',
-      share_note: invoice.share_note ?? '',
-    });
+    setDraft(invoiceDraft(invoice));
     // Hydrate share URL from existing token (if invoice was previously shared)
     if (invoice.public_token && typeof window !== 'undefined') {
       setShareUrl(`${window.location.origin}/share/invoice/${invoice.public_token}`);
@@ -129,6 +122,23 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     setSendNotice(null);
   }, [invoice.id]);
 
+  const dirty = JSON.stringify(draft) !== JSON.stringify(invoiceDraft(invoice));
+  const mutationBusy = saving || statusUpdating || refreshing || sharing || emailing || sending || markingPaid;
+  const actionDisabled = !canEdit || mutationBusy || dirty;
+
+  useEffect(() => {
+    if (!dirty && !mutationBusy) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty, mutationBusy]);
+
+  function requestClose() {
+    if (mutationBusy || markPaidOpen) return;
+    if (dirty && !confirm('Discard unsaved invoice changes?')) return;
+    onClose();
+  }
+
   const computedTotal =
     draft.commission + draft.retainer + draft.product_retainer + draft.launch_fee;
 
@@ -144,6 +154,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     draft.launch_fee !== Number(invoice.launch_fee);
 
   async function handleSave() {
+    if (!canEdit || mutationBusy) return;
     setSaving(true);
     setError(null);
     try {
@@ -166,6 +177,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setDraft(invoiceDraft(j.invoice));
       onUpdated(j.invoice);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -175,6 +187,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   }
 
   async function handleStatus(newStatus: 'pending' | 'sent' | 'paid' | 'void') {
+    if (actionDisabled) return;
     setStatusUpdating(true);
     setError(null);
     try {
@@ -198,6 +211,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
    * stamp status sent (server no-ops the status when it's already sent).
    */
   async function handleSend() {
+    if (actionDisabled) return;
     setSending(true);
     setSendNotice(null);
     setError(null);
@@ -226,6 +240,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   }
 
   async function handleShare() {
+    if (actionDisabled) return;
     setSharing(true);
     setError(null);
     try {
@@ -252,6 +267,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   }
 
   async function handleEmail() {
+    if (actionDisabled) return;
     if (!invoice.bill_to_email) {
       setEmailNotice({ kind: 'error', message: 'No recipient email — set Bill-To Email above before sending.' });
       return;
@@ -288,28 +304,20 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     amount_received: number;
     payment_received_notes: string | null;
   }) {
+    if (actionDisabled) return;
     setMarkingPaid(true);
     setError(null);
     try {
-      // Two PATCHes: one for payment detail, then status='paid' (auto-stamps paid_at).
-      // Could be combined server-side later, but two roundtrips is fine here.
+      // Receipt details and status are one database update, including paid_at.
       const detailRes = await fetch(`/api/invoices/${invoice.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, status: 'paid' }),
       });
       const detailJson = await detailRes.json();
       if (!detailRes.ok) throw new Error(detailJson.error || `HTTP ${detailRes.status}`);
 
-      const statusRes = await fetch(`/api/invoices/${invoice.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'paid' }),
-      });
-      const statusJson = await statusRes.json();
-      if (!statusRes.ok) throw new Error(statusJson.error || `HTTP ${statusRes.status}`);
-
-      onUpdated(statusJson.invoice);
+      onUpdated(detailJson.invoice);
       setMarkPaidOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Mark-paid failed');
@@ -319,12 +327,14 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   }
 
   async function handleRefresh() {
+    if (actionDisabled) return;
     setRefreshing(true);
     setError(null);
     try {
       const res = await fetch(`/api/invoices/${invoice.id}/refresh`, { method: 'POST' });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setDraft(invoiceDraft(j.invoice));
       onUpdated(j.invoice);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Refresh failed');
@@ -358,6 +368,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   }
 
   async function handleDelete() {
+    if (!canEdit || mutationBusy) return;
     if (!confirm(`Delete invoice ${invoice.invoice_number}? This can't be undone.`)) return;
     setSaving(true);
     setError(null);
@@ -373,11 +384,11 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   }
 
   return (
-    <ModalOverlay onClose={onClose} closeOnBackdropClick={false}>
+    <ModalOverlay onClose={requestClose} closeOnBackdropClick={false}>
     <div className="absolute inset-0 flex">
-      <button aria-label="Close" className="flex-1 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <button aria-label="Close" className="flex-1 bg-black/30 backdrop-blur-sm" onClick={requestClose} />
 
-      <div className="w-full max-w-2xl bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col animate-in slide-in-from-right duration-300">
+      <div role="dialog" aria-modal="true" aria-label={`Invoice ${invoice.invoice_number}`} className="w-full max-w-2xl bg-card shadow-[var(--workspace-surface-raised-shadow,var(--pulse-elev-2))] flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
         <div className="px-4 py-4 sm:px-5 border-b border-border flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -388,7 +399,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           <Button
             variant="ghost"
             size="icon"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             className="flex-shrink-0"
           >
@@ -411,7 +422,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               variant="primary"
               size="sm"
               onClick={handleSend}
-              disabled={sending}
+              disabled={actionDisabled}
               title="Copy the invoice link and mark the invoice sent"
             >
               {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
@@ -422,8 +433,8 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <Button
               variant="primary"
               size="sm"
-              onClick={() => setMarkPaidOpen(true)}
-              disabled={statusUpdating}
+              onClick={() => { if (!actionDisabled) { setError(null); setMarkPaidOpen(true); } }}
+              disabled={actionDisabled}
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               Mark as Paid
@@ -434,7 +445,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               variant="outline"
               size="sm"
               onClick={() => handleStatus('pending')}
-              disabled={statusUpdating}
+              disabled={actionDisabled}
             >
               <RotateCcw className="h-3.5 w-3.5" />
               {invoice.status === 'void' ? 'Reopen' : 'Revert'}
@@ -449,7 +460,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                   handleStatus('void');
                 }
               }}
-              disabled={statusUpdating}
+              disabled={actionDisabled}
               className="text-[var(--pulse-neg)] border-[var(--pulse-neg)]/25 hover:bg-[var(--pulse-neg-bg)]"
             >
               <Ban className="h-3.5 w-3.5" />
@@ -461,7 +472,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               variant="outline"
               size="sm"
               onClick={handleRefresh}
-              disabled={refreshing}
+              disabled={actionDisabled}
               title="Re-pull line items and creator breakdown from current earnings"
             >
               <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
@@ -472,7 +483,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             variant="outline"
             size="sm"
             onClick={handleEmail}
-            disabled={emailing || invoice.status === 'void'}
+            disabled={actionDisabled || invoice.status === 'void'}
             title={invoice.bill_to_email ? `Email this invoice to ${invoice.bill_to_email}` : 'Set Bill-To Email to enable'}
           >
             {emailing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
@@ -507,6 +518,8 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
 
         {/* Form body */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-5 space-y-5">
+          {!canEdit && <p className="text-xs text-muted-foreground">View-only access. Invoice changes are unavailable.</p>}
+          {dirty && <p role="status" className="text-xs text-muted-foreground">Unsaved changes. Save before sending, refreshing or changing invoice status.</p>}
           {/* Lifecycle timeline — created → sent → viewed → nudged → paid */}
           <Section title="Timeline">
             <InvoiceTimeline invoice={invoice} />
@@ -607,7 +620,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                 variant="outline"
                 size="sm"
                 onClick={handleShare}
-                disabled={sharing}
+                disabled={actionDisabled}
                 className="w-full"
               >
                 {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
@@ -617,6 +630,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           </Section>
 
           {/* Personal note on the public invoice page */}
+          <fieldset disabled={!canEdit || mutationBusy} className="min-w-0 space-y-5">
           <Section title="Note on the invoice">
             <Field
               label="Note"
@@ -738,16 +752,17 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           {error && (
             <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">{error}</div>
           )}
+          </fieldset>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 bg-muted/40">
+        <div className="px-4 py-4 sm:px-5 border-t border-border flex flex-wrap items-center justify-between gap-3 bg-muted/40">
           {invoice.status === 'pending' ? (
             <Button
               variant="ghost"
               size="sm"
               onClick={handleDelete}
-              disabled={saving}
+              disabled={!canEdit || mutationBusy}
               className="text-[var(--pulse-neg)] hover:bg-[var(--pulse-neg-bg)] hover:text-[var(--pulse-neg)]"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -755,14 +770,14 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             </Button>
           ) : <div />}
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="md" onClick={onClose} disabled={saving}>
-              Cancel
+            <Button variant="ghost" size="md" onClick={requestClose} disabled={mutationBusy}>
+              {canEdit ? 'Cancel' : 'Close'}
             </Button>
             <Button
               variant="primary"
               size="md"
               onClick={handleSave}
-              disabled={saving}
+              disabled={!canEdit || mutationBusy || !dirty}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? 'Saving…' : 'Save changes'}
@@ -781,7 +796,8 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
         defaultReference={invoice.payment_reference ?? null}
         defaultNotes={invoice.payment_received_notes ?? null}
         saving={markingPaid}
-        onClose={() => setMarkPaidOpen(false)}
+        serverError={error}
+        onClose={() => { if (!markingPaid) setMarkPaidOpen(false); }}
         onConfirm={handleMarkPaid}
       />
     </div>

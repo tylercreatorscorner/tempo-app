@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 import { InvoicingClient } from './invoicing-client';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,8 @@ export default async function InvoicingPage({ searchParams }: Props) {
   // Any Workspace user; /api/invoices scopes the list to their brands.
   const scope = await getWorkspaceScope();
   if (!scope) redirect('/dashboard');
-  if (!scope.canViewFinance) redirect('/dashboard');
+  if (!can(scope, 'invoicing', 'read')) redirect('/dashboard');
+  const canEdit = !scope.impersonating && can(scope, 'invoicing', 'write');
 
   const params = await searchParams;
 
@@ -21,6 +23,8 @@ export default async function InvoicingPage({ searchParams }: Props) {
     <InvoicingClient
       initialOpenId={params.id ?? null}
       initialView={params.view === 'list' ? 'list' : 'board'}
+      canEdit={canEdit}
+      canBulk={canEdit && ['owner', 'admin'].includes(scope.role)}
     />
   );
 }

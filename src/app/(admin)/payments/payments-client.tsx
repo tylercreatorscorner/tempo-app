@@ -21,7 +21,7 @@
  * figures under the banner.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatPeriod, currentMonth } from '@/lib/utils/format';
@@ -54,7 +54,12 @@ export function PaymentsClient() {
   const [loadingOverview, setLoadingOverview] = useState(true);
   const [loadingCreators, setLoadingCreators] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [creatorsError, setCreatorsError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const creatorRequestId = useRef(0);
+  const [loadedBrand, setLoadedBrand] = useState<string | null>(null);
+  const error = [overviewError, creatorsError, historyError].filter(Boolean).join(' · ');
 
   const [brandFilter, setBrandFilter] = useState<string>('all');
   // Stable brand list for the filter dropdown — captured when 'all' is loaded
@@ -63,10 +68,13 @@ export function PaymentsClient() {
 
   const fetchOverview = useCallback(async () => {
     setLoadingOverview(true);
+    setOverviewError(null);
     try {
       const res = await fetch('/api/payments/overview');
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      const numericFields = ['retainerBook', 'retainerCreatorCount', 'outstandingAmount', 'outstandingCount', 'overdueAmount', 'overdueCount', 'collectedAmount', 'collectedCount'];
+      if (numericFields.some(field => typeof j[field] !== 'number' || !Number.isFinite(j[field]))) throw new Error('Payments overview returned incomplete figures. Retry to load verified totals.');
       setOverview({
         retainerBook: j.retainerBook ?? 0,
         retainerCreatorCount: j.retainerCreatorCount ?? 0,
@@ -78,44 +86,49 @@ export function PaymentsClient() {
         collectedCount: j.collectedCount ?? 0,
         brandSpend: j.brandSpend ?? {},
       });
-      setError(null);
     } catch (e) {
       // Cold: overview stays null → cards render "—", never $0.
       // Warm: last-good figures stay up under the error banner.
-      setError(e instanceof Error ? e.message : 'Failed to load overview');
+      setOverviewError(e instanceof Error ? e.message : 'Failed to load overview');
     } finally {
       setLoadingOverview(false);
     }
   }, []);
 
   const fetchCreators = useCallback(async (brand: string) => {
+    const id = ++creatorRequestId.current;
     setLoadingCreators(true);
+    setCreatorsError(null);
     try {
       const res = await fetch(`/api/payments/retainers?brand=${encodeURIComponent(brand)}`);
       const j = await res.json();
+      if (id !== creatorRequestId.current) return;
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       const list = (j.creators ?? []) as RetainerBookRow[];
       setCreators(list);
+      setLoadedBrand(brand);
       if (brand === 'all') {
         const pool = Array.from(new Set(list.map((c) => c.brand))).sort();
         setAvailableBrands(pool);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load the retainer book');
+      if (id !== creatorRequestId.current) return;
+      setCreatorsError(e instanceof Error ? e.message : 'Failed to load the retainer book');
     } finally {
-      setLoadingCreators(false);
+      if (id === creatorRequestId.current) setLoadingCreators(false);
     }
   }, []);
 
   const fetchHistory = useCallback(async () => {
     setLoadingHistory(true);
+    setHistoryError(null);
     try {
       const res = await fetch('/api/payments/history');
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       setLogs(j.logs ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load history');
+      setHistoryError(e instanceof Error ? e.message : 'Failed to load history');
     } finally {
       setLoadingHistory(false);
     }
@@ -127,9 +140,11 @@ export function PaymentsClient() {
     fetchHistory();
   }, [fetchOverview, fetchHistory]);
 
+  const invalidateCreators = useCallback(() => { creatorRequestId.current++; }, []);
   useEffect(() => {
     fetchCreators(brandFilter);
-  }, [brandFilter, fetchCreators]);
+    return invalidateCreators;
+  }, [brandFilter, fetchCreators, invalidateCreators]);
 
   const handleRefresh = () => {
     fetchOverview();
@@ -137,7 +152,7 @@ export function PaymentsClient() {
     fetchHistory();
   };
 
-  const loading = loadingOverview || loadingCreators;
+  const loading = loadingOverview || loadingCreators || loadingHistory;
   // Load bar over the retainer book on brand-filter refetches, gated by a
   // short delay so fast loads don't flash it.
   const showBar = useDelayedFlag(loadingCreators);
@@ -178,9 +193,11 @@ export function PaymentsClient() {
       <div className="grid min-w-0 items-start gap-4 min-[1440px]:grid-cols-[minmax(0,1fr)_310px]">
       {/* Retainer book table — the load bar covers brand-filter refetches. */}
       <div className="relative min-w-0">
+        {loadedBrand !== null && (loadingCreators || creatorsError || loadedBrand !== brandFilter) && <p role="status" className="mb-2 text-xs text-muted-foreground">Showing the last loaded {loadedBrand === 'all' ? 'all-brand' : loadedBrand} retainer results until the selected filter loads successfully.</p>}
         <TableLoadBar active={showBar} />
         <RetainerBook
           creators={creators}
+          error={creatorsError}
           loading={loadingCreators}
           brandFilter={brandFilter}
           availableBrands={availableBrands}
@@ -201,7 +218,7 @@ export function PaymentsClient() {
             <CardContent className="max-h-80 overflow-y-auto px-4 py-3"><BrandSpendChart data={overview.brandSpend} /></CardContent>
           </Card>
         )}
-        <AuditFeed logs={logs} loading={loadingHistory} />
+        <AuditFeed logs={logs} loading={loadingHistory} error={historyError} />
       </aside>
       </div>
 

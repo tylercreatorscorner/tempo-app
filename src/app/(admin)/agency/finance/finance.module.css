@@ -108,9 +108,20 @@
 .invoiceSelect:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .table tr[data-selected=true] { background: var(--accent); }
 .forecastGrid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; gap: 16px; }
+.forecastGrid .table td, .forecastGrid .table th { white-space: nowrap; overflow-wrap: normal; }
 .page summary { cursor: pointer; font-size: 13px; font-weight: 550; }
 .page details > p { margin-top: 10px; }
 .setupLink { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.planningNotes { margin: 12px 0; padding: 10px 12px; background: var(--muted); border-radius: 8px; }
+.planningNotes p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.forecastGaps { display: grid; gap: 12px; margin-top: 14px; }
+.forecastGaps section { min-width: 0; border-top: 1px solid var(--border); padding-top: 12px; }
+.forecastGaps h3 { font-size: 13px; font-weight: 650; margin: 0 0 4px; }
+.forecastGaps p { margin: 4px 0; }
+.gapMonths { display: flex; flex-wrap: wrap; gap: 8px; }
+.gapMonths a { display: inline-flex; align-items: center; min-height: 36px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 12px; }
+.gapMonths a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (pointer: coarse) { .gapMonths a { min-height: 44px; } }
 .heading > div { min-width: 0; overflow-wrap: anywhere; }
 .table td { overflow-wrap: anywhere; }
 .panel > .toolbar > input[type=file] { max-width: 100%; }
