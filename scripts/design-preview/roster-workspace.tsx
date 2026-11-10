@@ -1,5 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import RosterPage from '../../src/app/(admin)/roster/page';
+import { MetricGrid } from '../../src/components/ui/metric-grid';
+import { StatCard } from '../../src/components/ui/stat-card';
 import { useSearchParams } from './workspace-system-navigation';
 import './roster-workspace.css';
 
@@ -32,6 +34,16 @@ window.fetch = async (input, init) => {
 
 function Fixture() {
   const params = useSearchParams();
-  return <main className="rosterFixture"><aside className="fixtureNotice">Fictional local roster · {params.get('scenario') ?? 'complete data'} · all writes disabled</aside><RosterPage /></main>;
+  return <main className="rosterFixture"><aside className="fixtureNotice">Fictional local roster · {params.get('scenario') ?? 'complete data'} · all writes disabled</aside>{params.get('reference') === 'dashboard' ? <>
+    <h1 className="fixtureReferenceTitle">Dashboard KPI reference</h1>
+    <MetricGrid columns={6} label="Selected-period performance">
+      <StatCard label="Total GMV" value="$84,000" trend={12} trendLabel="+$9,000 vs prior period" info="Fictional total affiliate GMV for the selected period." />
+      <StatCard label="Managed GMV" value="$64,000" trend={8} trendLabel="+$4,741 vs prior period" info="Fictional managed creator GMV for the selected period." />
+      <StatCard label="Total orders" value="1,200" trend={10} trendLabel="vs prior period" info="Fictional affiliate orders, distinct from units." />
+      <StatCard label="Units sold" value="1,500" trend={14} trendLabel="vs prior period" info="Fictional affiliate units sold." />
+      <StatCard label="Average order value" value="$70.00" trend={-2} trendLabel="vs prior period" info="Fictional GMV divided by orders." />
+      <StatCard label="Videos published" value="241" detail="Nov 3 – Nov 9" info="Fictional unique published videos in the selected period." />
+    </MetricGrid>
+  </> : <RosterPage />}</main>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture />);

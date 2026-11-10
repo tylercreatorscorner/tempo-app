@@ -1,5 +1,7 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChartLoading, LoadingStatus } from '@/components/ui/loading-status';
+import { MetricGrid } from '@/components/ui/metric-grid';
+import { StatCard } from '@/components/ui/stat-card';
 import styles from '@/components/dashboard/dashboard-studio.module.css';
 
 /** Reserve the same regions as the dashboard instead of flashing an older UI. */
@@ -10,9 +12,9 @@ export default function Loading() {
       <LoadingStatus label="Loading dashboard" detail="Preparing your selected brands and dates" />
     </header>
     <div className={styles.toolbar} aria-hidden="true"><Skeleton className="h-9 w-40"/><Skeleton className="h-9 w-56"/></div>
-    <section className={styles.metrics} aria-label="Loading performance metrics">
-      {Array.from({length:6},(_,i)=><div key={i} className="space-y-2" aria-hidden="true"><Skeleton className="h-3 w-24 max-w-full"/><Skeleton className="h-8 w-28 max-w-full"/><Skeleton className="h-3 w-24 max-w-full"/></div>)}
-    </section>
+    <MetricGrid columns={6} label="Loading performance metrics">
+      {['Total GMV', 'Managed GMV', 'Total orders', 'Units sold', 'Average order value', 'Videos published'].map(label => <StatCard key={label} label={label} value="…" state="loading" detail="Loading…" />)}
+    </MetricGrid>
     <div className={styles.trendGrid}>
       <div className={styles.skeletonCard}><ChartLoading label="Loading performance"/></div>
       <div className={styles.skeletonCard} aria-hidden="true"><Skeleton className="h-5 w-32"/><Skeleton className="h-14 w-40"/><Skeleton className="h-2 w-full"/><Skeleton className="h-4 w-48 max-w-full"/></div>
