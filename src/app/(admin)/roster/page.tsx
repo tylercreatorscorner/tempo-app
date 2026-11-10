@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
-import { DATE_PRESETS, type DatePreset } from '@/lib/data/date-utils';
+import { DATE_PRESETS, resolveDateRange, type DatePreset } from '@/lib/data/date-utils';
 import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
@@ -816,12 +816,30 @@ function RosterContent() {
   const { brands: brandOptions, loading: brandsLoading } = useBrandList();
   const brandMeta = useBrandMeta();
 
-  const setBrand = (next: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === 'all') params.delete('brand');
-    else params.set('brand', next);
+  const committedQuery = searchParams.toString();
+  const latestQuery = useRef(committedQuery);
+  const pendingQueries = useRef<string[]>([]);
+  useEffect(() => {
+    // Retain newer requested changes when an earlier navigation commits. A
+    // browser-history URL outside this queue becomes the new editing base.
+    const committedIndex = pendingQueries.current.lastIndexOf(committedQuery);
+    pendingQueries.current = committedIndex < 0 ? [] : pendingQueries.current.slice(committedIndex + 1);
+    latestQuery.current = pendingQueries.current.at(-1) ?? committedQuery;
+  }, [committedQuery]);
+  const navigateScope = (update: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(latestQuery.current);
+    update(params);
     const qs = params.toString();
-    startNav(() => router.push(qs ? `/roster?${qs}` : '/roster'));
+    if (qs === latestQuery.current) return;
+    latestQuery.current = qs;
+    pendingQueries.current.push(qs);
+    startNav(() => router.push(qs ? `/roster?${qs}` : '/roster', { scroll: false }));
+  };
+  const setBrand = (next: string) => {
+    navigateScope(params => {
+      if (next === 'all') params.delete('brand');
+      else params.set('brand', next);
+    });
   };
 
   // All / Managed / Unmanaged view. Managed is the default; the page doubles
@@ -857,9 +875,38 @@ function RosterContent() {
 
   // Period selector drives the GMV column, ROI, Posts, and the top Total GMV.
   // The Total Retainers figure is the fixed monthly commitment (not period-driven).
-  const [preset, setPreset] = useState<DatePreset>(() => DATE_PRESETS.some(p => p.value === searchParams.get('range')) ? searchParams.get('range') as DatePreset : 'last7');
-  const [customStart, setCustomStart] = useState<string | null>(searchParams.get('start'));
-  const [customEnd, setCustomEnd] = useState<string | null>(searchParams.get('end'));
+  const urlRange = searchParams.get('range');
+  const urlStart = searchParams.get('start');
+  const urlEnd = searchParams.get('end');
+  const [preset, setPreset] = useState<DatePreset>(() => resolveDateRange(urlRange, urlStart, urlEnd).preset);
+  const [customStart, setCustomStart] = useState<string | null>(preset === 'custom' ? urlStart : null);
+  const [customEnd, setCustomEnd] = useState<string | null>(preset === 'custom' ? urlEnd : null);
+  // Browser history can change the URL without remounting this client page.
+  useEffect(() => {
+    if (pendingQueries.current.length) return;
+    const next = resolveDateRange(urlRange, urlStart, urlEnd).preset;
+    setPreset(next);
+    setCustomStart(next === 'custom' ? urlStart : null);
+    setCustomEnd(next === 'custom' ? urlEnd : null);
+  }, [committedQuery, urlRange, urlStart, urlEnd]);
+  const changePeriod = (next: DatePreset, start: string | null = null, end: string | null = null, nextBrand?: string) => {
+    const resolved = resolveDateRange(next, start, end).preset;
+    setPreset(resolved);
+    setCustomStart(resolved === 'custom' ? start : null);
+    setCustomEnd(resolved === 'custom' ? end : null);
+    navigateScope(params => {
+      if (nextBrand === 'all') params.delete('brand');
+      else if (nextBrand !== undefined) params.set('brand', nextBrand);
+      params.set('range', resolved);
+      if (resolved === 'custom' && start && end) {
+        params.set('start', start);
+        params.set('end', end);
+      } else {
+        params.delete('start');
+        params.delete('end');
+      }
+    });
+  };
   const isCustomPeriod = preset === 'custom' && !!customStart && !!customEnd;
   // The API resolves the actual [start, end] window from these (shared engine);
   // the client just needs the preset + raw custom dates for the request + labels.
@@ -1132,17 +1179,13 @@ function RosterContent() {
   const applySegment = (c: SegmentFilterCriteria, name: string) => {
     const nextBrand = c.brand && c.brand !== 'all' ? c.brand : 'all';
     if (nextBrand !== brand) segmentBrandReset.current = nextBrand;
-    setBrand(nextBrand);
+    if (c.range) changePeriod(c.range, c.start ?? null, c.end ?? null, nextBrand);
+    else setBrand(nextBrand);
     setHealth(c.health ?? 'all');
     if (c.view) setView(c.view);
     setProductFilter(c.product ?? '');
     setSearchInput(c.search ?? '');
     setSearch(c.search ?? '');
-    if (c.range === 'custom' && c.start && c.end) {
-      setPreset('custom'); setCustomStart(c.start); setCustomEnd(c.end);
-    } else if (c.range) {
-      setPreset(c.range); setCustomStart(null); setCustomEnd(null);
-    }
     setPage(1);
     setSegFilters({ name, min_gmv: c.min_gmv ?? null, max_gmv: c.max_gmv ?? null, min_posts: c.min_posts ?? null });
   };
@@ -1221,7 +1264,7 @@ function RosterContent() {
         </div>
         <div className={rosterLayout.scopeField}>
           <span className={rosterLayout.scopeLabel}>Period</span>
-          <DateRangePicker appearance="studio" label="Roster period" value={preset} customRange={{start:customStart,end:customEnd}} displayRange={coreMatches&&resolvedPeriod?resolvedPeriod:undefined} onPresetChange={p=>{setPreset(p);if(p!=='custom'){setCustomStart(null);setCustomEnd(null);}}} onCustomChange={(start,end)=>{setPreset('custom');setCustomStart(start);setCustomEnd(end);}}/>
+          <DateRangePicker appearance="studio" label="Roster period" value={preset} customRange={{start:customStart,end:customEnd}} displayRange={coreMatches&&resolvedPeriod?resolvedPeriod:undefined} onPresetChange={p=>{if(p!=='custom')changePeriod(p);}} onCustomChange={(start,end)=>changePeriod('custom',start,end)}/>
         </div>
       </div>
       <RosterStats retainerBudget={summaryMatches?totalRetainer:null} managedGmv={summaryMatches?totalGmvPeriod:null} videosPublished={summaryMatches?summary?.videos_published??null:null} retainerComplete={summary?.retainer_complete===true} retainerMissingCount={summaryMatches?summary?.retainer_missing_count??null:null} gmvComplete={summary?.gmv_complete===true} videosComplete={summary?.videos_complete===true} brandLabel={selectedBrandLabel} periodLabel={summaryPeriodLabel} loading={summaryLoading} refreshing={summaryMatches&&loading} stale={summaryMatches&&loadError}/>
