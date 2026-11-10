@@ -4,6 +4,8 @@ import { AgencyRevenueWorkspace } from '../../src/app/(admin)/agency/revenue/wor
 import { agencyMonthBounds, selectMonthTerms, type AgencyTerms, type ClientRecord } from '../../src/lib/agency/model';
 import { calculateRevenueTrueUp, sumRevenueTrueUps, type RevenueFinanceRecord } from '../../src/lib/agency/revenue-model';
 import type { AgencyRevenueResponse } from '../../src/lib/data/agency-revenue';
+import { buildInvoice, emptyFinanceSettings } from '../../src/lib/agency/finance-model';
+import { revenueCalculationTrace } from '../../src/lib/agency/revenue-trace';
 
 const managerNames = [{ managerId: '00000000-0000-4000-8000-000000000020', name: 'Jordan Example' }, { managerId: '00000000-0000-4000-8000-000000000021', name: 'Alex Example' }, { managerId: '00000000-0000-4000-8000-000000000022', name: 'Riley Example' }];
 const id = (value: number) => `00000000-0000-4000-8000-${String(value).padStart(12, '0')}`;
@@ -36,10 +38,25 @@ function fixture(month: string): AgencyRevenueResponse {
     const recordedThrough = source.gmv === null ? null : source.partial ? `${month}-${String(expectedDays - 1).padStart(2, '0')}` : throughDate;
     return { ...calculateRevenueTrueUp({ client: source.client, finance: source.finance, month, throughDate, gmv: { amountCents: source.gmv, complete: !source.partial && source.gmv !== null, recordedThrough, periodStart, periodEnd } }), managerRecipients: source.finance ? managerNames.filter(manager => source.finance!.settings.managerTerms.some(term => (term.allocations ?? [term]).some(recipient => recipient.managerId === manager.managerId))) : [], brandCoverage: [{ brandId: source.client.brandIds[0], brandName: source.client.name, gmvCents: source.gmv, recordedDays, sourceRecordedDays: recordedDays, expectedDays, recordedThrough, latestRecordedThrough: recordedThrough, dailyCoverageComplete: !source.partial && source.gmv !== null }] };
   });
-  return { month, periodStart: bounds.start, periodEnd: bounds.end, throughDate, asOfDate: noClosedDates ? '2026-10-01' : '2026-10-29', rows, totals: sumRevenueTrueUps(rows), cash: noClosedDates ? { collectedCents: null, managerPaidCents: null, retainedCashCents: null, collectedCount: 0, managerPaidCount: 0, complete: false } : { collectedCents: 2184000, managerPaidCents: 850000, retainedCashCents: 1334000, collectedCount: 2, managerPaidCount: 1, complete: true }, warnings: noClosedDates ? ['No completed source dates in this service month yet.'] : ['Daily coverage describes source presence in every expected store; it does not verify every sale in an export.'] };
+  return { month, periodStart: bounds.start, periodEnd: bounds.end, throughDate, asOfDate: noClosedDates ? '2026-10-01' : '2026-10-29', rows: rows.map(row => ({ ...row, calculationTrace: revenueCalculationTrace(row) })), totals: sumRevenueTrueUps(rows), cash: noClosedDates ? { collectedCents: null, managerPaidCents: null, retainedCashCents: null, collectedCount: 0, managerPaidCount: 0, complete: false } : { collectedCents: 2184000, managerPaidCents: 850000, retainedCashCents: 1334000, collectedCount: 2, managerPaidCount: 1, complete: true }, warnings: noClosedDates ? ['No completed source dates in this service month yet.'] : ['Daily coverage describes source presence in every expected store; it does not verify every sale in an export.'] };
 }
-window.fetch = async input => {
+const invoiceRows = ['2026-09', '2026-10'].flatMap(month => sources.slice(0, 2).map((source, index) => {
+  const settings = { ...emptyFinanceSettings(), agencyName: 'Example Agency', agencyAddress: '100 Fictional Avenue', paymentInstructions: 'Fixture only', legalName: source.client.name, billingEmail: 'billing@example.com', billingAddress: '200 Fictional Avenue', managerTerms: source.finance!.settings.managerTerms };
+  return { id: id(900 + index + (month === '2026-10' ? 10 : 0)), client_id: source.client.id, month, revision: 1, status: index ? 'paid' : 'draft', snapshot: buildInvoice(source.client, { client_id: source.client.id, revision: 1, settings }, month, source.gmv, `${month}-28`), collected_on: index ? `${month}-29` : null, manager_paid_on: null };
+}));
+const attempts = new Map<string, number>();
+window.fetch = async (input, options) => {
   const url = new URL(String(input), window.location.origin);
+  const scenario = new URLSearchParams(window.location.search).get('scenario');
+  const attempt = (attempts.get(url.pathname) ?? 0) + 1;
+  attempts.set(url.pathname, attempt);
+  if (options?.method && options.method !== 'GET') return Response.json({ error: 'Preview is read-only.' }, { status: 405 });
+  if (scenario === 'delayed') await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, 1500);
+    options?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+  });
+  if (attempt === 1 && (scenario === 'revenue-error' && url.pathname === '/api/agency/revenue' || scenario === 'invoice-error' && url.pathname === '/api/agency/finance')) return Response.json({ error: 'Fictional connection failure. Retry to recover.' }, { status: 503 });
+  if (url.pathname === '/api/agency/finance') return Response.json({ invoices: invoiceRows });
   if (url.pathname !== '/api/agency/revenue') return Response.json({ error: 'Local fixture: action unavailable.' }, { status: 400 });
   return Response.json(fixture(url.searchParams.get('month') ?? '2026-10'));
 };

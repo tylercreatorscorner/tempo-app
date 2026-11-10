@@ -1,6 +1,6 @@
-import { PageHeader } from '@/components/ui/page-header';
 import Link from 'next/link';
 import { ArrowUpRight, CalendarDays, FileBarChart, Library } from 'lucide-react';
+import styles from '../agency.module.css';
 
 export default function AgencyReportsPage() {
   const reports = [
@@ -8,5 +8,5 @@ export default function AgencyReportsPage() {
     { title: 'Monthly & month-to-date', description: 'Prepare and share an agency portfolio report using the existing reporting workflow.', href: '/reporting?view=agency', icon: FileBarChart },
     { title: 'Report library', description: 'Find previously shared reports and preserve what recipients received.', href: '/reporting?view=library', icon: Library },
   ];
-  return <div className="mx-auto w-full max-w-[1440px] space-y-4"><PageHeader eyebrow="Agency workspace" title="Reports" subtitle="Bring a clear portfolio view to your leadership meetings." /><div className="grid gap-3 lg:grid-cols-3">{reports.map(({ title, description, href, icon: Icon }) => <Link key={href} href={href} className="group rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/40 hover:bg-muted/30"><div className="flex items-center justify-between"><Icon className="h-5 w-5 text-primary" /><ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transform-none" /></div><h2 className="mt-4 text-sm font-semibold">{title}</h2><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p></Link>)}</div><p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">These reports cover brand and creator performance. The new agency service-fee calculations remain internal and are not added to shared reports.</p></div>;
+  return <div className={styles.workspace}><header className={styles.pageHeader}><div><div className={styles.eyebrow}>AGENCY WORKSPACE</div><h1>Reports</h1><p>Prepare a portfolio review or revisit a shared report.</p></div></header><div className={styles.reportList}>{reports.map(({ title, description, href, icon: Icon }) => <Link key={href} href={href} className={styles.reportCard}><Icon size={22} /><div><h2>{title}</h2><p>{description}</p></div><ArrowUpRight size={18} /></Link>)}</div><p className={styles.scopeNote}>These reports cover brand and creator performance. Agency fees, manager compensation, and collections stay in the internal finance workspace.</p></div>;
 }

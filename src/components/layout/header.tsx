@@ -103,11 +103,11 @@ function StudioScopeIdentity({ pendingLabel }: { pendingLabel: string }) {
   </div>;
 }
 
-function StudioAgencyIdentity({ tenantName }: { tenantName?: string }) {
+function StudioAgencyIdentity({ tenantName, pageLabel }: { tenantName?: string; pageLabel: string }) {
   return <div className={studioStyles.scopeIdentity} aria-label="Current agency workspace">
     <AllBrandsPortrait size={24} />
     <strong className={studioStyles.scopeName}>{tenantName ?? 'Agency'}</strong>
-    <span className={studioStyles.scopeDescription}>Agency workspace / Revenue</span>
+    <span className={studioStyles.scopeDescription}>Agency workspace / {pageLabel.replace(/^Agency · /, '').replace('Agency overview', 'Overview')}</span>
   </div>;
 }
 
@@ -165,7 +165,7 @@ export function Header({ onMenuClick, navigationOpen = false, tenantName, userNa
         </div>
 
         {/* Breadcrumb */}
-        {studio ? pathname === '/agency/revenue' ? <StudioAgencyIdentity tenantName={tenantName} /> : <StudioScopeIdentity pendingLabel={pathname === '/roster' ? 'creators' : pathname === '/posts' ? 'content' : pathname.startsWith('/creators/') ? 'creator profile' : 'dashboard'} /> : <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+        {studio ? pathname === '/agency' || pathname.startsWith('/agency/') ? <StudioAgencyIdentity tenantName={tenantName} pageLabel={pageLabel} /> : <StudioScopeIdentity pendingLabel={pathname === '/roster' ? 'creators' : pathname === '/posts' ? 'content' : pathname.startsWith('/creators/') ? 'creator profile' : 'dashboard'} /> : <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
           <span className={styles.tenantLabel} title={tenantName}>{tenantName ?? 'Tempo'}</span>
           <span className={styles.breadcrumbSeparator} aria-hidden="true">/</span>
           {isCreatorDetail && (

@@ -5,5 +5,5 @@ export default async function AgencyRevenuePage({ searchParams }: { searchParams
   const current = revenuePeriod(null), query = await searchParams;
   let month = current.month;
   try { month = revenuePeriod(typeof query.month === 'string' ? query.month : null).month; } catch { /* Invalid links open the current service month. */ }
-  return <AgencyRevenueWorkspace initialMonth={month} latestMonth={current.month} />;
+  return <AgencyRevenueWorkspace key={month} initialMonth={month} latestMonth={current.month} />;
 }

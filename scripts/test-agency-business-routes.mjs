@@ -113,7 +113,7 @@ async function expectStatus(pending, status) {
 // client construction itself must remain unreachable for every denied scope.
 const deniedScopes = [
   null,
-  ...['manager', 'viewer', 'coach', 'brand', 'creator'].map(role => ({ ...owner, role })),
+  ...['admin', 'manager', 'viewer', 'coach', 'brand', 'creator'].map(role => ({ ...owner, role })),
   { ...owner, brandScope: { kind: 'scoped', brandIds: [id(10)] } },
   { ...owner, impersonating: { userId: id(9) } },
   { ...owner, tenantId: '' },
@@ -138,7 +138,7 @@ assert.equal(canAccessAgency(scope, true), false);
 await expectStatus(post(), 403);
 assert.deepEqual(events, []);
 assert.equal((await expectStatus(get(), 200)).canEdit, false);
-assert.equal(canAccessAgency({ ...owner, role: 'admin' }, true), true);
+assert.equal(canAccessAgency({ ...owner, role: 'admin', agencyLeadership: 'vp' }, true), true);
 
 for (const query of ['', 'month=2026-13', 'month=2026-9', 'month=1999-12', 'month=2101-01', 'month=2026-09-01', 'month=2026-10', 'month=2026-11']) {
   reset();
@@ -223,7 +223,7 @@ for (const [payload, options, status] of invalidPosts) {
   await expectStatus(post(payload, options), status);
   assert.deepEqual(events, [], 'Invalid writes cannot construct or use a service client');
 }
-reset({ ...owner, role: 'admin', userId: id(8), tenantId: id(7) });
+reset({ ...owner, role: 'admin', agencyLeadership: 'owner', userId: id(8), tenantId: id(7) });
 assert.deepEqual(await expectStatus(post(), 200), saved);
 assert.deepEqual(events, [
   { type: 'admin-client' },

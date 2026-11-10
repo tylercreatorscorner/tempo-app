@@ -41,7 +41,7 @@ function load(path) {
 const finance = load('src/app/api/agency/finance/route.ts'), contracts = load('src/app/api/agency/contracts/route.ts');
 const post = (body, requestOrigin = origin) => finance.POST(new NextRequest(`${origin}/api/agency/finance`, { method: 'POST', headers: { origin: requestOrigin, 'content-type': 'application/json' }, body: JSON.stringify(body) }));
 const contractPost = (body, requestOrigin = origin) => contracts.POST(new NextRequest(`${origin}/api/agency/contracts`, { method: 'POST', headers: { origin: requestOrigin, 'content-type': 'application/json' }, body: JSON.stringify(body) }));
-for (const rejected of [null, { ...owner, role: 'manager' }, { ...owner, canViewFinance: false }, { ...owner, impersonating: true }, { ...owner, brandScope: { kind: 'assigned', brandIds: [] } }]) {
+for (const rejected of [null, { ...owner, role: 'admin' }, { ...owner, role: 'manager' }, { ...owner, canViewFinance: false }, { ...owner, impersonating: true }, { ...owner, brandScope: { kind: 'assigned', brandIds: [] } }]) {
   scope = rejected; calls = []; assert.ok([401, 403].includes((await finance.GET()).status)); assert.ok([401, 403].includes((await post({})).status)); assert.ok([401, 403].includes((await contracts.GET(new NextRequest(`${origin}/api/agency/contracts?id=${id(9)}`))).status)); assert.equal(calls.length, 0);
   assert.ok([401, 403].includes((await contractPost({})).status)); assert.equal(calls.length, 0);
 }
