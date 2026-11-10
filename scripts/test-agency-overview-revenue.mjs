@@ -28,6 +28,10 @@ const result = await build({
       assert.match(metrics, /Active clients/);
       assert.match(metrics, /Client retention/);
       assert.match(metrics, /Managed GMV/);
+      if (view === 'clients') {
+        assert.match(html, /id="unlinked-brands"[^>]*tabindex="-1"/, 'the readiness destination exists even with no unlinked brands');
+        assert.match(html, /Every available brand is linked to a client agreement/);
+      }
     }
     console.log('PASS Overview financial handoff: differing model fixture, same-month Revenue links, no competing fee subtotal or inclusion count, lifecycle metrics retained');
   ` },
