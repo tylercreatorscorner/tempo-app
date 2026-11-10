@@ -9,6 +9,7 @@ import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/layout/brand-switcher';
 import styles from './workspace-theme.module.css';
 import studioStyles from './dashboard-studio-shell.module.css';
+import { agencyHref } from '@/lib/agency/navigation';
 
 interface Dest {
   href: string;
@@ -105,7 +106,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
   const agencyAllowed = navPerms?.agency === true;
   const agencyMode = agencyAllowed && (pathname === '/agency' || pathname.startsWith('/agency/'));
 
-  const withBrand = (href: string) => (brand && !href.startsWith('/agency') ? `${href}?brand=${encodeURIComponent(brand)}` : href);
+  const withBrand = (href: string) => href.startsWith('/agency') ? agencyHref(href, searchParams.get('month')) : brand ? `${href}?brand=${encodeURIComponent(brand)}` : href;
   const matches = (prefix: string) => pathname === prefix || pathname.startsWith(prefix + '/');
   const isActive = (d: Dest) => d.match.some(matches) && !d.exclude?.some(matches);
   // ⚠️ AND-ed with the old rules, never instead of them: the matrix can hide a
@@ -150,7 +151,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
       </div>}
 
       {agencyAllowed && <nav aria-label="Workspace mode" className={cn(styles.workspaceModes, studio && studioStyles.workspaceModes)}>
-        {[{ label: 'Brands', href: withBrand('/dashboard'), icon: Users, active: !agencyMode }, { label: 'Agency', href: '/agency', icon: Building2, active: agencyMode }].map(({ label, href, icon: Icon, active }) => <Link key={label} href={href} title={collapsed ? `${label} workspace` : undefined} aria-label={`${label} workspace`} aria-current={active ? 'true' : undefined} className={cn(styles.workspaceMode, active && styles.workspaceModeActive, studio && studioStyles.workspaceMode, studio && active && studioStyles.workspaceModeActive)}>{(!studio || collapsed) && <NavIcon icon={Icon} active={active} />}{!collapsed && label}</Link>)}
+        {[{ label: 'Brands', href: withBrand('/dashboard'), icon: Users, active: !agencyMode }, { label: 'Agency', href: withBrand('/agency'), icon: Building2, active: agencyMode }].map(({ label, href, icon: Icon, active }) => <Link key={label} href={href} title={collapsed ? `${label} workspace` : undefined} aria-label={`${label} workspace`} aria-current={active ? 'true' : undefined} className={cn(styles.workspaceMode, active && styles.workspaceModeActive, studio && studioStyles.workspaceMode, studio && active && studioStyles.workspaceModeActive)}>{(!studio || collapsed) && <NavIcon icon={Icon} active={active} />}{!collapsed && label}</Link>)}
       </nav>}
 
       {/* Empty permission groups disappear; the same navigation serves mobile. */}

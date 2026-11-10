@@ -85,7 +85,7 @@ function load(path) {
 const dataModule = load('src/lib/data/agency-revenue.ts');
 const route = load('src/app/api/agency/revenue/route.ts');
 const get = (query = '') => route.GET(new NextRequest(`https://fixture.invalid/api/agency/revenue${query ? `?${query}` : ''}`));
-for (const denied of [null, { ...owner, role: 'manager' }, { ...owner, role: 'brand' }, { ...owner, role: 'creator' }, { ...owner, canViewFinance: false },
+for (const denied of [null, { ...owner, role: 'admin' }, { ...owner, role: 'manager' }, { ...owner, role: 'brand' }, { ...owner, role: 'creator' }, { ...owner, canViewFinance: false },
   { ...owner, impersonating: true }, { ...owner, tenantId: null }, { ...owner, brandScope: { kind: 'scoped' } }, { ...owner, permissions: new Set(['reporting:read']) }]) {
   scope = denied; calls = [];
   assert.ok([401, 403].includes((await get()).status)); assert.equal(calls.length, 0, 'Unauthorized users never reach privileged data');

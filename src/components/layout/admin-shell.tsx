@@ -50,7 +50,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
   // Enable only the reviewed screens; onboarding and Discord subroutes keep
   // their existing shell until their own design review.
   const creatorProfile = /^\/creators\/[^/]+$/.test(pathname) && pathname !== '/creators/invites';
-  const studio = pathname === '/dashboard' || pathname === '/roster' || pathname === '/posts' || pathname === '/agency/revenue' || creatorProfile;
+  const studio = pathname === '/dashboard' || pathname === '/roster' || pathname === '/posts' || pathname === '/agency' || pathname.startsWith('/agency/') || creatorProfile;
 
   const toggleCollapse = () =>
     setCollapsed((v) => {

@@ -22,5 +22,6 @@
   .drawerMetrics .metric>small { grid-column:1; font-size:11px; }
 }
 @media(prefers-reduced-motion:reduce) { .backdrop,.drawer,.monthPopover { animation:none!important; }.tabs button { transition:none; } }
+@media(max-width:360px) { .summary { grid-template-columns:minmax(0,1fr); }.summary .metric { padding:12px 0; }.summary .metric.retained { padding:18px; } }
 .detailCard li a { display:inline-flex; align-items:center; gap:4px; min-height:28px; }
 .detailCard li a svg { flex-shrink:0; }

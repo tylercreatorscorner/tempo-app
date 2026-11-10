@@ -15,7 +15,8 @@ const dateName = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateStri
 const CREATORS_PER_PAGE = 8;
 const requirements: Array<{ key: 'approved' | 'onboarded' | 'tapAuthorized'; label: string }> = [{ key: 'approved', label: 'Client approved' }, { key: 'onboarded', label: 'Onboarded' }, { key: 'tapAuthorized', label: 'TAP authorized' }];
 function requestedMonth(current: string) {
-  const requested = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('billingMonth');
+  const params = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search);
+  const requested = params?.get('billingMonth') ?? params?.get('month');
   return requested && /^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(requested) && requested <= current ? requested : current;
 }
 
