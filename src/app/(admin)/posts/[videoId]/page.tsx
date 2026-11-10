@@ -1,10 +1,12 @@
 import { cache } from 'react';
 import { redirect, notFound } from 'next/navigation';
-import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
+import { getWorkspaceScope, isBrandInScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry } from '@/lib/data/brand-registry';
 import { brandLabel } from '@/lib/data/brand-registry-core';
 import { resolveWatchUrl } from '@/lib/utils/format';
+import { assertLegacyPostSlugScope, readTenantVideoReviews } from '@/lib/data/post-reviews';
 import { PostReviewClient, type VideoMeta, type ReviewRow, type DailyPoint } from './post-review-client';
 
 export const dynamic = 'force-dynamic';
@@ -23,16 +25,19 @@ interface VideoRow {
   post_date: string | null;
 }
 
-const BRAND_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const BRAND_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,99}$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Shared between generateMetadata and the page render — React cache() makes
 // this one DB read per request, not two.
-const getVideo = cache(async (videoId: string, brandFilter: string | null) => {
+const getVideo = cache(async (scope: WorkspaceScope, videoId: string, brandFilter: string | null) => {
   const admin = await createAdminClient();
+
   let q = admin.from('videos')
     .select('video_id, brand, creator_name, video_name, video_link, post_date')
+    .eq('tenant_id', scope.tenantId)
     .eq('video_id', videoId);
+  if (scope.brandScope.kind === 'scoped') q = q.in('brand', scope.brandScope.brandSlugs.length ? scope.brandScope.brandSlugs : ['__no_access__']);
   if (brandFilter) q = q.eq('brand', brandFilter);
   const { data, error } = await q.limit(1).returns<VideoRow[]>();
   // A DB failure must NOT masquerade as a 404 — throw to the error boundary.
@@ -41,12 +46,14 @@ const getVideo = cache(async (videoId: string, brandFilter: string | null) => {
 });
 
 export async function generateMetadata({ params, searchParams }: Props) {
+  const scope = await getWorkspaceScope();
+  if (!scope || !can(scope, 'posts', 'read')) return { title: 'Post — Tempo' };
   const { videoId } = await params;
   const sp = await searchParams;
   if (!videoId || videoId.length > 256) return { title: 'Post — Tempo' };
   const brandFilter = sp.brand && BRAND_SLUG_RE.test(sp.brand) ? sp.brand : null;
   try {
-    const video = await getVideo(videoId, brandFilter);
+    const video = await getVideo(scope, videoId, brandFilter);
     const title = video?.video_name?.trim();
     return { title: title ? `${title} — Tempo` : 'Post — Tempo' };
   } catch {
@@ -73,7 +80,7 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
   // to their brands. (The old requireAdmin() gate silently bounced managers
   // to /dashboard on every row click.)
   const scope = await getWorkspaceScope();
-  if (!scope) redirect('/dashboard');
+  if (!scope || !can(scope, 'posts', 'read')) redirect('/dashboard');
 
   const { videoId } = await params;
   const sp = await searchParams;
@@ -93,7 +100,7 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
   // The videos table is keyed by (video_id, brand). If brand isn't in the URL
   // we'll just pick the first matching row — videos almost never appear under
   // multiple brands but if they do, the user can switch via ?brand=.
-  const video = await getVideo(videoId, brandFilter);
+  const video = await getVideo(scope, videoId, brandFilter);
   if (!video) notFound();
 
   // Brand-scope check managers were previously missing entirely: a scoped
@@ -101,6 +108,8 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
   if (!isBrandInScope(scope, { slug: video.brand })) redirect('/posts');
 
   const admin = await createAdminClient();
+  // A legacy slug-only performance RPC cannot safely aggregate a reused namespace.
+  await assertLegacyPostSlugScope(admin, scope.tenantId, [video.brand]);
 
   const toNum = (v: number | string | null | undefined): number => {
     if (v === null || v === undefined || v === '') return 0;
@@ -123,11 +132,7 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
     // ALL brands of this video: reviews attach to the video identity (mig 094)
     // — a cross-store video's review must not vanish because the /posts row
     // linked here under the sibling brand.
-    admin
-      .from('video_reviews')
-      .select('id, reviewer_user_id, reviewer_name, rating, notes, tags, created_at, updated_at')
-      .eq('video_id', video.video_id)
-      .order('updated_at', { ascending: false }),
+    readTenantVideoReviews(admin, scope, { videoId: video.video_id, includeNotes: true }),
     getBrandRegistry(),
   ]);
 
@@ -142,10 +147,7 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
   // empty review list: the client has no mount-time fetch anymore, so a
   // silently-empty initialReviews would show a blank form whose Save upserts
   // over the user's existing review without them ever seeing it.
-  if (reviewsRes.error) {
-    throw new Error(`Failed to load reviews: ${reviewsRes.error.message}`);
-  }
-  const initialReviews = (reviewsRes.data as ReviewRow[] | null) ?? [];
+  const initialReviews = reviewsRes as unknown as ReviewRow[];
 
   const daily: DailyPoint[] = (stats?.daily ?? []).map(p => ({
     d: p.d,
@@ -189,5 +191,5 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
     window: windowStart && windowEnd ? { start: windowStart, end: windowEnd, gmv: windowGmv ?? 0 } : null,
   };
 
-  return <PostReviewClient meta={meta} initialReviews={initialReviews} currentUserId={scope.userId} />;
+  return <PostReviewClient meta={meta} initialReviews={initialReviews} currentUserId={scope.userId} canWrite={can(scope, 'posts', 'write') && !scope.impersonating} />;
 }

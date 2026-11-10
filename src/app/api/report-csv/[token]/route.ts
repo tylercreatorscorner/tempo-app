@@ -95,11 +95,17 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     windowIsMonth ? 'Posts published' : 'Posts this period',
     'Videos earning',
     'Orders',
+    'Units sold',
     'GMV',
     ...(hasAgreements ? ['Agreement period start', 'Agreement period end', 'Agreement revision', 'Review required'] : []),
   ];
 
   const rows = creators.map((c) => {
+    // Historical snapshots may omit units. Orders are never a substitute.
+    const optional = c as typeof c & { units?: number | null; items?: number | null; unitsSold?: number | null };
+    const units = typeof optional.items === 'number' && Number.isFinite(optional.items) ? optional.items
+      : typeof optional.units === 'number' && Number.isFinite(optional.units) ? optional.units
+      : typeof optional.unitsSold === 'number' && Number.isFinite(optional.unitsSold) ? optional.unitsSold : '';
     const handles =
       Array.isArray(c.handles) && c.handles.length > 0
         ? c.handles.map((h: string) => `@${String(h).replace(/^@+/, '')}`).join(' ')
@@ -121,6 +127,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       c.postsPublished,
       c.videosEarning ?? '',
       c.orders,
+      units,
       c.gmv.toFixed(2),
       ...(hasAgreements ? [c.agreement?.periodStart ?? '', c.agreement?.periodEnd ?? '', c.agreement?.revision ?? '', c.agreement && !c.agreement.reportPeriodComparable ? 'Agreement period / payment rules' : ''] : []),
     ];

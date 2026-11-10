@@ -5,6 +5,7 @@ import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './sidebar';
+import studioStyles from './dashboard-studio-shell.module.css';
 
 interface MobileNavProps {
   open: boolean;
@@ -13,6 +14,9 @@ interface MobileNavProps {
   canViewFinance?: boolean;
   /** Passed straight through: the drawer renders the same Sidebar. */
   navPerms?: Record<string, boolean>;
+  studio?: boolean;
+  workspaceSwitcher?: React.ReactNode;
+  workspaceName?: string;
 }
 
 /**
@@ -21,7 +25,7 @@ interface MobileNavProps {
  * from the left (-translate-x-full → 0), and taps/pointer events pass through
  * when closed. Escape closes it.
  */
-export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = true, navPerms }: MobileNavProps) {
+export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = true, navPerms, studio = false, workspaceSwitcher, workspaceName }: MobileNavProps) {
   const drawer = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   useEffect(() => { close.current = onClose; }, [onClose]);
@@ -46,7 +50,7 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
   }, [open]);
 
   return (
-    <div className={cn('fixed inset-0 z-50 lg:hidden', !open && 'pointer-events-none')} aria-hidden={!open} inert={!open}>
+    <div className={cn('fixed inset-0 z-50 lg:hidden', !open && 'pointer-events-none', studio && studioStyles.mobileNavigation)} aria-hidden={!open} inert={!open}>
       {/* Backdrop — fades */}
       <div
         onClick={onClose}
@@ -58,6 +62,7 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
       {/* Drawer — slides in from the left, out to the left */}
       <div
         ref={drawer}
+        id="tempo-mobile-navigation"
         role="dialog"
         aria-modal={open || undefined}
         aria-label="Workspace navigation"
@@ -69,12 +74,12 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-3 z-10 rounded-lg p-1.5 transition-colors hover:bg-muted"
+          className={cn('absolute top-4 right-3 z-10 rounded-lg p-1.5 transition-colors hover:bg-muted', studio && studioStyles.closeNavigation)}
           aria-label="Close menu"
         >
           <X className="h-4 w-4 text-muted-foreground" />
         </button>
-        <Sidebar isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} />
+        <Sidebar isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} studio={studio} workspaceSwitcher={workspaceSwitcher} workspaceName={workspaceName} />
       </div>
     </div>
   );

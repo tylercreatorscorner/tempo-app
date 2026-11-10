@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, RotateCw, Send, ExternalLink, Clipboard, Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
@@ -94,6 +95,10 @@ export function BrandTable({
   refreshKey: number;
   onGenerate: (slug: string, name: string) => void;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const brandScope = searchParams.get('brand');
+  const selectedBrand = brandScope && brandScope !== 'all' ? brandScope : null;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'ready' | 'review'>('all');
   const [rows, setRows] = useState<ReportingBrandRow[] | null>(null);
@@ -128,20 +133,30 @@ export function BrandTable({
     return () => { cancelled = true; };
   }, [load, refreshKey, nonce]);
 
-  const visibleRows = (rows ?? []).filter(row =>
+  const scopedRows = selectedBrand ? (rows ?? []).filter(row => row.slug === selectedBrand) : (rows ?? []);
+  const visibleRows = scopedRows.filter(row =>
     row.name.toLowerCase().includes(query.trim().toLowerCase()) &&
     (filter === 'all' || (filter === 'ready' ? isReportable(row) : !isReportable(row))),
   );
-  const readyCount = (rows ?? []).filter(isReportable).length;
+  const readyCount = scopedRows.filter(isReportable).length;
+  const clearBrandScope = () => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('brand');
+    router.replace('/reporting' + (next.size ? '?' + next.toString() : ''));
+  };
 
   return (
     <section className={styles.reportDirectory} aria-label="Client reporting brands">
+      {selectedBrand && <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm" role="status">
+        <span>Reporting for <strong>{scopedRows[0]?.name ?? selectedBrand}</strong></span>
+        <Button variant="ghost" size="sm" onClick={clearBrandScope}>Show all brands</Button>
+      </div>}
       <div className={styles.tableToolbar}>
       <div className={styles.readinessFilters} role="group" aria-label="Reporting readiness">
         {([
-          ['all', 'All brands', rows?.length ?? null],
+          ['all', selectedBrand ? 'Selected brand' : 'All brands', rows ? scopedRows.length : null],
           ['ready', 'Can prepare', readyCount],
-          ['review', 'Check data', rows ? rows.length - readyCount : null],
+          ['review', 'Check data', rows ? scopedRows.length - readyCount : null],
         ] as const).map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={styles.filterButton}>
           {label}{rows && <span className="ml-2 tabular-nums opacity-70">{count}</span>}
         </button>)}

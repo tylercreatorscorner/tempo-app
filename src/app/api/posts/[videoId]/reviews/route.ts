@@ -16,6 +16,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { REVIEW_TAGS } from '@/lib/data/review-tags';
+import { can } from '@/lib/auth/permissions';
+import { postVideoAssociation, readTenantVideoReviews } from '@/lib/data/post-reviews';
 
 // Only known tag slugs may be stored — arbitrary strings would silently
 // detach from the label mapping and the Flagged-queue slug matching.
@@ -49,7 +51,7 @@ export async function GET(
   { params }: { params: Promise<{ videoId: string }> },
 ) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || !can(scope, 'posts', 'read')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { videoId } = await params;
   const brand = request.nextUrl.searchParams.get('brand');
@@ -58,21 +60,17 @@ export async function GET(
   if (denied) return denied;
 
   const admin = await createAdminClient();
+  const association = await postVideoAssociation(admin, scope, videoId, brand);
+  if (association) return NextResponse.json({ error: association.error }, { status: association.status });
   // ALL brands of the video: reviews attach to the video identity (mig 094).
   // The brand param remains the scope gate (it names the brand the caller is
   // viewing the video under).
-  const { data, error } = await admin
-    .from('video_reviews')
-    .select('id, reviewer_user_id, reviewer_name, rating, notes, tags, created_at, updated_at')
-    .eq('video_id', videoId)
-    .order('updated_at', { ascending: false });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  return NextResponse.json({
-    reviews: data ?? [],
-    currentUserId: scope.userId,
-  });
+  try {
+    const reviews = await readTenantVideoReviews(admin, scope, { videoId, includeNotes: true });
+    return NextResponse.json({ reviews, currentUserId: scope.userId });
+  } catch {
+    return NextResponse.json({ error: 'Video review history could not be loaded' }, { status: 500 });
+  }
 }
 
 export async function POST(
@@ -80,7 +78,7 @@ export async function POST(
   { params }: { params: Promise<{ videoId: string }> },
 ) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || scope.impersonating || !can(scope, 'posts', 'read') || !can(scope, 'posts', 'write')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { videoId } = await params;
   let body: UpsertBody;
@@ -113,15 +111,8 @@ export async function POST(
 
   // The (video_id, brand) pair must exist — otherwise reviews could be
   // attached to arbitrary strings and never surface anywhere.
-  const { data: videoRow, error: videoErr } = await admin
-    .from('videos')
-    .select('video_id')
-    .eq('video_id', videoId)
-    .eq('brand', brand)
-    .limit(1)
-    .maybeSingle();
-  if (videoErr) return NextResponse.json({ error: videoErr.message }, { status: 500 });
-  if (!videoRow) return NextResponse.json({ error: 'Video not found for this brand' }, { status: 404 });
+  const association = await postVideoAssociation(admin, scope, videoId, brand);
+  if (association) return NextResponse.json({ error: association.error }, { status: association.status });
 
   // One review per (video, reviewer) ACROSS brands: a cross-store video must
   // never accumulate two divergent reviews from the same person because the
@@ -167,7 +158,7 @@ export async function DELETE(
   { params }: { params: Promise<{ videoId: string }> },
 ) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || scope.impersonating || !can(scope, 'posts', 'read') || !can(scope, 'posts', 'write')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { videoId } = await params;
   const brand = request.nextUrl.searchParams.get('brand');
@@ -176,6 +167,8 @@ export async function DELETE(
   if (denied) return denied;
 
   const admin = await createAdminClient();
+  const association = await postVideoAssociation(admin, scope, videoId, brand);
+  if (association) return NextResponse.json({ error: association.error }, { status: association.status });
   // Across brands, matching the one-review-per-(video, reviewer) model.
   const { error } = await admin
     .from('video_reviews')

@@ -1,7 +1,7 @@
 'use client';
 
-import { useId, useState } from 'react';
-import { Dialog, Tabs } from 'radix-ui';
+import { useId, useRef, useState } from 'react';
+import { AlertDialog, Dialog, Tabs } from 'radix-ui';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import styles from './creator-editor.module.css';
 import { Pencil, X, Save, Loader2, Plus, Trash2 } from 'lucide-react';
@@ -37,24 +37,27 @@ interface CreatorData {
 const ROLES = ['Incubator', 'Creatives', 'Retainer', 'Ambassador'];
 const STATUSES = ['Active', 'Churned', 'Applied', 'Pending'];
 
-export function CreatorEditButton({ creator }: { creator: CreatorData }) {
+export function CreatorEditButton({ creator, className }: { creator: CreatorData; className?: string }) {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
 
   return (
     <>
       <button
+        ref={trigger}
+        type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-card hover:bg-secondary transition-colors text-xs font-medium"
+        className={`${styles.trigger} ${className ?? ''}`}
         title="Edit Profile"
       >
         <Pencil className="h-4 w-4 text-muted-foreground" /> Edit profile
       </button>
-      {open && <EditPanel creator={creator} onClose={() => setOpen(false)} />}
+      {open && <EditPanel creator={creator} onClose={() => setOpen(false)} returnFocus={() => trigger.current?.focus({ preventScroll: true })} />}
     </>
   );
 }
 
-function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => void }) {
+function EditPanel({ creator, onClose, returnFocus }: { creator: CreatorData; onClose: () => void; returnFocus: () => void }) {
   const router = useRouter();
   const [section,setSection]=useState("details");
   const [customRole,setCustomRole]=useState(Boolean(creator.role && !ROLES.includes(creator.role)));
@@ -63,6 +66,11 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   // panel just sat there. Now that a per-brand edit can be REJECTED for a
   // missing brand, silence would read as "saved".
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [discardPrompt, setDiscardPrompt] = useState(false);
+  const discardOpener = useRef<HTMLElement | null>(null);
+  const discardClosesEditor = useRef(false);
+  const writePending = useRef(false);
   const [form, setForm] = useState({
     real_name: creator.real_name,
     email: creator.email ?? '',
@@ -72,6 +80,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
     notes: creator.notes ?? '',
     brand_notes: creator.brandNotes ?? '',
   });
+  const [savedForm, setSavedForm] = useState(form);
 
   // Account management
   const [accounts, setAccounts] = useState(() => Array.from(new Map(creator.accounts.map(a => [a.tiktok_username.trim().replace(/^@/, '').toLowerCase(), a.tiktok_username])).values()));
@@ -80,10 +89,30 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   // Two-step confirm on removal. Not a browser confirm(): this is a rare,
   // destructive, cross-brand action and it deserves to state its reach in place.
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const profileDirty = (Object.keys(form) as (keyof typeof form)[]).some(key => form[key] !== savedForm[key]);
+  const hasDraft = profileDirty || Boolean(newHandle.trim());
+  const busy = saving || accountSaving;
+  const requestClose = () => {
+    if (writePending.current) return;
+    if (hasDraft) {
+      discardOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      discardClosesEditor.current = false;
+      setDiscardPrompt(true);
+    }
+    else onClose();
+  };
+
+  async function responseError(response: Response, fallback: string) {
+    const data = await response.json().catch(() => ({}));
+    return typeof data.error === 'string' && data.error.trim() ? data.error : `${fallback} (${response.status}).`;
+  }
 
   const handleSave = async () => {
+    if (writePending.current) return;
+    writePending.current = true;
     setSaving(true);
     setError(null);
+    setStatusMessage('');
     try {
       // Role and status live on creator_brands, one row per brand, so the brand
       // travels with them. Without it the server rejects the write rather than
@@ -100,21 +129,31 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        setSavedForm({ ...form });
         router.refresh();
-        onClose();
+        if (newHandle.trim()) {
+          setSection('accounts');
+          setStatusMessage('Profile changes saved. The new account is still a draft; add it or clear it before closing.');
+        } else onClose();
       } else {
-        const j = await res.json().catch(() => ({}));
-        setError((j as { error?: string }).error || `Save failed (${res.status}).`);
+        setError(await responseError(res, 'Save failed'));
       }
+    } catch {
+      setError('Could not save your changes. Your draft is still here. Check your connection and try Save changes again.');
     } finally {
+      writePending.current = false;
       setSaving(false);
     }
   };
 
   const addAccount = async () => {
     const handle = newHandle.replace(/^@/, '').trim().toLowerCase();
-    if (!handle) return;
+    if (!handle || writePending.current) return;
+    if (accounts.some(account => account.toLowerCase() === handle)) { setError('This TikTok account is already linked.'); return; }
+    writePending.current = true;
     setAccountSaving(true);
+    setError(null);
+    setStatusMessage('');
     try {
       const res = await fetch(`/api/creators/${creator.id}/accounts`, {
         method: 'POST',
@@ -122,18 +161,25 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
         body: JSON.stringify({ tiktok_username: handle }),
       });
       if (res.ok) {
-        setAccounts([...accounts, handle]);
+        setAccounts(previous => [...new Set([...previous, handle])]);
         setNewHandle('');
+        setStatusMessage(`@${handle} is now linked across this creator’s brands.`);
         router.refresh();
-      }
+      } else setError(await responseError(res, 'Could not add the account'));
+    } catch {
+      setError('Could not confirm the account update. Your handle is still here. Check your connection and retry, or reopen the profile to check its status.');
     } finally {
+      writePending.current = false;
       setAccountSaving(false);
     }
   };
 
   const removeAccount = async (handle: string) => {
-    setConfirmRemove(null);
+    if (writePending.current) return;
+    writePending.current = true;
     setAccountSaving(true);
+    setError(null);
+    setStatusMessage('');
     try {
       const res = await fetch(`/api/creators/${creator.id}/accounts`, {
         method: 'DELETE',
@@ -141,25 +187,31 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
         body: JSON.stringify({ tiktok_username: handle }),
       });
       if (res.ok) {
-        setAccounts(accounts.filter((a) => a !== handle));
+        setAccounts(previous => previous.filter(account => account !== handle));
+        setConfirmRemove(null);
+        setStatusMessage(`@${handle} has been removed from this creator across all brands.`);
         router.refresh();
-      }
+      } else setError(await responseError(res, 'Could not remove the account'));
+    } catch {
+      setError('Could not confirm the account removal. Check your connection and retry, or reopen the profile to check its status.');
     } finally {
+      writePending.current = false;
       setAccountSaving(false);
     }
   };
 
   return (
-    <Dialog.Root open onOpenChange={open => { if (!open && !saving && !accountSaving) onClose(); }}><Dialog.Portal><Dialog.Overlay className={styles.overlay} /><Dialog.Content className={styles.panel} data-lenis-prevent>
-        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
+    <Dialog.Root open onOpenChange={open => { if (!open) requestClose(); }}><Dialog.Portal><Dialog.Overlay className={styles.overlay} /><Dialog.Content className={styles.panel} data-lenis-prevent onEscapeKeyDown={event => { event.preventDefault(); requestClose(); }} onCloseAutoFocus={event => { event.preventDefault(); returnFocus(); }}>
+        <div className={styles.header}>
           <div><Dialog.Title className="text-xl font-semibold">Edit creator</Dialog.Title><Dialog.Description className="mt-1 text-xs text-muted-foreground">{creator.real_name} · Profile and brand relationship</Dialog.Description></div>
-          <button onClick={onClose} disabled={saving || accountSaving} aria-label="Close editor" className="p-2 rounded-lg hover:bg-muted">
+          <button type="button" onClick={requestClose} disabled={busy} aria-label="Close editor" className={styles.close}>
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
 
         <Tabs.Root value={section} onValueChange={setSection}><Tabs.List className={styles.editorTabs} aria-label="Creator editor sections"><Tabs.Trigger value="details">Profile details</Tabs.Trigger><Tabs.Trigger value="accounts">Linked accounts <span>{accounts.length}</span></Tabs.Trigger></Tabs.List>
-        <div className={styles.body}><Tabs.Content value="details">
+        <div className={styles.body}>
+          <fieldset disabled={busy} className={styles.formFields}><Tabs.Content value="details">
           {/* Profile Fields */}
           <div className={styles.fields}><h3 className={styles.groupTitle}>Creator details</h3>
             <Field label="Real Name" value={form.real_name} onChange={(v) => setForm({ ...form, real_name: v })} />
@@ -232,12 +284,6 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             </div>
           </div>
 
-          {error && (
-            <div className="rounded-xl bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
-              {error}
-            </div>
-          )}
-
           </Tabs.Content><Tabs.Content value="accounts">
           {/* TikTok Accounts.
 
@@ -277,8 +323,10 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                       </div>
                     ) : (
                       <button
+                        type="button"
                         onClick={() => setConfirmRemove(handle)}
                         disabled={accountSaving}
+                        aria-label={`Remove @${handle} from all brands`}
                         title="Remove this account from every brand"
                         className="p-1 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0"
                       >
@@ -312,13 +360,23 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               </button>
             </div>
           </div>
-          </Tabs.Content></div>
+          </Tabs.Content></fieldset></div>
           <footer className={styles.footer}>
+            {(error || statusMessage) && <div className={styles.feedback}>
+              {error && <div role="alert" className={styles.error}>{error}</div>}
+              {statusMessage && <p role="status" className={styles.statusMessage}>{statusMessage}</p>}
+            </div>}
             <p>{section==='details' ? 'Save applies to profile fields and selected-brand details.' : 'Account changes apply immediately across all brands.'}</p>
-            <button type="button" onClick={onClose} disabled={saving || accountSaving} className={styles.secondary}>{section==='details'?'Cancel':'Done'}</button>
+            <button type="button" onClick={requestClose} disabled={busy} className={styles.secondary}>{section==='details'?'Cancel':'Done'}</button>
             {section==='details' && <button type="button" onClick={handleSave} disabled={saving || accountSaving} className={styles.primary}>{saving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Save changes</button>}
           </footer></Tabs.Root>
-    </Dialog.Content></Dialog.Portal></Dialog.Root>
+    </Dialog.Content></Dialog.Portal>
+      <AlertDialog.Root open={discardPrompt} onOpenChange={setDiscardPrompt}><AlertDialog.Portal><AlertDialog.Overlay className={styles.discardOverlay} /><AlertDialog.Content className={styles.discardDialog} onCloseAutoFocus={event => { event.preventDefault(); if (!discardClosesEditor.current && discardOpener.current?.isConnected) discardOpener.current.focus({ preventScroll: true }); }}>
+        <AlertDialog.Title>Discard unsaved changes?</AlertDialog.Title>
+        <AlertDialog.Description>Your profile edits and any account handle you have not added will be discarded. Account changes already applied stay saved.</AlertDialog.Description>
+        <div className={styles.discardActions}><AlertDialog.Cancel className={styles.secondary}>Keep editing</AlertDialog.Cancel><AlertDialog.Action className={styles.primary} onClick={() => { discardClosesEditor.current = true; onClose(); }}>Discard changes</AlertDialog.Action></div>
+      </AlertDialog.Content></AlertDialog.Portal></AlertDialog.Root>
+    </Dialog.Root>
   );
 }
 

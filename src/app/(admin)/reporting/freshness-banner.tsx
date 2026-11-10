@@ -14,12 +14,14 @@ type FreshnessState =
   | { status: 'error' }
   | { status: 'ok'; daysOld: number | null; latest: string | null };
 
-export function FreshnessBanner() {
+export function FreshnessBanner({ brand = 'all' }: { brand?: string }) {
   const [state, setState] = useState<FreshnessState>({ status: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/reporting/freshness?brand=all')
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    fetch('/api/reporting/freshness?brand=' + encodeURIComponent(brand), { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const d = await res.json();
@@ -32,9 +34,10 @@ export function FreshnessBanner() {
           latest: d.latestReportDate ?? null,
         });
       })
-      .catch(() => { if (!cancelled) setState({ status: 'error' }); });
-    return () => { cancelled = true; };
-  }, []);
+      .catch(() => { if (!cancelled) setState({ status: 'error' }); })
+      .finally(() => clearTimeout(timer));
+    return () => { cancelled = true; clearTimeout(timer); controller.abort(); };
+  }, [brand]);
 
   if (state.status === 'loading') return null;
 

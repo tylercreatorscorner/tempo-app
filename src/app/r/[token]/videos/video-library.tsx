@@ -7,6 +7,7 @@ import { Search, X, Download } from 'lucide-react';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { type PublishedVideoEvidenceItem, type ReportVideoLibrary } from '@/lib/data/published-video-evidence-types';
+import styles from './evidence.module.css';
 
 const PAGE_SIZE = 25;
 type VideoSort = 'newest' | 'oldest' | 'creator';
@@ -107,8 +108,8 @@ export function VideoLibrary({ library, recordedTotal, filteredTotal, initialCre
     ...(creatorKey && !creator ? [{ value: creatorKey, label: 'Creator unavailable', disabled: true }] : []),
     ...creators.map(row => ({ value: row.key, label: row.name }))];
 
-  return <main className="min-h-screen bg-[#fbfbfd] px-4 py-6 text-[#171a33] sm:px-8 sm:py-9">
-    <div className="mx-auto max-w-5xl space-y-5">
+  return <main className={styles.page}>
+    <div className={styles.content}>
       <Link href={`/r/${encodeURIComponent(library.token)}${library.preview ? '?preview=1' : ''}#creators`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b7093] hover:text-[#4b45ff]"><InterfaceIcon name="back" className="size-3.5"/>Back to report</Link>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-[11px] font-semibold uppercase tracking-wider text-[#8a8fb0]">{library.brandName}</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Published videos</h1><p className="mt-1 text-sm text-[#6b7093]">{library.periodLabel}</p></div>

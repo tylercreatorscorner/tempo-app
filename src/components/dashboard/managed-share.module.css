@@ -1,0 +1,10 @@
+.share { display: flex; flex-direction: column; gap: 10px; }
+.value { margin: 0; color: var(--studio-ink, #191a1c); font-size: 44px; line-height: 1.4; letter-spacing: -.04em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.positive, .negative { margin: 0; font-size: 12px; line-height: 18px; font-weight: 500; }
+.positive { color: var(--studio-positive, #217457); }
+.negative { color: var(--studio-warning, #93630d); }
+.track { display: flex; height: 8px; width: 100%; overflow: hidden; border-radius: 99px; background: var(--studio-line, #dddcd7); }
+.track > span { display: block; height: 100%; border-radius: inherit; background: var(--studio-purple, #6e4bcc); }
+.amounts { margin: 0; color: var(--studio-ink, #191a1c); font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.note { margin: 0; color: var(--studio-muted, #66666c); font-size: 12px; line-height: 18px; }
+@media (max-width: 767px) { .value { font-size: 38px; line-height: 1.3; } .positive, .negative, .amounts, .note { font-size: 13px; line-height: 19px; } }

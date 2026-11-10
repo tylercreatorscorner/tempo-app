@@ -18,16 +18,17 @@ export default function ReportingPage() {
   const params = useSearchParams();
   const requestedView = params.get('view');
   const initialView = requestedView === 'agency' || requestedView === 'library' ? requestedView : 'clients';
+  const brand = params.get('brand') || 'all';
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   useEffect(() => {
     const reset = () => setWorkspaceVersion(version => version + 1);
     window.addEventListener('workspace-context-changed', reset);
     return () => window.removeEventListener('workspace-context-changed', reset);
   }, []);
-  return <ReportingWorkspace key={`${workspaceVersion}:${initialView}`} initialView={initialView} />;
+  return <ReportingWorkspace key={`${workspaceVersion}:${initialView}`} initialView={initialView} brand={brand} />;
 }
 
-function ReportingWorkspace({ initialView }: { initialView: 'clients' | 'agency' | 'library' }) {
+function ReportingWorkspace({ initialView, brand }: { initialView: 'clients' | 'agency' | 'library'; brand: string }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [view, setView] = useState<'clients' | 'agency' | 'library'>(initialView);
   const [visited, setVisited] = useState<Set<string>>(() => new Set([initialView]));
@@ -47,7 +48,7 @@ function ReportingWorkspace({ initialView }: { initialView: 'clients' | 'agency'
         </div>
       )}
         <div hidden={Boolean(target)}>
-          {visited.has('clients') && <div hidden={view !== 'clients'} className="space-y-4"><FreshnessBanner /><BrandTable refreshKey={refreshKey} onGenerate={(slug, name) => setTarget({ slug, name })} /></div>}
+          {visited.has('clients') && <div hidden={view !== 'clients'} className="space-y-4"><FreshnessBanner key={brand} brand={brand} /><BrandTable refreshKey={refreshKey} onGenerate={(slug, name) => setTarget({ slug, name })} /></div>}
           {visited.has('agency') && <div hidden={view !== 'agency'} className="max-w-3xl space-y-4"><AgencyPanel /><NavigationLink href="/reporting/weekly">Open internal weekly review</NavigationLink></div>}
           {visited.has('library') && <div hidden={view !== 'library'}><SentFeed refreshKey={refreshKey} /></div>}
         </div>

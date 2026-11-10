@@ -44,6 +44,7 @@ const ui = load('src/app/r/[token]/videos/video-library.tsx', {
   'lucide-react': { Search: 'search-icon', X: 'close-icon', Download: 'download-icon' },
   '@/components/ui/choice-menu': { ChoiceMenu: 'choice-menu' },
   '@/components/ui/interface-icon': { InterfaceIcon: 'interface-icon' },
+  './evidence.module.css': { default: { page: 'evidence-page', content: 'evidence-content' } },
 });
 function nodes(node) {
   if (node === null || node === undefined || typeof node === 'boolean') return [];
@@ -204,7 +205,9 @@ const reportPage = load('src/app/r/[token]/page.tsx', {
     return { from: () => query };
   } },
   '@/lib/data/client-reports': { reviveReportDates: value => value },
-  './report-view': { ReportView: 'report-view' },
+  './studio-report-view': { StudioReportView: 'report-view' },
+  '@/lib/data/client-report-history': { loadClientReportHistoryResult: async () => ({ items: [], unavailable: false }) },
+  'lucide-react': { LockKeyhole: 'lock-icon' },
   './view-beacon': { ViewBeacon: 'view-beacon' },
 });
 for (const preview of [true, false]) {

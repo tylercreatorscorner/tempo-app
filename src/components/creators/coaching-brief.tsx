@@ -1,13 +1,19 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { useProfileDrafts, type CoachingDraft } from './profile-draft-context';
 
 /** A private, unsaved working brief; copying never sends to Discord. */
-export function CoachingBrief({ creator, brand }: { creator: string; brand: string }) {
+export function CoachingBrief({ creator, brand, draftKey }: { creator: string; brand: string; draftKey?:string }) {
   const id = useId();
-  const [observation, setObservation] = useState('');
-  const [experiment, setExperiment] = useState('');
-  const [followUp, setFollowUp] = useState('');
+  const drafts=useProfileDrafts();
+  const [local,setLocal]=useState<CoachingDraft>({observation:'',experiment:'',followUp:''});
+  const draft=draftKey&&drafts?drafts.drafts[draftKey]??{observation:'',experiment:'',followUp:''}:local;
+  const {observation,experiment,followUp}=draft;
+  const update=(field:keyof CoachingDraft,value:string)=>{const next={...draft,[field]:value};if(draftKey&&drafts)drafts.update(draftKey,next);else setLocal(next);};
+  const setObservation=(value:string)=>update('observation',value);
+  const setExperiment=(value:string)=>update('experiment',value);
+  const setFollowUp=(value:string)=>update('followUp',value);
   const [message, setMessage] = useState('');
   async function copy() {
     try {

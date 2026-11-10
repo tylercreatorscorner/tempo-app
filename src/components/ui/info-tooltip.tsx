@@ -4,9 +4,11 @@ import * as React from 'react';
 import { Tooltip } from 'radix-ui';
 import { Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import styles from './info-tooltip.module.css';
 
 /**
- * Hover/focus tooltip for explaining a metric or column. Pass `label` (the
+ * Hover/focus tooltip for explaining a metric or column. The default info
+ * button also toggles on tap or keyboard activation. Pass `label` (the
  * explanation) and optionally wrap a trigger via `children`; with no children it
  * renders a small info glyph. Built on the Radix Tooltip primitive so it's
  * accessible (keyboard-focusable, ARIA) and collision-aware. Theme-aware:
@@ -25,16 +27,43 @@ export function InfoTooltip({
   className?: string;
   iconClassName?: string;
 }) {
+  const [open, setOpen] = React.useState(false);
+  const pinned = React.useRef(false);
+  const trigger = React.useRef<HTMLButtonElement>(null);
+  const defaultTrigger = children == null;
+  const close = React.useCallback(() => { pinned.current = false; setOpen(false); }, []);
+  React.useEffect(() => {
+    if (!defaultTrigger || !open) return;
+    const onScroll = () => close();
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [defaultTrigger, open, close]);
   return (
     <Tooltip.Provider delayDuration={120} skipDelayDuration={300}>
-      <Tooltip.Root>
+      <Tooltip.Root open={defaultTrigger ? open : undefined} onOpenChange={defaultTrigger ? next => {
+        // A tapped explanation stays readable after the touch pointer leaves.
+        // Explicit dismissal below still handles Escape, blur and outside taps.
+        if (next || !pinned.current) setOpen(next);
+      } : undefined}>
         <Tooltip.Trigger asChild>
           {children ?? (
             <button
+              ref={trigger}
               type="button"
               aria-label="More information"
+              aria-expanded={open}
+              onClick={event => {
+                // Radix's hover tooltip normally closes on click. Pin the
+                // default info button instead, so touch and keyboard work too.
+                event.preventDefault();
+                pinned.current = !pinned.current;
+                setOpen(pinned.current);
+              }}
+              onBlur={close}
+              onPointerLeave={event => { if (event.pointerType !== 'touch' && pinned.current) close(); }}
               className={cn(
-                'inline-flex items-center text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground',
+                'inline-flex items-center text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:text-foreground',
+                styles.trigger,
                 className,
               )}
             >
@@ -44,6 +73,12 @@ export function InfoTooltip({
         </Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content
+            onEscapeKeyDown={defaultTrigger ? close : undefined}
+            onPointerDownOutside={defaultTrigger ? event => {
+              if (trigger.current?.contains(event.detail.originalEvent.target as Node)) {
+                event.preventDefault();
+              } else close();
+            } : undefined}
             side={side}
             sideOffset={6}
             collisionPadding={12}

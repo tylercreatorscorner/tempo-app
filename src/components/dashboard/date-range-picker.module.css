@@ -1,0 +1,17 @@
+.root { position:relative; min-width:0; }
+.trigger { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:36px; padding:7px 10px; border:1px solid var(--studio-boundary,var(--input)); border-radius:8px; background:var(--studio-surface,var(--card)); color:var(--studio-ink,var(--foreground)); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; cursor:pointer; }
+.trigger:hover { border-color:var(--studio-purple,var(--primary)); }
+.trigger:focus-visible { outline:2px solid var(--studio-purple,var(--primary)); outline-offset:3px; }
+.trigger:disabled { cursor:wait; }
+.trigger svg { flex-shrink:0; color:var(--studio-muted,var(--muted-foreground)); }
+.trigger > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.menu { z-index:100; min-width:224px; max-width:calc(100vw - 24px); max-height:var(--radix-dropdown-menu-content-available-height); overflow-y:auto; padding:6px; border:1px solid var(--studio-line,var(--border)); border-radius:10px; background:var(--studio-surface,var(--popover)); color:var(--studio-ink,var(--foreground)); box-shadow:0 10px 32px rgb(25 26 28 / .12); animation:menuIn 100ms ease-out; }
+.label { padding:6px 8px; color:var(--studio-muted,var(--muted-foreground)); font-size:12px; font-weight:500; }
+.item { display:flex; align-items:center; justify-content:space-between; gap:14px; min-height:34px; padding:7px 8px; border-radius:6px; font-size:12px; outline:none; cursor:pointer; }
+.item[data-highlighted] { background:var(--studio-soft,var(--accent)); }
+.item[data-state=checked] { color:var(--studio-purple,var(--primary)); background:var(--studio-soft,var(--accent)); }
+.separator { height:1px; margin:5px 0; background:var(--studio-line,var(--border)); }
+.custom { display:flex; align-items:center; gap:8px; }
+@keyframes menuIn { from { opacity:0; } to { opacity:1; } }
+@media(max-width:767px) { .root { flex:1 1 190px; } .trigger { width:100%; min-height:44px; font-size:13px; } .item { min-height:44px; font-size:13px; } }
+@media(prefers-reduced-motion:reduce) { .menu { animation:none; } }

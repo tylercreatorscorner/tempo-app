@@ -3,5 +3,5 @@
 import { PageError } from '@/components/ui/page-error';
 
 export default function PostsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  return <PageError error={error} reset={reset} what="posts" />;
+  return <PageError error={error} reset={reset} what="the content library" />;
 }

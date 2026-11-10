@@ -1,271 +1,164 @@
-"use client";
-import { useEffect, useState, useMemo } from "react";
-import dynamic from "next/dynamic";
-import { useTheme } from "next-themes";
-import type { ApexOptions } from "apexcharts";
-import { ManagedGmvChart } from "./managed-gmv-chart";
-import { ChoiceMenu } from "@/components/ui/choice-menu";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
-import {
-  seriesPoints,
-  monthlyPoints,
-  type MetricKey,
-  type MetricRow,
-} from "@/lib/data/dashboard-series-model";
-import { formatCurrency } from "@/lib/utils/format";
+'use client';
+
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
+import { useTheme } from 'next-themes';
+import type { ApexOptions } from 'apexcharts';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { ChartLoading, LoadingStatus } from '@/components/ui/loading-status';
-const ApexChart = dynamic(() => import("react-apexcharts"), { ssr: false, loading: () => <ChartLoading label="Preparing chart" /> });
-const options = [
-  { value: "gmv", label: "Total GMV" },
-  { value: "managed_gmv", label: "Managed GMV" },
-  { value: "orders", label: "Total orders" },
-  { value: "managed_orders", label: "Managed creator orders" },
-  { value: "units", label: "Units sold" },
-  { value: "managed_units", label: "Managed creator units" },
+import { monthlyPoints, seriesPoints, type MetricKey } from '@/lib/data/dashboard-series-model';
+import { loadSeriesRange, type SeriesResult } from './dashboard-series-loader';
+import { sparseCategoryLabel as sparseLabel } from './dashboard-chart-labels';
+import { formatCurrency } from '@/lib/utils/format';
+import { fmtCompact, fmtCompactCurrency } from '@/components/charts/format';
+import styles from './dashboard-charts.module.css';
+
+const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false, loading: () => <ChartLoading label="Preparing chart" /> });
+type Point = { date: string; gmv: number | null; recordedBrands?: number };
+type ChartMetric = 'comparison' | MetricKey;
+interface DashboardChartProps { start: string; end: string; brand: string | null; initial: Point[]; variant?: 'daily' | 'monthly' }
+interface LoadedSeries { scope: string; historyStart: string; data: SeriesResult }
+interface RangeSeries {
+  result: SeriesResult | null; pending: boolean; error: boolean; retry: () => void;
+  historyStart: string; completed: number; total: number;
+}
+interface SeriesContextValue {
+  daily: RangeSeries; history: RangeSeries;
+  months: string; setMonths: (value: string) => void; historyStart: string;
+}
+const SeriesContext = createContext<SeriesContextValue | null>(null);
+const metricOptions = [
+  { value: 'comparison', label: 'GMV comparison' }, { value: 'gmv', label: 'Total GMV' },
+  { value: 'managed_gmv', label: 'Managed GMV' }, { value: 'orders', label: 'Total orders' },
+  { value: 'managed_orders', label: 'Managed creator orders' }, { value: 'units', label: 'Units sold' },
+  { value: 'managed_units', label: 'Managed creator units' },
 ];
-export function DashboardCharts({
-  start,
-  end,
-  brand,
-  initial,
-}: {
-  start: string;
-  end: string;
-  brand: string | null;
-  initial: { date: string; gmv: number | null; recordedBrands?: number }[];
-}) {
-  const [metric, setMetric] = useState<MetricKey>("gmv");
-  const [months, setMonths] = useState("6");
-  const [view, setView] = useState<'daily' | 'monthly'>('daily');
-  const [result, setResult] = useState<{
-    rows: MetricRow[];
-    brands: number;
-  } | null>(null);
-  const [error, setError] = useState(false);
-  const [retry, setRetry] = useState(0);
-  const { resolvedTheme } = useTheme();
-  const dark = resolvedTheme === "dark";
-  const [year, month] = end.split("-").map(Number);
-  const historyStart = new Date(Date.UTC(year, month - Number(months), 1))
-    .toISOString()
-    .slice(0, 10);
-  const fetchStart = start < historyStart ? start : historyStart;
+
+function useRangeSeries(scope: string, start: string, end: string, brand: string | null, enabled = true): RangeSeries {
+  const [loaded, setLoaded] = useState<LoadedSeries | null>(null);
+  const [request, setRequest] = useState({ key: '', pending: true, error: false, completed: 0, total: 0 });
+  const [attempt, setAttempt] = useState(0);
+  const cache = useRef({ scope: '', windows: new Map<string, SeriesResult>() });
+  // Filter the retained result during render, before effect cleanup. A caller
+  // without a React key must never paint another brand or date range's data.
+  const requestKey = JSON.stringify([scope, start, end, attempt]);
+  const current = loaded?.scope === scope ? loaded : null;
+  const result = current?.data ?? null;
+  const pending = !enabled || request.key !== requestKey || request.pending;
+  const error = request.key === requestKey && request.error;
   useEffect(() => {
+    if (!enabled) return;
     const abort = new AbortController();
-    setResult(null);
-    setError(false);
-    // Bound the whole request, including auth/scope work before the database query.
-    const timeout = setTimeout(() => {
-      abort.abort();
-      setError(true);
-    }, 35000);
-    const params = new URLSearchParams({ start: fetchStart, end });
-    if (brand) params.set("brand", brand);
-    fetch(`/api/dashboard/series?${params}`, { signal: abort.signal })
-      .then(async (res) => {
-        if (!res.ok) throw Error();
-        return res.json();
-      })
-      .then((data) => {
-        if (!abort.signal.aborted) setResult(data);
+    if (cache.current.scope !== scope) cache.current = { scope, windows: new Map() };
+    loadSeriesRange({ start, end, brand, signal: abort.signal, cache: cache.current.windows,
+      onProgress: (completed, total) => {
+        if (!abort.signal.aborted) setRequest({ key: requestKey, pending: true, error: false, completed, total });
+      },
+    })
+      .then(data => {
+        if (!abort.signal.aborted) {
+          setLoaded({ scope, historyStart: start, data });
+          setRequest(value => ({ ...value, key: requestKey, pending: false, error: false }));
+        }
       })
       .catch(() => {
-        if (!abort.signal.aborted) setError(true);
-      })
-      .finally(() => clearTimeout(timeout));
-    return () => { clearTimeout(timeout); abort.abort(); };
-  }, [fetchStart, end, brand, retry]);
-  const selected = options.find((option) => option.value === metric)!;
-  const points = useMemo(() => result
-    ? seriesPoints(result.rows, start, end, metric)
-    : metric === "gmv"
-      ? initial
-      : [], [result, start, end, metric, initial]);
-  const monthly = useMemo(() => result
-    ? monthlyPoints(result.rows, historyStart, end, result.brands)
-    : [], [result, historyStart, end]);
-  const ink = dark ? "#a9a9b3" : "#64646f";
-  const apex: ApexOptions = {
-    chart: {
-      type: "line",
-      toolbar: { show: false },
-      zoom: { enabled: false },
-      animations: { enabled: false },
-      background: "transparent",
-      fontFamily: "inherit",
-      foreColor: ink,
-    },
-    colors: [dark ? '#ae94f3' : '#6e4bcc', dark ? '#82d9af' : '#217457', dark ? '#a0aabd' : '#697386'],
-    stroke: { width: [3, 3, 2], curve: "straight", dashArray: [0, 0, 5] },
-    markers: { size: 3, hover: { sizeOffset: 2 } },
-    grid: { borderColor: dark ? "#303036" : "#ececf0", strokeDashArray: 4 },
-    legend: { position: "top", horizontalAlign: "left", fontSize: "12px" },
-    xaxis: {
-      categories: monthly.map(
-        (p) =>
-          new Date(p.month + "-01T00:00:00Z").toLocaleDateString("en-US", {
-            month: "short",
-            year: "2-digit",
-            timeZone: "UTC",
-          }) + (p.partial ? " *" : ""),
-      ),
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-      crosshairs: { show: false },
-    },
-    yaxis: [
-      {
-        seriesName: ["Total GMV", "Managed GMV"],
-        min: 0,
-        labels: {
-          formatter: (v) =>
-            Intl.NumberFormat("en-US", {
-              notation: "compact",
-              style: "currency",
-              currency: "USD",
-              maximumFractionDigits: 1,
-            }).format(v),
-        },
-      },
-      {
-        seriesName: "Managed share",
-        opposite: true,
-        min: 0,
-        max: Math.max(100, ...monthly.map((p) => p.share ?? 0)),
-        labels: { formatter: (v) => `${Math.round(v)}%` },
-      },
-    ],
-    tooltip: {
-      shared: true,
-      intersect: false,
-      theme: dark ? "dark" : "light",
-      y: {
-        formatter: (value, opts) =>
-          value == null
-            ? "No recorded data"
-            : opts?.seriesIndex === 2
-              ? `${value.toFixed(1)}%`
-              : formatCurrency(value),
-      },
-    },
-    dataLabels: { enabled: false },
+        if (!abort.signal.aborted) setRequest(value => ({ ...value, key: requestKey, pending: false, error: true }));
+      });
+    return () => abort.abort();
+  }, [start, end, brand, scope, requestKey, enabled]);
+  return { result, pending, error, historyStart: current?.historyStart ?? start, completed: request.key === requestKey ? request.completed : 0, total: request.key === requestKey ? request.total : 0, retry: () => setAttempt(value => value + 1) };
+}
+
+/** Selected-period metrics load first; history never blocks the daily chart. */
+export function DashboardSeriesProvider({ children, start, end, brand }: {
+  children: ReactNode; start: string; end: string; brand: string | null; initial?: Point[];
+}) {
+  const [months, setMonths] = useState('6');
+  const [year, month] = end.split('-').map(Number);
+  const desiredHistoryStart = new Date(Date.UTC(year, month - Number(months), 1)).toISOString().slice(0, 10);
+  const scope = JSON.stringify([brand, start, end]);
+  const daily = useRangeSeries(scope, start, end, brand);
+  const history = useRangeSeries(scope, desiredHistoryStart, end, brand, !daily.pending);
+  return <SeriesContext.Provider value={{ daily, history, months, setMonths, historyStart: history.historyStart }}>{children}</SeriesContext.Provider>;
+}
+
+const monthLabel = (month: string) => new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+const dayLabel = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : day;
+function baseOptions(dark: boolean): ApexOptions {
+  return {
+    chart: { type: 'line', toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, background: 'transparent', fontFamily: 'inherit', foreColor: dark ? '#aaa9ae' : '#66666c', parentHeightOffset: 0 },
+    colors: dark ? ['#ededeb', '#b89bf8', '#8bd4b1'] : ['#191a1c', '#6e4bcc', '#217457'],
+    stroke: { width: [2.2, 2.2, 2], curve: 'straight', dashArray: [0, 0, 5] },
+    markers: { size: 0, hover: { sizeOffset: 4 } },
+    grid: { borderColor: dark ? '#37363d' : '#dddcd7', strokeDashArray: 0, padding: { left: 4, right: 8, top: 0, bottom: 0 } },
+    legend: { show: false }, dataLabels: { enabled: false },
+    tooltip: { shared: true, intersect: false, theme: dark ? 'dark' : 'light' },
+    noData: { text: 'No recorded data in this period', style: { fontSize: '13px', color: dark ? '#aaa9ae' : '#66666c' } },
   };
-  return (
-    <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-card" aria-label="Performance analysis">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">Performance</h2>
-        <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5" role="group" aria-label="Performance view">
-          {([{id:'daily',label:'Selected period'},{id:'monthly',label:'Monthly history'}] as const).map(option=><button key={option.id} type="button" aria-pressed={view===option.id} onClick={()=>setView(option.id)} className={`min-h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary ${view===option.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{option.label}</button>)}
-        </div>
-      </header>
-      {view==='daily' ? <div className="px-4 pb-4">
-          <ManagedGmvChart
-            embedded
-            key={metric}
-            data={points}
-            label={selected.label}
-            numeric={!metric.includes("gmv")}
-            totalBrands={result?.brands}
-            coverageUnit="stores"
-            controls={
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
-                <ChoiceMenu
-                  compact
-                  label="Chart metric"
-                  value={metric}
-                  onChange={(v) => setMetric(v as MetricKey)}
-                  options={options}
-                />
-                <InfoTooltip label="Recorded daily totals for your selected brands. Missing imports are gaps, not zero sales. Managed metrics use the same creator membership as the dashboard." />
-                {!result && !error && (
-                  <LoadingStatus label="Loading metrics" className="basis-full sm:basis-auto" />
-                )}
-              </div>
-            }
-          />
-          {error && <p role="alert" className="mt-3 text-xs text-muted-foreground">Additional chart metrics could not be loaded. <button type="button" className="font-medium text-primary underline" onClick={()=>setRetry(value=>value+1)}>Retry</button></p>}
-        </div> : <div className="px-4 py-3" aria-label="Monthly performance">
-        <header className="mb-2 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">GMV and managed contribution by month</p>
-          <div className="flex items-center gap-2">
-            <InfoTooltip label="Dollar values use the left axis; managed share uses the right axis. An asterisk marks a partial month or missing daily records. Share is managed GMV divided by total GMV, not an average of daily percentages." />
-            <ChoiceMenu
-              compact
-              label="History length"
-              value={months}
-              onChange={setMonths}
-              options={[
-                { value: "6", label: "6 months" },
-                { value: "12", label: "12 months" },
-              ]}
-            />
-          </div>
-        </header>
-        {error ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            Chart data could not be loaded.{" "}
-            <button
-              className="text-primary underline"
-              onClick={() => setRetry((v) => v + 1)}
-            >
-              Retry
-            </button>
-          </div>
-        ) : !result ? (
-          <ChartLoading key={`${fetchStart}|${end}|${brand}|${retry}`} />
-        ) : (
-          <>
-            <ApexChart
-              type="line"
-              height={270}
-              options={apex}
-              series={[
-                { name: "Total GMV", data: monthly.map((p) => p.total) },
-                { name: "Managed GMV", data: monthly.map((p) => p.managed) },
-                { name: "Managed share", data: monthly.map((p) => p.share) },
-              ]}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              * Partial month or incomplete coverage · Through {end}
-            </p>
-            <details className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-              <summary className="w-fit cursor-pointer rounded-md py-1 font-medium text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-4">Monthly values</summary>
-              <div className="mt-3 overflow-x-auto rounded-xl border border-border" role="region" aria-label="Monthly performance values" tabIndex={0}>
-                <table className="w-full min-w-[460px] text-right tabular-nums [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-3">
-                  <caption className="sr-only">Monthly total GMV, managed GMV, and managed share. An asterisk marks partial coverage.</caption>
-                  <thead className="bg-muted/40 text-[11px]">
-                    <tr>
-                      <th scope="col" className="text-left">Month</th>
-                      <th scope="col">Total GMV</th>
-                      <th scope="col">Managed GMV</th>
-                      <th scope="col">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthly.map((p) => (
-                      <tr key={p.month} className="border-t border-border hover:bg-muted/20">
-                        <th scope="row" className="whitespace-nowrap text-left font-medium text-foreground">
-                          {new Date(`${p.month}-01T00:00:00Z`).toLocaleDateString("en-US", {month:"short",year:"numeric",timeZone:"UTC"})}
-                          {p.partial ? " *" : ""}
-                        </th>
-                        <td>
-                          {p.total === null ? "—" : formatCurrency(p.total)}
-                        </td>
-                        <td>
-                          {p.managed === null ? "—" : formatCurrency(p.managed)}
-                        </td>
-                        <td>
-                          {p.share === null ? "—" : p.share.toFixed(1) + "%"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
-          </>
-        )}
-      </div>}
-    </section>
-  );
+}
+function RetryMessage({ retry, children }: { retry: () => void; children: ReactNode }) {
+  return <div className={styles.error} role="alert"><span>{children}</span><button type="button" onClick={retry}>Retry</button></div>;
+}
+
+function DailyChart({ start, end, initial }: DashboardChartProps) {
+  const dark = useTheme().resolvedTheme === 'dark';
+  const { result, pending, error, retry } = useContext(SeriesContext)!.daily;
+  const [metric, setMetric] = useState<ChartMetric>('comparison');
+  const comparison = metric === 'comparison';
+  const numeric = !comparison && !metric.includes('gmv');
+  const selected = metricOptions.find(option => option.value === metric)!;
+  const points = useMemo(() => result ? seriesPoints(result.rows, start, end, comparison ? 'gmv' : metric) : comparison || metric === 'gmv' ? initial : [], [result, start, end, comparison, metric, initial]);
+  const managed = useMemo(() => result && comparison ? seriesPoints(result.rows, start, end, 'managed_gmv') : [], [result, start, end, comparison]);
+  const hasInitial = points.some(point => point.gmv !== null);
+  const series = comparison
+    ? [{ name: 'Total GMV', data: points.map(point => point.gmv) }, ...(result ? [{ name: 'Managed GMV', data: managed.map(point => point.gmv) }] : [])]
+    : [{ name: selected.label, data: points.map(point => point.gmv) }];
+  const categories = points.map(point => point.date);
+  const options: ApexOptions = {
+    ...baseOptions(dark),
+    colors: comparison ? (dark ? ['#ededeb', '#b89bf8'] : ['#191a1c', '#6e4bcc']) : [metric.startsWith('managed_') ? (dark ? '#b89bf8' : '#6e4bcc') : (dark ? '#ededeb' : '#191a1c')],
+    xaxis: { categories, labels: { formatter: value => sparseLabel(String(value), categories, 5, dayLabel), rotate: 0, hideOverlappingLabels: true, style: { fontSize: '12px' } }, axisBorder: { show: false }, axisTicks: { show: false }, tooltip: { enabled: false } },
+    yaxis: { min: 0, tickAmount: 3, labels: { minWidth: 42, formatter: numeric ? fmtCompact : fmtCompactCurrency, style: { fontSize: '12px' } } },
+    tooltip: { shared: true, intersect: false, theme: dark ? 'dark' : 'light', x: { formatter: (_, context) => dayLabel(points[context?.dataPointIndex ?? 0]?.date ?? start) }, y: { formatter: value => value == null ? 'No recorded data' : numeric ? value.toLocaleString('en-US') : formatCurrency(value) } },
+    responsive: [{ breakpoint: 600, options: { xaxis: { labels: { formatter: (value: string) => sparseLabel(String(value), categories, 3, dayLabel) } } } }],
+  };
+  return <section className={`${styles.card} ${styles.daily}`} aria-label="Performance over time">
+    <header className={styles.header}><h2>Performance over time</h2><ChoiceMenu compact label="Chart metric" value={metric} onChange={value => setMetric(value as ChartMetric)} options={metricOptions} triggerClassName={styles.control} /></header>
+    <div className={styles.legend} aria-hidden="true"><span><i className={styles.totalLine} />{comparison ? 'Total GMV' : selected.label}</span>{comparison && <span><i className={styles.managedLine} />Managed GMV{!result ? (error ? ' unavailable' : ' loading') : ''}</span>}</div>
+    {pending && !hasInitial ? <div className={styles.loading}><ChartLoading label="Loading daily performance" /></div> : error && !hasInitial ? <RetryMessage retry={retry}>Daily metrics could not be loaded.</RetryMessage> : !hasInitial ? <p className={styles.empty}>No recorded daily data for these brands and dates. Missing records are not zero sales.</p> : <div className={styles.plot} role="img" aria-label={`Daily ${comparison ? (result ? 'Total GMV and Managed GMV' : 'Total GMV') : selected.label} line chart. Exact values are available in the Daily values table below.`}><ApexChart type="line" height={204} options={options} series={series} /></div>}
+    <div className={styles.caption}><span>{numeric ? 'Daily sales activity' : 'Daily sales'} · Selected period{comparison ? ' · Same dollar axis' : ''}</span><InfoTooltip label="Recorded daily totals for the selected brands and dates. A missing import is a gap, not zero sales. Managed metrics use the dashboard’s managed creator membership." /></div>
+    {pending && hasInitial && <LoadingStatus label={result ? 'Updating daily performance' : 'Loading managed metrics'} detail={result ? 'Your last loaded selected-period chart remains visible.' : undefined} className={styles.inlineStatus} />}
+    {error && hasInitial && <RetryMessage retry={retry}>{result ? 'The update failed. Your last loaded daily chart remains visible.' : 'Additional metrics are unavailable. Recorded total GMV remains visible.'}</RetryMessage>}
+    <details className={styles.values}><summary>Daily values</summary><div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Daily chart values"><table><caption className="sr-only">Daily sales in the selected period. Unavailable values are missing, not zero.</caption><thead><tr><th scope="col">Date</th><th scope="col">{comparison ? 'Total GMV' : selected.label}</th>{comparison && <th scope="col">Managed GMV</th>}</tr></thead><tbody>{points.map((point, index) => <tr key={point.date}><th scope="row">{dayLabel(point.date)}</th><td>{point.gmv === null ? 'Unavailable' : numeric ? point.gmv.toLocaleString('en-US') : formatCurrency(point.gmv)}</td>{comparison && <td>{managed[index]?.gmv == null ? 'Unavailable' : formatCurrency(managed[index].gmv)}</td>}</tr>)}</tbody></table></div></details>
+  </section>;
+}
+
+function MonthlyChart({ end }: DashboardChartProps) {
+  const dark = useTheme().resolvedTheme === 'dark';
+  const { history: { result, pending, error, retry, completed, total }, months, setMonths, historyStart } = useContext(SeriesContext)!;
+  const points = useMemo(() => result ? monthlyPoints(result.rows, historyStart, end, result.brands) : [], [result, historyStart, end]);
+  const categories = points.map(point => monthLabel(point.month) + (point.partial ? ' *' : ''));
+  const options: ApexOptions = {
+    ...baseOptions(dark),
+    xaxis: { categories, axisBorder: { show: false }, axisTicks: { show: false }, labels: { formatter: value => sparseLabel(String(value), categories, 6), rotate: 0, style: { fontSize: '12px' }, hideOverlappingLabels: true }, tooltip: { enabled: false } },
+    yaxis: [{ seriesName: ['Total GMV', 'Managed GMV'], min: 0, tickAmount: 3, labels: { formatter: fmtCompactCurrency, style: { fontSize: '12px' } } }, { seriesName: 'Managed share', opposite: true, min: 0, max: Math.max(100, ...points.map(point => point.share ?? 0)), tickAmount: 4, labels: { formatter: value => `${Math.round(value)}%`, style: { fontSize: '12px' } } }],
+    tooltip: { shared: true, intersect: false, theme: dark ? 'dark' : 'light', y: { formatter: (value, context) => value == null ? 'No recorded data' : context?.seriesIndex === 2 ? `${value.toFixed(1)}%` : formatCurrency(value) } },
+    responsive: [{ breakpoint: 600, options: { xaxis: { labels: { formatter: (value: string) => sparseLabel(String(value), categories, 3) } } } }],
+  };
+  return <section className={`${styles.card} ${styles.monthly}`} aria-label="Month-over-month performance">
+    <header className={styles.header}><h2>Month over month</h2><ChoiceMenu compact label="History length" value={months} onChange={setMonths} options={[{ value: '6', label: '6 months' }, { value: '12', label: '12 months' }]} triggerClassName={styles.control} /></header>
+    <div className={styles.legend} aria-hidden="true"><span><i className={styles.totalLine} />Total GMV</span><span><i className={styles.managedLine} />Managed GMV (left)</span><span><i className={styles.shareLine} />Managed share (right)</span></div>
+    {error && !result ? <RetryMessage retry={retry}>Monthly performance could not be loaded.</RetryMessage> : !result ? <div className={styles.loading}><ChartLoading label={total ? `Loading history · ${completed} of ${total} months` : 'Preparing monthly history'} /></div> : !points.some(point => point.total !== null) ? <p className={styles.empty}>No recorded monthly data for these brands. Missing records are not zero sales.</p> : <div className={styles.plot} role="img" aria-label="Monthly Total GMV and Managed GMV line chart with Managed share on the right percentage axis. Exact values are available in the Monthly values table below."><ApexChart type="line" height={224} options={options} series={[{ name: 'Total GMV', data: points.map(point => point.total) }, { name: 'Managed GMV', data: points.map(point => point.managed) }, { name: 'Managed share', data: points.map(point => point.share) }]} /></div>}
+    {pending && result && <LoadingStatus label={total ? `Updating monthly history · ${completed} of ${total} months` : 'Updating monthly history'} detail={`Showing the previous history from ${monthLabel(historyStart.slice(0, 7))} until the new data is ready.`} className={styles.inlineStatus} />}
+    {error && result && <RetryMessage retry={retry}>The history update failed. Showing the last successfully loaded history.</RetryMessage>}
+    <div className={styles.caption}><span>{monthLabel(historyStart.slice(0, 7))}–{monthLabel(end.slice(0, 7))} · * Partial month or incomplete coverage · Through {end}</span><InfoTooltip label="GMV uses the left dollar axis. Managed share uses the right percentage axis and equals managed GMV divided by total GMV for each month. Missing daily records mark the month partial." /></div>
+    {result && <details className={styles.values}><summary>Monthly values</summary><div className={styles.tableScroll} role="region" aria-label="Monthly performance values" tabIndex={0}><table><caption className="sr-only">Monthly total GMV, managed GMV and managed share. An asterisk marks a partial month or missing coverage.</caption><thead><tr><th scope="col">Month</th><th scope="col">Total GMV</th><th scope="col">Managed GMV</th><th scope="col">Share</th></tr></thead><tbody>{points.map(point => <tr key={point.month}><th scope="row">{monthLabel(point.month)}{point.partial ? ' *' : ''}</th><td>{point.total == null ? 'Unavailable' : formatCurrency(point.total)}</td><td>{point.managed == null ? 'Unavailable' : formatCurrency(point.managed)}</td><td>{point.share == null ? 'Unavailable' : `${point.share.toFixed(1)}%`}</td></tr>)}</tbody></table></div></details>}
+  </section>;
+}
+
+export function DashboardCharts(props: DashboardChartProps) {
+  const context = useContext(SeriesContext);
+  const chart = props.variant === 'monthly' ? <MonthlyChart {...props} /> : <DailyChart {...props} />;
+  return context ? chart : <DashboardSeriesProvider start={props.start} end={props.end} brand={props.brand}>{chart}</DashboardSeriesProvider>;
 }

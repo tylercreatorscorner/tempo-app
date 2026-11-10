@@ -77,7 +77,7 @@ function load(path) {
       if (name === '@/lib/auth/permissions') return { can: (s, screen, level) => s.permissions.has(`${screen}:${level}`) };
       const aliases = { '@/lib/agency/access': 'src/lib/agency/access.ts', '@/lib/agency/model': 'src/lib/agency/model.ts', './model': 'src/lib/agency/model.ts',
         '@/lib/agency/finance-model': 'src/lib/agency/finance-model.ts', './finance-model': 'src/lib/agency/finance-model.ts', './creator-billing': 'src/lib/agency/creator-billing.ts',
-        '@/lib/agency/revenue-model': 'src/lib/agency/revenue-model.ts', '@/lib/data/agency-revenue': 'src/lib/data/agency-revenue.ts' };
+        '@/lib/agency/revenue-model': 'src/lib/agency/revenue-model.ts', '@/lib/agency/revenue-trace': 'src/lib/agency/revenue-trace.ts', '@/lib/data/agency-revenue': 'src/lib/data/agency-revenue.ts' };
       return name in aliases ? load(aliases[name]) : require(name);
     },
   }); modules.set(path, exports); return exports;

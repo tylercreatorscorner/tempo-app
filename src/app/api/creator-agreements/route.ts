@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
         agreements: await readAgreements(
           req.nextUrl.searchParams.get("creatorId") ?? "",
           req.nextUrl.searchParams.get("brandId") ?? "",
+          { readOnly: req.nextUrl.searchParams.get("read_only") === "1" },
         ),
       },
       { headers },

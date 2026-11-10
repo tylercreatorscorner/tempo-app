@@ -2,10 +2,12 @@ import { getCreatorPerformanceHistory } from '@/lib/data/creator-performance-his
 import { getCreatorSummary } from '@/lib/data/creator-profile';
 import { total } from './model';
 import styles from '../profile-workspace.module.css';
+import studio from '../studio-profile.module.css';
 
-export async function ProfileHeadlineMetrics({creatorId,start,end,brand,label,summary}: {
+export async function ProfileHeadlineMetrics({creatorId,start,end,brand,label,summary,appearance='default'}: {
   creatorId:string; start:string; end:string; brand?:string; label:string;
-  summary:{total_gmv:number;total_orders:number;total_videos:number};
+  summary:{total_gmv:number;total_orders:number;total_videos:number;total_items_sold?:number};
+  appearance?:'default'|'studio';
 }) {
   const first=Date.parse(`${start}T00:00:00Z`), duration=Date.parse(`${end}T00:00:00Z`)-first+86400000;
   const valid=Number.isFinite(duration) && duration>0 && duration<=366*86400000;
@@ -14,7 +16,7 @@ export async function ProfileHeadlineMetrics({creatorId,start,end,brand,label,su
   const [current,previous,previousSummary]=await Promise.all([
     getCreatorPerformanceHistory(creatorId,start,end,brand),
     valid?getCreatorPerformanceHistory(creatorId,previousStart,previousEnd,brand):Promise.resolve(null),
-    valid?getCreatorSummary(creatorId,previousStart,previousEnd,brand):Promise.resolve(null),
+    valid&&appearance!=='studio'?getCreatorSummary(creatorId,previousStart,previousEnd,brand):Promise.resolve(null),
   ]);
   if(current.status==='denied') return null;
   const gmv=current.status==='ready'?total(current.points,'gmv'):null;
@@ -27,6 +29,18 @@ export async function ProfileHeadlineMetrics({creatorId,start,end,brand,label,su
     if(now===null || before===null) return <p>Comparison unavailable · incomplete records</p>;
     const difference=now-before, percent=before>0?difference/before*100:null;
     return <p className={styles.metricDelta}>{difference>0?'+':''}{currency?money(difference):number(difference)}{percent!==null?` (${percent>0?'+':''}${percent.toFixed(1)}%)`:' · no percentage for a zero baseline'}</p>;
+  }
+  if(appearance==='studio') {
+    const delta=gmv!==null && oldGmv!==null && oldGmv>0 ? (gmv-oldGmv)/oldGmv*100 : null;
+    return <div>
+      <dl className={studio.metrics} aria-label="Selected-period creator performance">
+        <div className={studio.metric} data-metric="gmv"><dt>GMV</dt><dd>{money(summary.total_gmv)}</dd><p className={delta!==null?(delta>=0?studio.positive:studio.negative):undefined}>{delta!==null?`${delta>=0?'+':''}${delta.toFixed(1)}% vs prior period`:'Comparison unavailable'}</p></div>
+        <div className={studio.metric} data-metric="orders"><dt>Orders</dt><dd>{number(summary.total_orders)}</dd><p>Selected sales period</p></div>
+        <div className={studio.metric} data-metric="units"><dt>Units sold</dt><dd>{summary.total_items_sold==null?'Unavailable':number(summary.total_items_sold)}</dd><p>Selected sales period</p></div>
+        <div className={studio.metric} data-metric="posts"><dt>Videos published</dt><dd>{posts===null?'Unavailable':number(posts)}</dd><p>Published in selected dates</p></div>
+      </dl>
+      <p className={studio.metricFootnote}>{gmv===null?'Recorded sales; daily coverage is incomplete. ':''}Compared with {previousStart} to {previousEnd}.</p>
+    </div>;
   }
   return <div>
     <div className={styles.metrics} aria-label="Selected-period metrics">

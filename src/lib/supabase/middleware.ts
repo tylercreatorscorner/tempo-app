@@ -63,6 +63,9 @@ const PUBLIC_PATHS = [
   // the PDF, so it can expose nothing the link itself does not already show.
   '/api/report-csv/',
   '/api/report-videos/',
+  // Covers authorize a frozen video identity against the active report token.
+  // Public recipients have no Tempo session; the endpoint is not an image proxy.
+  '/api/report-media/',
   '/api/report-viewed/',
   '/api/invoice-viewed/',
 ];

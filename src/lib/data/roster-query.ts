@@ -303,6 +303,7 @@ export interface RosterQueryBody {
   period_days: number | null;
   period_start: string | null;
   period_end: string | null;
+  period: { start: string | null; end: string | null };
   behind_count: number;
   silent_count: number;
   healthy_count: number;
@@ -1178,6 +1179,7 @@ export async function runRosterQuery(
       period_days: rangeParam ? null : periodDays,
       period_start: pStartDate,
       period_end: pEndDate,
+      period: { start: pStartDate, end: pEndDate },
       // Action-oriented aggregates (managed-only — the cards filter the table).
       // behind/silent/healthy count CONTRACTED creators only; affiliate_count is
       // the $0-retainer tracked creators (no post commitment, not a triage state).

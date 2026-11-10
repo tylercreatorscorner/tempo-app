@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { GoalReview } from "@/lib/data/manager-goals-model";
 import { formatCurrency } from "@/lib/utils/format";
+import styles from "./manager-portfolios.module.css";
 const Context = createContext<{ data: GoalReview | null; failed: boolean }>({
   data: null,
   failed: false,
@@ -53,9 +54,11 @@ export function ManagerGoalsProvider({
 export function ManagerGoalProgress({
   managerId,
   month,
+  presentation = "default",
 }: {
   managerId: string;
   month: string;
+  presentation?: "default" | "portfolio";
 }) {
   const { data, failed } = useContext(Context);
   const rows =
@@ -74,6 +77,29 @@ export function ManagerGoalProgress({
   const actual = rows.reduce((s, b) => s + (b.actual ?? 0), 0);
   const missingManager = managerId === "unassigned" || managerId.startsWith("unavailable:");
   const percent = complete && target ? (actual / target) * 100 : null;
+  const goalLabel = missingManager ? "Manager needed" : failed
+    ? "Unavailable"
+    : !data ? "Loading goals…" : target ? formatCurrency(target) : "Not set";
+  const coverageLabel = target > 0
+    ? approved.length < rows.length ? `${approved.length}/${rows.length} brands approved` : "Check data coverage"
+    : "Goal not set";
+  if (presentation === "portfolio") {
+    return <>
+      <div className={styles.goalTarget}>
+        <span className={styles.mobileLabel}>{month} goal</span>
+        <strong>{goalLabel}</strong>
+        {target > 0 && approved.length < rows.length && <small>{approved.length}/{rows.length} brands approved</small>}
+      </div>
+      <div className={styles.goalProgress}>
+        {percent !== null ? <>
+          <div className={styles.goalTrack} role="progressbar" aria-label={`${month} managed GMV goal progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(Math.max(percent, 0), 100)} aria-valuetext={`${percent.toFixed(1)}% achieved`}>
+            <div className={styles.goalFill} style={{ width: `${Math.min(Math.max(percent, 0), 100)}%` }} />
+          </div>
+          <span className={styles.goalPercent}>{percent.toFixed(1)}%</span>
+        </> : <small>{missingManager ? "Assign manager" : failed ? "Unavailable" : !data ? "Loading…" : coverageLabel}</small>}
+      </div>
+    </>;
+  }
   return (
     <div className="min-w-0 text-xs">
       <span className="block text-muted-foreground">{month} goal</span>

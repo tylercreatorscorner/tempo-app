@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 
 export interface VideoData {
   video_id: string;
@@ -36,15 +36,20 @@ export function useVideoPanel() {
 export function VideoPanelProvider({ children }: { children: ReactNode }) {
   const [video, setVideo] = useState<VideoData | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
 
   const openVideo = useCallback((data: VideoData) => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
     setVideo(data);
     setIsOpen(true);
   }, []);
 
   const closeVideo = useCallback(() => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
     setIsOpen(false);
-    setTimeout(() => setVideo(null), 300);
+    closeTimer.current = setTimeout(() => { setVideo(null); closeTimer.current = null; }, 300);
   }, []);
 
   return (

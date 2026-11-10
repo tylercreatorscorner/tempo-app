@@ -73,14 +73,16 @@ try {
   await db.exec("RESET ROLE; SET ROLE authenticated; SET test.tenant = 'a';");
 
   let calls = 0;
+  let performanceCalls = 0;
   let fail = false;
   let handles = ['first', 'second'];
   const caches = [];
   const cache = fn => {
     const values = new Map();
     caches.push(values);
-    return key => {
-      if (!values.has(key)) values.set(key, fn(key));
+    return (...args) => {
+      const key = JSON.stringify(args);
+      if (!values.has(key)) values.set(key, fn(...args));
       return values.get(key);
     };
   };
@@ -89,17 +91,21 @@ try {
     from(table) {
       assert.notEqual(table, 'daily_video_product_stats', 'Profile and lifetime must not download raw history');
       const result = () => ({ data: table === 'creators_v2' ? { id: 'creator', real_name: 'Example' } : table === 'managed_creators' ? [{ brand: 'contract', retainer: 99, account_1: 'first' }] : handles.map(tiktok_username => ({ tiktok_username, brand_id: 'registered' })), error: null });
-      const q = { select: () => q, eq: () => q, or: () => q, single: async () => result(), then: (resolve, reject) => Promise.resolve(result()).then(resolve, reject) };
+      const q = { select: () => q, eq: () => q, or: () => q, abortSignal: async () => result(), single: async () => result(), then: (resolve, reject) => Promise.resolve(result()).then(resolve, reject) };
       return q;
     },
-    async rpc(name, args) {
+    rpc(name, args) {
+      const result = async () => {
       if (name === 'get_creator_video_history') {
         calls++;
         if (fail) return { data: null, error: new Error('History query failed') };
         return { data: await history(Array.from(args.p_handles)), error: null };
       }
       assert.equal(name, 'get_creator_perf_by_handles');
+      performanceCalls++;
       return { data: [{ handle: 'first', brand: 'alpha', gmv: 200, orders: 4, commission: 20 }], error: null };
+      };
+      return { abortSignal: result, then: (resolve, reject) => result().then(resolve, reject) };
     },
   };
   const deps = {
@@ -113,7 +119,7 @@ try {
   };
   const exports = {};
   runInNewContext(ts.transpileModule(readFileSync('src/lib/data/creator-profile.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-    exports, console, Date, require: name => { assert.ok(name in deps, `Unexpected dependency ${name}`); return deps[name]; },
+    exports, console, Date, AbortSignal, require: name => { assert.ok(name in deps, `Unexpected dependency ${name}`); return deps[name]; },
   });
   const profile = await exports.getCreatorProfile('creator');
   const lifetime = await exports.getCreatorLifetimeStats('creator');
@@ -126,11 +132,18 @@ try {
   assert.equal(lifetime.total_gmv, 200);
   assert.equal(lifetime.total_orders, 4);
   assert.equal(lifetime.total_commission, 20);
+  await exports.getCreatorLifetimeStats('creator');
+  assert.equal(performanceCalls, 1, 'Matching current-period performance calls share one request-local scalar cache entry');
   newRequest();
   await db.exec("SET test.tenant = 'b';");
   assert.equal((await exports.getCreatorLifetimeStats('creator')).total_videos, 1);
   assert.equal(calls, 2, 'New requests must use their own session and result');
   newRequest(); fail = true;
+  const partialProfile = await exports.getCreatorProfile('creator');
+  assert.equal(partialProfile.real_name, 'Example', 'A failed lifetime aggregate cannot hide the creator identity');
+  assert.equal(partialProfile.brandDiscoveryStatus, 'unavailable');
+  assert.ok(partialProfile.brands.includes('contract') && partialProfile.brands.includes('registered'), 'Saved account and contract relationships survive optional discovery failure');
+  assert.equal(partialProfile.brandsWithData.length, 0, 'Unknown sales discovery is carried with an unavailable status, never claimed complete');
   await assert.rejects(exports.getCreatorLifetimeStats('creator'), /History query failed/);
   newRequest(); fail = false; handles = [];
   assert.equal((await exports.getCreatorLifetimeStats('creator')).total_videos, 0);

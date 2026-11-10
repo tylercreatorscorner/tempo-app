@@ -1,9 +1,17 @@
 import { LoadingStatus } from '@/components/ui/loading-status';
+import styles from '@/components/roster/roster-layout.module.css';
 
 export default function Loading() {
-  return <div className="space-y-4" aria-busy="true">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-[26px] font-semibold tracking-tight">Roster</h1><LoadingStatus label="Loading creator performance"/></div>
-    <div aria-hidden="true" className="grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-5">{Array.from({length:5},(_,i)=><div key={i} className="space-y-3 border-r border-border p-3"><div className="h-2 w-20 rounded bg-muted"/><div className="h-6 w-24 rounded bg-primary/10 motion-safe:animate-pulse"/></div>)}</div>
-    <div aria-hidden="true" className="rounded-xl border border-border bg-card"><div className="h-12 border-b border-border bg-secondary/50"/>{Array.from({length:6},(_,i)=><div key={i} className="flex items-center gap-4 border-b border-border/50 px-4 py-4 last:border-0 motion-safe:animate-pulse"><div className="h-10 w-10 rounded-full bg-primary/10"/><div className="h-3 w-28 rounded bg-muted"/><div className="ml-auto h-3 w-16 rounded bg-muted"/></div>)}</div>
+  return <div className={styles.page} aria-busy="true">
+    <header className={styles.header}>
+      <div><h1>Creators</h1><p>A clear view of every creator, their work, and the next conversation.</p></div>
+      <LoadingStatus label="Loading creators and performance" />
+    </header>
+    <div className={styles.tabsRow} aria-hidden="true"><div className={styles.tabs}>{['Creators', 'Top creators', 'Elites'].map((tab, index) => <span key={tab} className={`inline-flex h-9 items-center rounded-lg px-3 text-xs ${index === 0 ? 'bg-foreground text-background' : 'text-muted-foreground'}`}>{tab}</span>)}</div></div>
+    <div className={styles.toolbar} aria-hidden="true"><div className="h-9 min-w-48 flex-1 rounded-lg border border-border bg-card" /><div className="h-9 w-32 rounded-lg border border-border bg-card" /><div className="h-9 w-28 rounded-lg border border-border bg-card" /></div>
+    <div className={styles.tableCard} aria-hidden="true">
+      <div className="h-10 border-b border-border bg-secondary/40" />
+      <div className={styles.tableScroll}><table className={styles.table}><tbody>{Array.from({ length: 8 }, (_, index) => <tr key={index}><td colSpan={8}><div className={styles.skeletonRow}><i /><span /><span /></div></td></tr>)}</tbody></table></div>
+    </div>
   </div>;
 }
