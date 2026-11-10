@@ -4,11 +4,13 @@ import { runInNewContext } from 'node:vm';
 import * as React from 'react';
 import * as jsx from 'react/jsx-runtime';
 import { renderToStaticMarkup } from 'react-dom/server';
+import * as dateFns from 'date-fns';
+import * as dateFnsTz from 'date-fns-tz';
 import ts from 'typescript';
 
 const classes = new Proxy({}, { get: (_, name) => String(name) });
 const nil = () => null;
-const dependencies = { react: React, 'react/jsx-runtime': jsx };
+const dependencies = { react: React, 'react/jsx-runtime': jsx, 'date-fns': dateFns, 'date-fns-tz': dateFnsTz };
 let fetchImpl;
 const listeners = new Map();
 const window = { addEventListener: (name, listener) => listeners.set(name, listener), removeEventListener: (name, listener) => { if (listeners.get(name) === listener) listeners.delete(name); } };
@@ -49,6 +51,8 @@ assert.ok(html({ refreshing: true }).includes('Updating totals…'));
 
 // Exercise the actual page's fetching and scope controls with a small hook runtime.
 let hook, query = new URLSearchParams('brand=northstar&range=last7&keep=yes');
+let deferNavigation = false, navigationQueue = [];
+const commitNavigation = href => { query = new URL(href, 'https://fixture.invalid').searchParams; hook.dirty = true; };
 const stableBrands = [{ slug: 'northstar', name: 'Northstar Beauty' }, { slug: 'evergreen', name: 'Evergreen Wellness' }];
 const brandMeta = { label: slug => stableBrands.find(brand => brand.slug === slug)?.name ?? slug };
 const same = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
@@ -61,21 +65,23 @@ dependencies.react = {
   useEffect: (fn, deps) => { const index = hook.effectIndex++; const previous = hook.effects[index]; if (!previous || !same(previous.deps, deps)) hook.pending.push(() => { previous?.cleanup?.(); hook.effects[index] = { deps, cleanup: fn() }; }); },
 };
 Object.assign(dependencies, {
-  'next/navigation': { useSearchParams: () => query, useRouter: () => ({ push: href => { query = new URL(href, 'https://fixture.invalid').searchParams; hook.dirty = true; } }) },
+  'next/navigation': { useSearchParams: () => query, useRouter: () => ({ push: href => { if (deferNavigation) navigationQueue.push(href); else commitNavigation(href); } }) },
   'radix-ui': Object.fromEntries(['DropdownMenu', 'Popover'].map(name => [name, new Proxy({}, { get: (_, key) => `${name}.${String(key)}` })])),
   '@/hooks/use-brand-list': { useBrandList: () => ({ brands: stableBrands, loading: false }) },
   '@/hooks/use-brand-meta': { useBrandMeta: () => brandMeta },
   '@/hooks/use-delayed-flag': { useDelayedFlag: value => value },
   '@/components/layout/navigation-pending': { useNavigationPending: () => ({ startNav: fn => fn() }) },
-  '@/lib/data/date-utils': { DATE_PRESETS: [{ value: 'last7', label: 'Last 7 Days' }, { value: 'last30', label: 'Last 30 Days' }] },
+  '@/lib/data/date-utils': load('src/lib/data/date-utils.ts'),
   '@/components/roster/RosterStats': { RosterStats: 'RosterStats' },
   '@/components/ui/choice-menu': { ChoiceMenu: 'ChoiceMenu' },
   '@/components/dashboard/date-range-picker': { DateRangePicker: 'DateRangePicker' },
   '@/components/roster/studio-roster-table': { StudioRosterTable: 'StudioRosterTable' },
+  '@/components/segments/roster-segment-controls': { RosterSegmentControls: 'RosterSegmentControls' },
 });
 dependencies['@/lib/latest-request'] = load('src/lib/latest-request.ts');
 const { Page } = load('src/app/(admin)/roster/page.tsx', '\nexport { RosterContent as Page };');
-const state = { states: [], refs: [], memos: [], effects: [], pending: [], dirty: true };
+const newState = () => ({ states: [], refs: [], memos: [], effects: [], pending: [], dirty: true });
+let state = newState();
 let tree;
 function render() {
   hook = state; Object.assign(state, { stateIndex: 0, refIndex: 0, memoIndex: 0, effectIndex: 0, dirty: false });
@@ -131,4 +137,155 @@ assert.equal(stats().managedGmv, 64000);
 assert.equal(stats().loading, false, 'Workspace change from page two must resolve page-one summary');
 assert.ok(requests.at(-1).includes('page=1'));
 for (const effect of state.effects) effect?.cleanup?.();
-console.log('PASS roster header: real component zero/null/partial/loading/stale rendering; actual page brand handoff, query preservation, stale-scope hiding and unavailable refresh replacement');
+
+// A new mount represents reloading or opening a shared roster link, not retained
+// client state. Exercise the real date validator as well as the page's requests.
+function mountPeriod(search) {
+  for (const effect of state.effects) effect?.cleanup?.();
+  state = newState();
+  deferNavigation = false;
+  navigationQueue = [];
+  query = new URLSearchParams(search);
+  requests = [];
+  fetchImpl = async url => {
+    requests.push(url);
+    const params = new URL(url, 'https://fixture.invalid').searchParams;
+    const response = result();
+    if (params.get('range') === 'custom') response.period = { start: params.get('start'), end: params.get('end') };
+    return { ok: true, json: async () => response };
+  };
+  render();
+}
+const picker = () => find(node => node.type === 'DateRangePicker').props;
+const requestedPeriod = () => new URL(requests.at(-1), 'https://fixture.invalid').searchParams;
+for (const [search, expected] of [
+  ['range=custom&start=2026-10-01&end=2026-10-31', 'custom'],
+  ['range=custom&start=2024-02-29&end=2024-02-29', 'custom'],
+  ['range=custom', 'last7'],
+  ['range=custom&start=2026-10-01', 'last7'],
+  ['range=custom&end=2026-10-31', 'last7'],
+  ['range=custom&start=not-a-date&end=2026-10-31', 'last7'],
+  ['range=custom&start=2026-10-01&end=not-a-date', 'last7'],
+  ['range=custom&start=2026-02-30&end=2026-03-01', 'last7'],
+  ['range=custom&start=2026-10-31&end=2026-10-01', 'last7'],
+  ['range=unknown&start=2026-10-01&end=2026-10-31', 'last7'],
+  ['range=last30&start=2026-10-01&end=2026-10-31', 'last30'],
+  ['', 'last7'],
+]) {
+  mountPeriod(`brand=northstar&keep=yes&${search}`);
+  await settle();
+  assert.equal(picker().value, expected, `Cold period selection: ${search}`);
+  assert.equal(requestedPeriod().get('range'), expected, `Cold request period: ${search}`);
+  assert.equal(requestedPeriod().get('brand'), 'northstar');
+  if (expected === 'custom') {
+    assert.equal(requestedPeriod().get('start'), query.get('start'));
+    assert.equal(requestedPeriod().get('end'), query.get('end'));
+    assert.equal(picker().customRange.start, query.get('start'));
+    assert.equal(picker().customRange.end, query.get('end'));
+  } else {
+    assert.equal(requestedPeriod().get('start'), null, 'Fallback/preset requests do not send custom dates');
+    assert.equal(requestedPeriod().get('end'), null);
+    assert.equal(picker().customRange.start, null);
+    assert.equal(picker().customRange.end, null);
+  }
+}
+
+mountPeriod('brand=evergreen&keep=yes&range=custom&start=2026-10-01&end=2026-10-31');
+await settle();
+picker().onPresetChange('last30');
+await settle();
+assert.equal(query.get('range'), 'last30', 'Preset changes persist to the URL');
+assert.equal(query.get('brand'), 'evergreen');
+assert.equal(query.get('keep'), 'yes');
+assert.equal(query.get('start'), null, 'Preset changes remove stale custom dates');
+assert.equal(query.get('end'), null);
+mountPeriod(query.toString());
+await settle();
+assert.equal(picker().value, 'last30', 'Reload retains the selected preset');
+assert.equal(requestedPeriod().get('range'), 'last30');
+const beforeCustom = query.toString();
+picker().onPresetChange('custom');
+assert.equal(query.toString(), beforeCustom, 'The intermediate custom callback does not navigate without dates');
+picker().onCustomChange('2026-11-01', '2026-11-07');
+await settle();
+assert.equal(query.get('range'), 'custom', 'Confirmed custom dates persist to the URL');
+assert.equal(query.get('start'), '2026-11-01');
+assert.equal(query.get('end'), '2026-11-07');
+assert.equal(query.get('brand'), 'evergreen');
+assert.equal(query.get('keep'), 'yes');
+mountPeriod(query.toString());
+await settle();
+assert.equal(picker().value, 'custom', 'Reload retains the selected custom range');
+assert.equal(requestedPeriod().get('start'), '2026-11-01');
+assert.equal(requestedPeriod().get('end'), '2026-11-07');
+assert.equal(stats().periodLabel, '11/1/26 – 11/7/26');
+// Next keeps the page mounted for browser back/forward between query strings.
+const savedCustomQuery = query.toString();
+query = new URLSearchParams('brand=evergreen&keep=yes&range=last30');
+state.dirty = true;
+await settle();
+assert.equal(picker().value, 'last30', 'History navigation updates the mounted picker');
+assert.equal(requestedPeriod().get('range'), 'last30');
+assert.equal(requestedPeriod().get('start'), null);
+query = new URLSearchParams(savedCustomQuery);
+state.dirty = true;
+await settle();
+assert.equal(picker().value, 'custom', 'History navigation restores the custom range');
+assert.equal(requestedPeriod().get('start'), '2026-11-01');
+assert.equal(requestedPeriod().get('end'), '2026-11-07');
+// Real navigation commits asynchronously. Rapid edits must compose with the
+// latest requested URL, including when an earlier navigation commits first.
+mountPeriod('brand=northstar&range=last7&keep=yes');
+await settle();
+deferNavigation = true;
+picker().onPresetChange('last30');
+await settle();
+find(node => node.type === 'ChoiceMenu' && node.props.label === 'Brand').props.onChange('evergreen');
+assert.equal(new URL(navigationQueue.at(-1), 'https://fixture.invalid').searchParams.get('range'), 'last30', 'Queued brand navigation preserves pending period');
+commitNavigation(navigationQueue.shift());
+await settle();
+picker().onCustomChange('2026-11-01', '2026-11-07');
+assert.equal(new URL(navigationQueue.at(-1), 'https://fixture.invalid').searchParams.get('brand'), 'evergreen', 'Partial commit cannot discard a later pending brand');
+commitNavigation(navigationQueue.shift());
+await settle();
+assert.equal(picker().value, 'custom', 'Intermediate commits do not undo the latest selected period');
+commitNavigation(navigationQueue.shift());
+await settle();
+assert.equal(query.get('brand'), 'evergreen');
+assert.equal(query.get('start'), '2026-11-01');
+assert.equal(query.get('end'), '2026-11-07');
+assert.equal(query.get('keep'), 'yes');
+assert.equal(requestedPeriod().get('brand'), 'evergreen');
+assert.equal(requestedPeriod().get('range'), 'custom');
+// A history URL becomes the new base for subsequent edits, not a stale
+// optimistic query from a completed navigation.
+commitNavigation('/roster?brand=northstar&range=last7&keep=history');
+await settle();
+find(node => node.type === 'ChoiceMenu' && node.props.label === 'Brand').props.onChange('evergreen');
+picker().onPresetChange('last14');
+const queued = new URL(navigationQueue.at(-1), 'https://fixture.invalid').searchParams;
+assert.equal(queued.get('brand'), 'evergreen', 'Queued period navigation preserves pending brand');
+assert.equal(queued.get('range'), 'last14');
+assert.equal(queued.get('keep'), 'history', 'New edits use the browser-history query');
+assert.equal(queued.get('start'), null);
+assert.equal(queued.get('end'), null);
+while (navigationQueue.length) { commitNavigation(navigationQueue.shift()); await settle(); }
+assert.equal(picker().value, 'last14');
+assert.equal(requestedPeriod().get('brand'), 'evergreen');
+assert.equal(requestedPeriod().get('range'), 'last14');
+find(node => node.type === 'RosterSegmentControls').props.onApply({ brand: 'northstar', range: 'custom', start: '2026-10-01', end: '2026-10-31' }, 'October Northstar');
+assert.equal(navigationQueue.length, 1, 'Saved segment composes brand and period into one navigation');
+commitNavigation(navigationQueue.shift());
+await settle();
+assert.equal(query.get('brand'), 'northstar');
+assert.equal(query.get('range'), 'custom');
+assert.equal(query.get('start'), '2026-10-01');
+assert.equal(query.get('end'), '2026-10-31');
+assert.equal(picker().value, 'custom', 'Committed segment retains its period');
+mountPeriod(query.toString());
+await settle();
+assert.equal(requestedPeriod().get('brand'), 'northstar');
+assert.equal(requestedPeriod().get('start'), '2026-10-01');
+assert.equal(requestedPeriod().get('end'), '2026-10-31');
+for (const effect of state.effects) effect?.cleanup?.();
+console.log('PASS roster header: real component zero/null/partial/loading/stale rendering; actual page brand handoff, period URL persistence and cold-load validation, stale-scope hiding and unavailable refresh replacement');

@@ -278,9 +278,23 @@ interface UnmanagedPerfRow {
  * the Path-B backfill, but kept defensive).
  */
 function legacyColumnHandles(c: ManagedRow): string[] {
-  return [c.account_1, c.account_2, c.account_3, c.account_4, c.account_5]
+  return [...new Set([c.account_1, c.account_2, c.account_3, c.account_4, c.account_5]
     .map((h) => (h || '').trim().toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean))];
+}
+
+/** Bound the brand-scoped RPC fanout; never fall back to an unfiltered read. */
+async function mapBatches<T, U>(items: T[], run: (item: T) => Promise<U>): Promise<U[]> {
+  const results: U[] = [];
+  for (let index = 0; index < items.length; index += 4) {
+    results.push(...await Promise.all(items.slice(index, index + 4).map(run)));
+  }
+  return results;
+}
+
+function hasMetrics(data: unknown, fields: string[]): boolean {
+  return Array.isArray(data) && data.every(row => fields.every(field => row[field] != null
+    && row[field] !== '' && Number.isFinite(Number(row[field]))));
 }
 
 const SORTABLE_DB = ['retainer', 'real_name', 'monthly_post_requirement', 'created_at', 'status', 'brand'] as const;
@@ -344,6 +358,19 @@ export async function runRosterQuery(
   try { selection = rosterSummarySelection(scope, reg, brand, storeFilter); }
   catch { return { status: 403, body: { error: 'Forbidden: brand or store not in your access' } }; }
   const supabase = await createAdminClient();
+  // Set-returning RPCs are subject to PostgREST's row cap, including the daily
+  // series for a single page. Stable keys keep offset pages deterministic.
+  const performanceRpc = async (name: string, args: Record<string, unknown>, order = ['tiktok_username']) => {
+    const rows: Record<string, unknown>[] = [];
+    for (let from = 0; ; from += 1000) {
+      let query = supabase.rpc(name, args);
+      for (const column of order) query = query.order(column, { ascending: true });
+      const { data, error } = await query.range(from, from + 999);
+      if (error || data == null) return { data: null, error: error ?? { message: 'Performance data is unavailable.' } };
+      rows.push(...data);
+      if (data.length < 1000) return { data: rows, error: null };
+    }
+  };
   const status = searchParams.get('status');
   const search = searchParams.get('search');
   // ?product=<product_key> — filter managed creators tagged with that product.
@@ -545,7 +572,7 @@ export async function runRosterQuery(
   const allHandles = Array.from(new Set(
     Array.from(handlesByRow.values()).flat().map((h) => h.toLowerCase()),
   ));
-  const perfByHandle = new Map<string, { gmv_period: number; posts_period: number; last_post_date: string | null }>();
+  const perfByScope = new Map<string, Map<string, PerfRow>>();
   // brand_id (uuid string) → { gmv, posts } for that handle on that brand, period.
   const brandGmvByHandle = new Map<string, Map<string, { gmv: number; posts: number }>>();
   // brand_id (uuid string) → posts MONTH-TO-DATE for that handle on that brand.
@@ -556,52 +583,75 @@ export async function runRosterQuery(
   // All-brands is still bounded to authorized tenant IDs; empty never widens.
   const resolved = selection.dataSlugs.map(slug => reg.bySlug.get(slug)!.id);
   const brandIds = resolved.length ? resolved : [NO_MATCH_BRAND_ID];
+  const selectedData = new Set(selection.dataSlugs);
+  const dataForBrands = (brands: (string | null)[]) => [...new Set(brands.flatMap(slug => slug ? expandSlugs(reg, slug) : []))]
+    .filter(slug => selectedData.has(slug)).sort();
+  const scopeKey = (slugs: string[]) => JSON.stringify(slugs);
+  // Unmanaged discovery rows describe the selected universe (their brand is
+  // only representative); managed rows describe the actual relationship(s).
+  const rowData = (row: { brand: string | null; brands?: BrandChild[]; is_managed?: boolean }) => row.is_managed === false
+    ? [...selectedData].sort() : dataForBrands(row.brands?.map(child => child.brand) ?? [row.brand]);
+  const allBrandsView = (!brand || brand === 'all') && !scoped && !includeUnmanaged;
+  const collapseCreators = allBrandsView && !exportAll && healthFilter === 'all';
+  type PerformanceGroup = { key: string; slugs: string[]; ids: string[]; handles: Set<string> };
+  const addGroup = (groups: Map<string, PerformanceGroup>, slugs: string[], handles: string[]) => {
+    const key = scopeKey(slugs);
+    const group = groups.get(key) ?? { key, slugs, ids: slugs.length ? slugs.map(slug => reg.bySlug.get(slug)!.id) : [NO_MATCH_BRAND_ID], handles: new Set<string>() };
+    handles.forEach(handle => group.handles.add(handle.toLowerCase()));
+    groups.set(key, group);
+  };
+  const currentGroups = new Map<string, PerformanceGroup>();
+  for (const row of allRows) {
+    addGroup(currentGroups, rowData(row), handlesByRow.get(row.id) ?? []);
+  }
+  let monthlyPerformanceAvailable = true;
 
   if (allHandles.length > 0) {
-    const [perfRes, brandGmvRes, mtdRes, msgRes] = await Promise.all([
-      supabase.rpc('get_creator_handle_perf', {
+    const [perfResults, brandGmvRes, mtdRes, msgRes] = await Promise.all([
+      mapBatches([...currentGroups.values()].filter(group => group.handles.size > 0), async group => ({ group, result: await performanceRpc('get_creator_handle_perf', {
+        handles: [...group.handles],
+        brand_ids: group.ids,
+        days_back: periodDays,
+        p_start_date: pStartDate,
+        p_end_date: pEndDate,
+      }) })),
+      performanceRpc('get_creator_handle_brand_gmv', {
         handles: allHandles,
         brand_ids: brandIds,
         days_back: periodDays,
         p_start_date: pStartDate,
         p_end_date: pEndDate,
-      }),
-      supabase.rpc('get_creator_handle_brand_gmv', {
-        handles: allHandles,
-        brand_ids: brandIds,
-        days_back: periodDays,
-        p_start_date: pStartDate,
-        p_end_date: pEndDate,
-      }),
+      }, ['tiktok_username', 'brand_id']),
       // Month-to-date posts per (handle, brand) for the health signal — same RPC,
       // pinned to the [1st-of-month, today] window so health never moves with the
       // period selector. We read only its posts_period (= MTD post count).
-      supabase.rpc('get_creator_handle_brand_gmv', {
+      performanceRpc('get_creator_handle_brand_gmv', {
         handles: allHandles,
         brand_ids: brandIds,
         days_back: 31,
         p_start_date: mtdStart,
         p_end_date: mtdEnd,
-      }),
+      }, ['tiktok_username', 'brand_id']),
       supabase.rpc('get_creator_message_signals', { handles: allHandles }),
     ]);
 
-    if (perfRes.error) {
-      console.error('[/api/roster] perf RPC failed:', perfRes.error.message);
-    } else {
-      for (const r of (perfRes.data as PerfRow[] | null) ?? []) {
-        perfByHandle.set(r.tiktok_username.toLowerCase(), {
-          gmv_period: Number(r.gmv_period) || 0,
-          posts_period: Number(r.posts_period) || 0,
-          last_post_date: r.last_post_date,
-        });
+    for (const { group, result } of perfResults) {
+      if (result.error || result.data == null) {
+        console.error('[/api/roster] scoped perf RPC failed:', result.error?.message);
+        return { status: 500, body: { error: 'Creator performance is unavailable. Please try again.' } };
       }
+      const rows = result.data as unknown as PerfRow[];
+      if (!hasMetrics(rows, ['gmv_period', 'posts_period'])) {
+        return { status: 500, body: { error: 'Creator performance is unavailable. Please try again.' } };
+      }
+      perfByScope.set(group.key, new Map(rows.map(row => [row.tiktok_username.toLowerCase(), row])));
     }
 
-    if (brandGmvRes.error) {
-      console.error('[/api/roster] brand-gmv RPC failed:', brandGmvRes.error.message);
+    if (brandGmvRes.error || !hasMetrics(brandGmvRes.data, ['gmv_period', 'posts_period'])) {
+      console.error('[/api/roster] brand-gmv RPC failed:', brandGmvRes.error?.message);
+      return { status: 500, body: { error: 'Creator performance is unavailable. Please try again.' } };
     } else {
-      for (const r of (brandGmvRes.data as BrandGmvRow[] | null) ?? []) {
+      for (const r of (brandGmvRes.data as unknown as BrandGmvRow[] | null) ?? []) {
         if (!r.brand_id) continue;
         const handle = r.tiktok_username.toLowerCase();
         const slot = brandGmvByHandle.get(handle) ?? new Map<string, { gmv: number; posts: number }>();
@@ -610,12 +660,13 @@ export async function runRosterQuery(
       }
     }
 
-    if (mtdRes.error) {
-      // Non-fatal: health simply falls back to the silence/terminal signals. Do
-      // NOT let a month-to-date read failure blank the whole roster.
-      console.error('[/api/roster] month-to-date posts RPC failed:', mtdRes.error.message);
+    if (mtdRes.error || !hasMetrics(mtdRes.data, ['posts_period'])) {
+      // Month activity is unavailable, not zero. Keep performance visible and
+      // withhold the monthly assessment rather than manufacturing a pace flag.
+      monthlyPerformanceAvailable = false;
+      console.error('[/api/roster] month-to-date posts RPC failed:', mtdRes.error?.message);
     } else {
-      for (const r of (mtdRes.data as BrandGmvRow[] | null) ?? []) {
+      for (const r of (mtdRes.data as unknown as BrandGmvRow[] | null) ?? []) {
         if (!r.brand_id) continue;
         const handle = r.tiktok_username.toLowerCase();
         const slot = mtdPostsByHandle.get(handle) ?? new Map<string, number>();
@@ -641,6 +692,8 @@ export async function runRosterQuery(
   const enriched: EnrichedRow[] = allRows.map((row) => {
     const handles = handlesByRow.get(row.id) ?? [];
     const hs = handles.map((h) => h.toLowerCase());
+    const stores = new Set(rowData(row));
+    const rowPerf = perfByScope.get(scopeKey([...stores]));
     let gmv = 0;
     let posts = 0;
     let lastPost: string | null = null;
@@ -655,10 +708,10 @@ export async function runRosterQuery(
     const postsThisMonthByStore: Record<string, number> = {};
     let postsThisMonth = 0;
     for (const h of hs) {
-      const p = perfByHandle.get(h);
+      const p = rowPerf?.get(h);
       if (p) {
-        gmv += p.gmv_period;
-        posts += p.posts_period;
+        gmv += Number(p.gmv_period);
+        posts += Number(p.posts_period);
         if (p.last_post_date && (!lastPost || p.last_post_date > lastPost)) {
           lastPost = p.last_post_date;
         }
@@ -674,6 +727,7 @@ export async function runRosterQuery(
       if (bg) {
         for (const [brandUuid, bv] of bg) {
           const slug = uuidToSlug(reg, brandUuid) ?? brandUuid;
+          if (!stores.has(slug)) continue;
           gmvByStore[slug] = (gmvByStore[slug] ?? 0) + bv.gmv;
           postsByStore[slug] = (postsByStore[slug] ?? 0) + bv.posts;
         }
@@ -682,6 +736,7 @@ export async function runRosterQuery(
       if (bgm) {
         for (const [brandUuid, mtdPosts] of bgm) {
           const slug = uuidToSlug(reg, brandUuid) ?? brandUuid;
+          if (!stores.has(slug)) continue;
           postsThisMonthByStore[slug] = (postsThisMonthByStore[slug] ?? 0) + mtdPosts;
           postsThisMonth += mtdPosts;
         }
@@ -691,7 +746,7 @@ export async function runRosterQuery(
     const target = Number(row.monthly_post_requirement) || 0;
     // Health uses MONTH-TO-DATE posts (not `posts`, the period count) so the
     // "behind pace" flag reflects the monthly quota, not the selector window.
-    const health = deriveHealth({
+    const health = !monthlyPerformanceAvailable ? 'not_assessed' : deriveHealth({
       status: row.status,
       retainer,
       postsThisMonth,
@@ -839,52 +894,12 @@ export async function runRosterQuery(
   // undefined on paginated (page > 1) responses; the client persists the page-1
   // value across pagination.
 
-  // ── 4b. All-Brands collapse. On the owner's unscoped, managed, non-export
-  // All-Brands view: (a) rescope each managed row's GMV/posts/ROI to its OWN
-  // brand — enrichment summed a handle across every brand because the perf RPC
-  // was unfiltered here, so a creator's brand rows all showed the same inflated
-  // total; and (b) collapse a creator's brand rows into ONE expandable parent
-  // carrying per-brand children. The count cards above already ran on the
-  // pre-collapse rows, so their semantics are unchanged. Rows with no creator_id
-  // stay as their own rows. Skipped for scoped managers, include=all, CSV export,
-  // and any single-brand view (where per-row GMV is already brand-correct).
+  // ── 4b. All-Brands grouping is a display choice, independent of performance
+  // scope. Every contract above is already brand-correct, including scoped
+  // managers, health filters, include=all and exports. Authorized ID arrays are
+  // always bounded, so null is never a valid test for the All-Brands selection.
   let working: EnrichedRow[] = enriched;
-  // All-Brands owner/managed view: rescope every row to its own brand (fixes the
-  // cross-brand-total bug for BOTH the table and the CSV export), then — for the
-  // interactive table only — collapse each creator's brands into one parent.
-  const allBrandsView = resolved === null && !scoped && !includeUnmanaged;
-  if (allBrandsView) {
-    // (a) rescope each managed row to its own brand via the per-brand split.
-    for (const r of enriched) {
-      if (!r.is_managed) continue;
-      const stores = r.brand ? expandSlugs(reg, r.brand) : [];
-      let bg = 0;
-      let bp = 0;
-      let bpm = 0; // month-to-date posts rescoped to this row's own brand (health)
-      for (const s of stores) {
-        bg += r.gmv_by_store[s] ?? 0;
-        bp += r.posts_by_store?.[s] ?? 0;
-        bpm += r.posts_this_month_by_store[s] ?? 0;
-      }
-      const ret = Number(r.retainer) || 0;
-      r.gmv_period = bg;
-      r.posts_period = bp;
-      r.posts_this_month = bpm;
-      r.roi_period = ret > 0 && r.roi_period !== null ? bg / ret : null;
-      r.health = deriveHealth({
-        status: r.status,
-        retainer: ret,
-        postsThisMonth: bpm,
-        monthlyTarget: Number(r.monthly_post_requirement) || 0,
-        agreement: r.agreement,
-        lastPostDate: r.last_post_date,
-      });
-    }
-    // (b) collapse by creator_id — interactive table, UNFILTERED browse only.
-    // When a triage chip is active we deliberately DON'T collapse: the manager
-    // wants per-contract rows (creator × brand) so "behind" names the exact brand,
-    // and so the row count matches the chip. CSV export also stays granular.
-    if (!exportAll && healthFilter === 'all') {
+  if (collapseCreators) {
     const byCreator = new Map<string, EnrichedRow[]>();
     const out: EnrichedRow[] = [];
     for (const r of enriched) {
@@ -906,7 +921,7 @@ export async function runRosterQuery(
       // and deriveHealth classifies the parent as 'affiliate'.
       let totPostsThisMonth = 0;
       let totTarget = 0;
-      const unassessed = rows.some(r=>r.health==='not_assessed');
+      const unassessed = rows.some(r=>r.health==='not_assessed' || r.retainer == null);
       for (const r of rows) {
         const b = r.brand ?? '';
         if (seen.has(b)) continue;
@@ -920,33 +935,43 @@ export async function runRosterQuery(
           row_id: String(r.id),
           gmv_period: r.gmv_period,
           posts_period: r.posts_period,
-          retainer: Number(r.retainer) || 0,
+          retainer: r.retainer,
           roi_period: r.roi_period,
           last_post_date: r.last_post_date,
           health: r.health,
         });
       }
       children.sort((a, b) => b.gmv_period - a.gmv_period);
-      const totGmv = children.reduce((s, c) => s + c.gmv_period, 0);
-      const totPosts = children.reduce((s, c) => s + c.posts_period, 0);
-      // Children are built with real numbers here; the ?? 0 only satisfies the
-      // widened BrandChild type (retainer goes null at the output-scrub step).
-      const totRet = children.reduce((s, c) => s + (c.retainer ?? 0), 0);
+      const parentHandles = [...new Set(rows.flatMap(row => row.handles).map(handle => handle.toLowerCase()))];
+      const parentGmv = Object.assign({}, ...rows.map(row => row.gmv_by_store)) as Record<string, number>;
+      const parentPosts = Object.assign({}, ...rows.map(row => row.posts_by_store)) as Record<string, number>;
+      // Preserve the grouped row's per-brand publication semantics. Repeated
+      // stores (an umbrella plus its child) contribute once. Header publication
+      // counts remain independently deduplicated by video. Do not issue one RPC
+      // per creator's unique brand combination across the full roster.
+      const totGmv = Object.values(parentGmv).reduce((sum, value) => sum + value, 0);
+      const totPosts = Object.values(parentPosts).reduce((sum, value) => sum + value, 0);
+      const totRet = children.some(child => child.retainer == null) ? null
+        : children.reduce((sum, child) => sum + Number(child.retainer), 0);
       let lastPost: string | null = null;
       for (const c of children) {
         if (c.last_post_date && (!lastPost || c.last_post_date > lastPost)) lastPost = c.last_post_date;
       }
       out.push({
         ...primary,
+        handles: parentHandles,
+        gmv_by_store: parentGmv,
+        posts_by_store: parentPosts,
+        posts_this_month_by_store: Object.assign({}, ...rows.map(row => row.posts_this_month_by_store)),
         gmv_period: totGmv,
         posts_period: totPosts,
         posts_this_month: totPostsThisMonth,
         retainer: totRet,
-        roi_period: totRet > 0 && children.every(c=>!c.retainer || c.roi_period !== null) ? totGmv / totRet : null,
+        roi_period: totRet != null && totRet > 0 && children.every(c=>!c.retainer || c.roi_period !== null) ? totGmv / totRet : null,
         last_post_date: lastPost,
         health: unassessed ? 'not_assessed' : deriveHealth({
           status: primary.status,
-          retainer: totRet,
+          retainer: totRet ?? 0,
           postsThisMonth: totPostsThisMonth,
           monthlyTarget: totTarget,
           lastPostDate: lastPost,
@@ -956,7 +981,6 @@ export async function runRosterQuery(
       });
     }
     working = out;
-    }
   }
 
   // ── 4c. Health counts, PER-CONTRACT (creator × brand) — Tyler's call: a creator
@@ -1086,41 +1110,54 @@ export async function runRosterQuery(
       const prevStartStr = prevStart.toISOString().slice(0, 10);
       const prevEndStr = prevEnd.toISOString().slice(0, 10);
 
-      const [gmvSeriesRes, postsSeriesRes, priorPerfRes, perf30Res] = await Promise.all([
-        supabase.rpc('get_creator_handle_gmv_series', { handles: sliceHandles, brand_ids: brandIds, days_back: periodDays, p_start_date: pStartDate, p_end_date: pEndDate }),
-        supabase.rpc('get_creator_handle_posts_series', { handles: sliceHandles, brand_ids: brandIds, days_back: periodDays, p_start_date: pStartDate, p_end_date: pEndDate }),
-        supabase.rpc('get_creator_handle_perf', { handles: sliceHandles, brand_ids: brandIds, days_back: periodDays, p_start_date: prevStartStr, p_end_date: prevEndStr }),
-        supabase.rpc('get_creator_handle_perf', { handles: sliceHandles, brand_ids: brandIds, days_back: 30, p_start_date: null, p_end_date: null }),
-      ]);
-      if (gmvSeriesRes.error) console.error('[/api/roster] gmv-series RPC failed:', gmvSeriesRes.error.message);
-      if (postsSeriesRes.error) console.error('[/api/roster] posts-series RPC failed:', postsSeriesRes.error.message);
-      if (priorPerfRes.error) console.error('[/api/roster] prior-perf RPC failed:', priorPerfRes.error.message);
-      if (perf30Res.error) console.error('[/api/roster] 30d-perf RPC failed:', perf30Res.error.message);
+      const visibleGroups = new Map<string, PerformanceGroup>();
+      // A parent sums the same per-store measures for current, prior and series;
+      // other rows retain their own brand scope (including umbrella expansion).
+      const detailScopes = (row: EnrichedRow) => row.grouped ? rowData(row).map(slug => [slug]) : [rowData(row)];
+      for (const row of slice) for (const slugs of detailScopes(row)) addGroup(visibleGroups, slugs, row.handles);
+      const details = new Map(await mapBatches([...visibleGroups.values()], async group => {
+        const args = { handles: [...group.handles], brand_ids: group.ids, days_back: periodDays, p_start_date: pStartDate, p_end_date: pEndDate };
+        const [gmvSeriesRes, postsSeriesRes, priorPerfRes, perf30Res] = await Promise.all([
+          performanceRpc('get_creator_handle_gmv_series', args, ['tiktok_username', 'stat_date']),
+          performanceRpc('get_creator_handle_posts_series', args, ['tiktok_username', 'stat_date']),
+          performanceRpc('get_creator_handle_perf', { ...args, p_start_date: prevStartStr, p_end_date: prevEndStr }),
+          performanceRpc('get_creator_handle_perf', { ...args, days_back: 30, p_start_date: null, p_end_date: null }),
+        ]);
+        if (gmvSeriesRes.error) console.error('[/api/roster] gmv-series RPC failed:', gmvSeriesRes.error.message);
+        if (postsSeriesRes.error) console.error('[/api/roster] posts-series RPC failed:', postsSeriesRes.error.message);
+        if (priorPerfRes.error) console.error('[/api/roster] prior-perf RPC failed:', priorPerfRes.error.message);
+        if (perf30Res.error) console.error('[/api/roster] 30d-perf RPC failed:', perf30Res.error.message);
 
-      const gmvByDay = new Map<string, Map<string, number>>();
-      for (const s of (gmvSeriesRes.data as { tiktok_username: string; stat_date: string; gmv: string | number }[] | null) ?? []) {
-        const h = s.tiktok_username.toLowerCase();
-        const day = String(s.stat_date).slice(0, 10);
-        const m = gmvByDay.get(h) ?? new Map<string, number>();
-        m.set(day, (m.get(day) ?? 0) + (Number(s.gmv) || 0));
-        gmvByDay.set(h, m);
-      }
-      const postsByDay = new Map<string, Map<string, number>>();
-      for (const s of (postsSeriesRes.data as { tiktok_username: string; stat_date: string; posts: number }[] | null) ?? []) {
-        const h = s.tiktok_username.toLowerCase();
-        const day = String(s.stat_date).slice(0, 10);
-        const m = postsByDay.get(h) ?? new Map<string, number>();
-        m.set(day, (m.get(day) ?? 0) + (Number(s.posts) || 0));
-        postsByDay.set(h, m);
-      }
-      const priorByHandle = new Map<string, { gmv: number; posts: number }>();
-      for (const p of (priorPerfRes.data as PerfRow[] | null) ?? []) {
-        priorByHandle.set(p.tiktok_username.toLowerCase(), { gmv: Number(p.gmv_period) || 0, posts: Number(p.posts_period) || 0 });
-      }
-      const gmv30ByHandle = new Map<string, number>();
-      for (const p of (perf30Res.data as PerfRow[] | null) ?? []) {
-        gmv30ByHandle.set(p.tiktok_username.toLowerCase(), Number(p.gmv_period) || 0);
-      }
+        const gmvByDay = new Map<string, Map<string, number>>();
+        for (const s of (gmvSeriesRes.data as { tiktok_username: string; stat_date: string; gmv: string | number }[] | null) ?? []) {
+          const h = s.tiktok_username.toLowerCase();
+          const day = String(s.stat_date).slice(0, 10);
+          const m = gmvByDay.get(h) ?? new Map<string, number>();
+          m.set(day, (m.get(day) ?? 0) + (Number(s.gmv) || 0));
+          gmvByDay.set(h, m);
+        }
+        const postsByDay = new Map<string, Map<string, number>>();
+        for (const s of (postsSeriesRes.data as { tiktok_username: string; stat_date: string; posts: number }[] | null) ?? []) {
+          const h = s.tiktok_username.toLowerCase();
+          const day = String(s.stat_date).slice(0, 10);
+          const m = postsByDay.get(h) ?? new Map<string, number>();
+          m.set(day, (m.get(day) ?? 0) + (Number(s.posts) || 0));
+          postsByDay.set(h, m);
+        }
+        const priorByHandle = new Map<string, { gmv: number; posts: number }>();
+        for (const p of (priorPerfRes.data as unknown as PerfRow[] | null) ?? []) {
+          priorByHandle.set(p.tiktok_username.toLowerCase(), { gmv: Number(p.gmv_period) || 0, posts: Number(p.posts_period) || 0 });
+        }
+        const gmv30ByHandle = new Map<string, number>();
+        for (const p of (perf30Res.data as unknown as PerfRow[] | null) ?? []) {
+          gmv30ByHandle.set(p.tiktok_username.toLowerCase(), Number(p.gmv_period) || 0);
+        }
+        const valid = (result: { error: unknown; data: unknown }, fields: string[]) => !result.error && hasMetrics(result.data, fields);
+        return [group.key, { gmvByDay, postsByDay, priorByHandle, gmv30ByHandle,
+          hasGmvSeries: valid(gmvSeriesRes, ['gmv']), hasPostsSeries: valid(postsSeriesRes, ['posts']),
+          hasPrior: valid(priorPerfRes, ['gmv_period', 'posts_period']), has30d: valid(perf30Res, ['gmv_period']),
+        }] as const;
+      }));
 
       sparkDays = days; // shared day labels for the hover tooltip
       const pct = (cur: number, prev: number): number | null => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
@@ -1132,16 +1169,18 @@ export async function runRosterQuery(
       // lag, so the two stay in agreement.)
       dataOut = slice.map((r) => {
         const hs = (r.handles ?? []).map((h) => h.toLowerCase());
-        const priorGmv = hs.reduce((s, h) => s + (priorByHandle.get(h)?.gmv ?? 0), 0);
-        const priorPosts = hs.reduce((s, h) => s + (priorByHandle.get(h)?.posts ?? 0), 0);
-        const gmv30 = hs.reduce((s, h) => s + (gmv30ByHandle.get(h) ?? 0), 0);
+        const rowDetails = detailScopes(r).map(slugs => details.get(scopeKey(slugs))!);
+        const priorGmv = rowDetails.reduce((sum, detail) => sum + hs.reduce((s, h) => s + (detail.priorByHandle.get(h)?.gmv ?? 0), 0), 0);
+        const priorPosts = rowDetails.reduce((sum, detail) => sum + hs.reduce((s, h) => s + (detail.priorByHandle.get(h)?.posts ?? 0), 0), 0);
+        const gmv30 = rowDetails.reduce((sum, detail) => sum + hs.reduce((s, h) => s + (detail.gmv30ByHandle.get(h) ?? 0), 0), 0);
+        const hasPrior = rowDetails.every(detail => detail.hasPrior);
         return {
           ...r,
-          spark: days.map((day) => hs.reduce((s, h) => s + (gmvByDay.get(h)?.get(day) ?? 0), 0)),
-          spark_posts: days.map((day) => hs.reduce((s, h) => s + (postsByDay.get(h)?.get(day) ?? 0), 0)),
-          gmv_delta: pct(r.gmv_period, priorGmv),
-          posts_delta: pct(r.posts_period, priorPosts),
-          level: r.is_managed ? levelFromGmv(gmv30) : null,
+          spark: rowDetails.every(detail => detail.hasGmvSeries) ? days.map((day) => rowDetails.reduce((sum, detail) => sum + hs.reduce((s, h) => s + (detail.gmvByDay.get(h)?.get(day) ?? 0), 0), 0)) : undefined,
+          spark_posts: rowDetails.every(detail => detail.hasPostsSeries) ? days.map((day) => rowDetails.reduce((sum, detail) => sum + hs.reduce((s, h) => s + (detail.postsByDay.get(h)?.get(day) ?? 0), 0), 0)) : undefined,
+          gmv_delta: hasPrior ? pct(r.gmv_period, priorGmv) : null,
+          posts_delta: hasPrior ? pct(r.posts_period, priorPosts) : null,
+          level: r.is_managed && rowDetails.every(detail => detail.has30d) ? levelFromGmv(gmv30) : null,
         };
       });
     }
