@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 // Execute the complete migration against PostgreSQL. Only pg_cron's scheduler is
 // a fixture: its named-job upsert is reproduced below; none of the migration SQL
 // is rewritten. This suite never connects to an application database.
-const migration = readFileSync('supabase/migrations/20261110204750_roster_gmv_refresh_queue.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20261110205430_roster_gmv_refresh_queue.sql', 'utf8');
 assert.ok(migration.trim(), 'The GMV refresh migration must contain SQL');
 const db = new PGlite();
 const worker = 'public.process_roster_gmv_refresh_queue(integer)';

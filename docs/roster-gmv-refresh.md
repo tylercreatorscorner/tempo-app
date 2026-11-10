@@ -24,7 +24,7 @@ an expensive publishing/universe failure cannot roll back GMV.
 
 1. Record the active state of the two existing roster summary cron jobs. Temporarily
    deactivate them and let any in-flight calls finish before applying the migration.
-2. Apply `20261110204750_roster_gmv_refresh_queue.sql`. Its NOWAIT table locks fail
+2. Apply `20261110205430_roster_gmv_refresh_queue.sql`. Its NOWAIT table locks fail
    fast if an old writer is still active. It performs no bulk backfill under locks.
 3. Restore the original cron active states, including on a failed migration.
 4. Enqueue confirmed stale source/cache brand-days, then process bounded batches.
