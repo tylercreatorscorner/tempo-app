@@ -1,6 +1,6 @@
 # Lemme private corrected revision — November 1–8, 2026
 
-Preview only. The corrected copy is an authenticated editorial draft, not a replacement publication or a new client bearer link. Do not publish the raw snapshot, recovery evidence, or internal audit notes.
+The corrected copy is an authenticated editorial draft, not a replacement publication or a new client bearer link. The user subsequently authorized the Operations batch for production; this makes the private revision workspace available there while preserving the issued original and keeping the revision private. Do not publish the raw snapshot, recovery evidence, or internal audit notes.
 
 ## Identity and preservation
 
@@ -36,6 +36,6 @@ The $42,500 aggregate is recorded monthly rates **as of November 8**, including 
 
 Passed at handoff: private-draft schema and access suites; revision-enrichment suite; report-workspace and report-access suites; video-library UI regression; actual PDF rendering regression; final root TypeScript and lint checks. These cover negative tenant/brand/capability cases, anonymous access denial, original preservation, saved-only evidence, export routing, formula-safe CSV, unknown values, recovered arithmetic and private PDF labeling.
 
-Authenticated CUA was unavailable. No successful hosted signed-in UI smoke is claimed. Local PDF rendering and route tests are evidence for their own scope; hosted authenticated review remains unverified. Deployment/publishing scope remains preview only; the root task owns commit and preview release.
+Authenticated CUA was unavailable. No successful hosted signed-in UI smoke is claimed. Local PDF rendering and route tests are evidence for their own scope; hosted authenticated review remains unverified. The root task owns the authorized production release and verification. Public publication of the corrected draft remains a separate action.
 
 The ignored `.design-preview/lemme-corrected-revision-manifest.json` records draft identity, notes/plan and preserved totals. Detailed recovery manifests and rendered artifacts remain under `.design-preview/`; this handoff deliberately omits the full private snapshot and raw internal notes.

@@ -13,11 +13,11 @@ import { matchesCreatorTags, normalizeCreatorTag } from '@/lib/roster/creator-ta
  */
 import { applyRosterAgreementTerms, isCalendarMonthAgreement, type RosterAgreement } from '@/lib/agreements/roster-terms';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry, uuidToSlug, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
+import { uuidToSlug, expandSlugs } from '@/lib/data/brand-registry';
 import type { WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { resolveDateRange } from '@/lib/data/date-utils';
-import { getDataAnchorDate } from '@/lib/data/data-anchor';
-import { loadRosterSummary } from '@/lib/data/roster-summary';
+import { loadRosterSummary, getRosterSummaryRegistry, rosterSummarySelection, type RosterSummaryResult } from '@/lib/data/roster-summary';
+import { can } from '@/lib/auth/permissions';
 
 /**
  * Sentinel returned when a real brand is selected but we couldn't resolve any
@@ -295,7 +295,7 @@ type HealthFilter = typeof HEALTH_FILTERS[number];
 export interface RosterQueryBody {
   data: EnrichedRow[];
   spark_days: string[];
-  summary?: { affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number; total_retainer: number | null };
+  summary?: RosterSummaryResult['summary'];
   total: number;
   total_managed: number;
   page: number;
@@ -310,7 +310,7 @@ export interface RosterQueryBody {
   affiliate_count: number;
   low_roi_count: number;
   unread_dms_total: number;
-  total_gmv_period: number | undefined;
+  total_gmv_period: number | null | undefined;
   /** Null when the caller's scope can't view finance — the client renders "—"
    *  (absence), never a fabricated $0. */
   total_retainer: number | null;
@@ -326,6 +326,7 @@ export async function runRosterQuery(
   searchParams: URLSearchParams,
 ): Promise<RosterQueryResult> {
   const tenantId = scope.tenantId;
+  if (!can(scope, 'roster', 'read')) return { status: 403, body: { error: 'Forbidden' } };
 
   // Manager = brand-scoped. owner/admin/viewer = full tenant (brandScope 'all').
   const scoped = scope.brandScope.kind === 'scoped';
@@ -337,6 +338,12 @@ export async function runRosterQuery(
   if (scoped && brand && brand !== 'all' && !allowedSlugs!.includes(brand)) {
     return { status: 403, body: { error: 'Forbidden: brand not in your access' } };
   }
+  const reg = await getRosterSummaryRegistry(scope);
+  const storeFilter = searchParams.get('store');
+  let selection: ReturnType<typeof rosterSummarySelection>;
+  try { selection = rosterSummarySelection(scope, reg, brand, storeFilter); }
+  catch { return { status: 403, body: { error: 'Forbidden: brand or store not in your access' } }; }
+  const supabase = await createAdminClient();
   const status = searchParams.get('status');
   const search = searchParams.get('search');
   // ?product=<product_key> — filter managed creators tagged with that product.
@@ -387,7 +394,10 @@ export async function runRosterQuery(
   // Rolling presets end at the last day with data, not calendar yesterday.
   // Scoped to what this page is showing, never per brand inside a total.
   // See the note on resolveDateRange.
-    const dataThrough = await getDataAnchorDate(brand ? [brand] : allowedSlugs);
+    const anchor = selection.dataSlugs.length ? await supabase.from('creator_performance')
+      .select('report_date').eq('tenant_id', tenantId).eq('period_type', 'daily')
+      .in('brand', selection.dataSlugs).order('report_date', { ascending: false }).limit(1) : null;
+    const dataThrough = anchor?.error ? null : anchor?.data?.[0]?.report_date ?? null;
     const { startDate, endDate } =
       resolveDateRange(rangeParam, searchParams.get('start'), searchParams.get('end'), dataThrough);
     pStartDate = startDate;
@@ -412,7 +422,6 @@ export async function runRosterQuery(
   // ?store=<slug> — optional sub-filter when an umbrella brand is active.
   // Filters managed rows down to those whose period-GMV came primarily from
   // that store. Applied client-side after enrichment; null = no sub-filter.
-  const storeFilter = searchParams.get('store');
 
   // Numeric threshold post-filters (used by saved Segments). Applied after
   // enrichment alongside health/store, since GMV/posts are computed per row.
@@ -425,8 +434,6 @@ export async function runRosterQuery(
   const maxGmv = parseNum(searchParams.get('max_gmv'));
   const minPosts = parseNum(searchParams.get('min_posts'));
 
-  const supabase = await createAdminClient();
-  const reg = await getBrandRegistry();
   // The KPI rollups use the same scope and dates but no row-level enrichment.
   // Run them alongside the roster instead of after it. Capture failures now so
   // an early roster error cannot leave an unhandled background rejection.
@@ -500,6 +507,7 @@ export async function runRosterQuery(
         const { data, error: taErr } = await supabase
           .from('tiktok_accounts')
           .select('creator_id, tiktok_username, is_primary')
+          .eq('tenant_id', tenantId)
           .in('creator_id', batch)
           .order('is_primary', { ascending: false })
           .order('id', { ascending: true })
@@ -545,10 +553,9 @@ export async function runRosterQuery(
   const mtdPostsByHandle = new Map<string, Map<string, number>>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
 
-  // Resolve the brand filter to data-level UUIDs. null = no filter (all);
-  // [NO_MATCH_BRAND_ID] = real brand with no data → zero (never all).
-  const resolved = resolveUuids(reg, brand);
-  const brandIds = resolved && resolved.length === 0 ? [NO_MATCH_BRAND_ID] : resolved;
+  // All-brands is still bounded to authorized tenant IDs; empty never widens.
+  const resolved = selection.dataSlugs.map(slug => reg.bySlug.get(slug)!.id);
+  const brandIds = resolved.length ? resolved : [NO_MATCH_BRAND_ID];
 
   if (allHandles.length > 0) {
     const [perfRes, brandGmvRes, mtdRes, msgRes] = await Promise.all([

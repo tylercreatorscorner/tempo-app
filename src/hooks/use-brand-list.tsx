@@ -1,104 +1,92 @@
 'use client';
 
-/**
- * useBrandList — single source of truth for the "active brands" list on the
- * client. Fetches brands_v2 (active, non-umbrella's per-store splits hidden)
- * and respects the user's allowed_brands restriction.
- *
- * Replaces direct use of the hardcoded ACTIVE_BRANDS constant in user-facing
- * pickers so adding a brand via the New Client wizard immediately makes it
- * available in every dropdown.
- *
- * Name/color come straight from brands_v2 (display_name || name || slug; color,
- * else a neutral gray) — every brand row carries them, so no hardcoded fallback.
- */
-
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useSyncExternalStore } from 'react';
 
 export interface BrandListItem {
   slug: string;
-  name: string;          // brands_v2.display_name || name, then slug
-  color: string;         // brands_v2.color, then gray default
-  rawName: string;       // brands_v2.name (for cases where display_name shouldn't be used)
+  name: string;
+  color: string;
+  rawName: string;
   id: string;
 }
 
-let cache: BrandListItem[] | null = null;
-let inflight: Promise<BrandListItem[]> | null = null;
+type BrandListState = { brands: BrandListItem[]; loading: boolean };
+const EMPTY_STATE: BrandListState = { brands: [], loading: true };
+let snapshot = EMPTY_STATE;
+let loaded = false;
+let generation = 0;
+let request: AbortController | null = null;
+let contextListenerAttached = false;
+const subscribers = new Set<() => void>();
+const getSnapshot = () => snapshot;
+const getServerSnapshot = () => EMPTY_STATE;
 
-async function fetchBrands(): Promise<BrandListItem[]> {
-  if (cache) return cache;
-  if (inflight) return inflight;
+function publish(next: BrandListState) {
+  snapshot = next;
+  subscribers.forEach(notify => notify());
+}
 
-  inflight = (async () => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    let allowedBrands: string[] | null = null;
-    if (user) {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('allowed_brands')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (Array.isArray(profile?.allowed_brands) && profile.allowed_brands.length > 0) {
-        allowedBrands = profile.allowed_brands;
-      }
-    }
-
-    let query = supabase
-      .from('brands_v2')
-      .select('id, slug, name, display_name, color, parent_brand_id')
-      .eq('is_archived', false);
-    if (allowedBrands) query = query.in('slug', allowedBrands);
-
-    const { data, error } = await query.order('name');
-    if (error) {
-      console.error('useBrandList: failed to fetch brands_v2', error);
-      return [];
-    }
-
-    // Per-store children (parent_brand_id set) never appear in the picker — the
-    // umbrella slug is the canonical roster brand. Replaces the old hidden literal.
-    const filtered = (data ?? []).filter((b) => b.parent_brand_id == null);
-    const result: BrandListItem[] = filtered.map((b) => ({
-      id: b.id,
-      slug: b.slug,
-      rawName: b.name,
-      name: b.display_name || b.name || b.slug,
-      color: b.color || '#6B7280',
-    }));
-
-    cache = result;
-    return result;
-  })();
-
+async function fetchBrands() {
+  if (loaded || request) return;
+  const controller = new AbortController();
+  request = controller;
+  const currentGeneration = generation;
+  const current = () => generation === currentGeneration && request === controller;
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+  if (!snapshot.loading) publish({ brands: [], loading: true });
   try {
-    return await inflight;
+    // The API applies the current tenant and brand permissions. Never infer
+    // unrestricted access from a missing profile or an empty allowed-brands list.
+    const response = await fetch('/api/brands?metadata=1', { signal: controller.signal, cache: 'no-store', credentials: 'same-origin' });
+    if (!response.ok) throw new Error('Brand choices unavailable');
+    const body: unknown = await response.json();
+    if (!body || typeof body !== 'object' || !('brands' in body) || !Array.isArray(body.brands)) throw new Error('Invalid brand choices');
+    const rows = body.brands as unknown[];
+    if (rows.some(row => !row || typeof row !== 'object' || !('id' in row) || typeof row.id !== 'string' || !('slug' in row) || typeof row.slug !== 'string' || !row.slug || !('is_archived' in row) || typeof row.is_archived !== 'boolean' || !('parent_brand_id' in row) || (row.parent_brand_id !== null && typeof row.parent_brand_id !== 'string'))) throw new Error('Invalid brand choices');
+    const brands = (rows as Array<Record<string, unknown>>)
+      .filter(row => row.is_archived === false && row.parent_brand_id === null)
+      .map(row => ({
+        id: row.id as string,
+        slug: row.slug as string,
+        rawName: typeof row.name === 'string' ? row.name : row.slug as string,
+        name: (typeof row.display_name === 'string' && row.display_name) || (typeof row.name === 'string' && row.name) || row.slug as string,
+        color: (typeof row.color === 'string' && row.color) || '#6B7280',
+      }));
+    if (!current()) return;
+    if (controller.signal.aborted) throw new Error('Brand choices timed out');
+    loaded = true;
+    publish({ brands, loading: false });
+  } catch {
+    if (current()) publish({ brands: [], loading: false });
   } finally {
-    inflight = null;
+    clearTimeout(timeout);
+    if (current()) request = null;
   }
 }
 
-/** Invalidate the in-memory brand cache. Call after creating/archiving a brand. */
+/** Refresh mounted selectors after create/archive, and discard stale scope data. */
 export function invalidateBrandList() {
-  cache = null;
+  generation += 1;
+  request?.abort();
+  request = null;
+  loaded = false;
+  publish({ brands: [], loading: true });
+  if (subscribers.size) void fetchBrands();
 }
 
+function subscribe(notify: () => void) {
+  // Keep this one listener after unmount so a workspace change also invalidates
+  // cached choices before the next picker mounts.
+  if (!contextListenerAttached && typeof window !== 'undefined') {
+    window.addEventListener('workspace-context-changed', invalidateBrandList);
+    contextListenerAttached = true;
+  }
+  subscribers.add(notify);
+  void fetchBrands();
+  return () => { subscribers.delete(notify); };
+}
+
+/** Active top-level choices from the canonical, authorized brand endpoint. */
 export function useBrandList(): { brands: BrandListItem[]; loading: boolean } {
-  const [brands, setBrands] = useState<BrandListItem[]>(cache ?? []);
-  const [loading, setLoading] = useState(!cache);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchBrands().then((list) => {
-      if (cancelled) return;
-      setBrands(list);
-      setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  return { brands, loading };
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

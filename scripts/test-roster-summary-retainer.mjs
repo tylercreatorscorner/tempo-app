@@ -35,17 +35,34 @@ function from(table) {
   };
   return q;
 }
-const { getRosterSummaryRetainer } = load('src/lib/data/roster-summary-retainer.ts', {
+const { getRosterSummaryRetainer: readRetainer } = load('src/lib/data/roster-summary-retainer.ts', {
   '@/lib/supabase/server': { createAdminClient: async () => ({ from }) },
   '@/lib/agreements/roster-terms': { applyRosterAgreementTerms: async rows => rows },
   './fetch-all-rows': load('src/lib/data/fetch-all-rows.ts', {}),
 });
+async function getRosterSummaryRetainer(...args) { return (await readRetainer(...args))?.total ?? null; }
 const owner = { tenantId: 'tenant-a', canViewCreatorCost: true, brandScope: { kind: 'all' } };
 const manager = { ...owner, brandScope: { kind: 'scoped', brandSlugs: ['alpha'] } };
 assert.equal(await getRosterSummaryRetainer(owner, 'all'), 1351, 'Deduplicate linked brand commitments; keep unlinked people and all pages');
 assert.equal(await getRosterSummaryRetainer(owner, 'alpha'), 1151, 'Selected brand excludes other brands and tenants');
 assert.equal(await getRosterSummaryRetainer(manager, null), 1151, 'Scoped all-brand view only includes assigned brands');
 assert.equal(await getRosterSummaryRetainer(owner, 'empty'), 0, 'Empty brand is an actual zero');
+assert.equal(await getRosterSummaryRetainer(owner, 'all', ['alpha']), 1151, 'Summary budget excludes archived/unselected brands even in all-brands scope');
+rows.push({ id:'unknown', tenant_id:'tenant-a', creator_id:null, brand:'alpha', retainer:null, archived_at:null });
+assert.equal(await getRosterSummaryRetainer(owner, 'alpha'), 1151, 'Known commitments remain available as a recorded subtotal');
+const incomplete = await readRetainer(owner, 'alpha');
+assert.equal(incomplete.complete, false); assert.equal(incomplete.missingCount, 1);
+rows.pop();
+for (const prepend of [false,true]) {
+  const duplicate={id:'duplicate-unknown',tenant_id:'tenant-a',creator_id:'one',brand:'alpha',retainer:null,archived_at:null};
+  if(prepend) rows.unshift(duplicate); else rows.push(duplicate);
+  const resolved=await readRetainer(owner,'alpha');
+  assert.equal(resolved.total,1151); assert.equal(resolved.missingCount,0); assert.equal(resolved.complete,true);
+  if(prepend) rows.shift(); else rows.pop();
+}
+rows.push({id:'child-only',tenant_id:'tenant-a',creator_id:'child-person',brand:'child',retainer:75,archived_at:null});
+assert.equal(await getRosterSummaryRetainer(owner,null,['alpha','child']),1226,'Expanded scope retains a genuine child-only contract');
+rows.pop();
 const before = reads;
 assert.equal(await getRosterSummaryRetainer(manager, 'beta'), null);
 assert.equal(await getRosterSummaryRetainer({ ...owner, canViewCreatorCost: false }, null), null);

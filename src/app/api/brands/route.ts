@@ -1,7 +1,7 @@
 /**
  * /api/brands
  *
- * GET  — list all brands (active + archived) with their financial settings
+ * GET  — list authorized brands; metadata=1 omits optional financial settings
  * POST — create a new brand (brands_v2 row); brand_settings row is created
  *        lazily on first edit via the existing upsert path.
  */
@@ -14,7 +14,7 @@ import { getFinanceAccess } from '@/lib/finance/access';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   // Shared reporting/brand pickers may read tenant-scoped metadata. Financial
   // settings additionally require finance access and unambiguous legacy slugs.
   const scope = await getWorkspaceScope();
@@ -37,8 +37,10 @@ export async function GET() {
   if (brandsErr) return NextResponse.json({ error: brandsErr.message }, { status: 500 });
   if (!brandsRows || count !== brandsRows.length) return NextResponse.json({ error: 'The complete brand list could not be loaded.' }, { status: 503 });
 
-  // Managers never get financial settings.
-  if (managerScoped || !can(scope, 'earnings', 'read')) {
+  // Pickers need only authorized metadata. Optional billing availability must
+  // not block their brand choices; default finance consumers retain all guards.
+  const metadataOnly = req?.nextUrl.searchParams.get('metadata') === '1';
+  if (metadataOnly || managerScoped || !can(scope, 'earnings', 'read')) {
     const brands = (brandsRows ?? []).map((b) => ({ ...b, settings: null }));
     return NextResponse.json({ brands, scoped: managerScoped, financeAvailable: false });
   }

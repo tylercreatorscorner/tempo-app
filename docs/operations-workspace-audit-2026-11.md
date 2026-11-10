@@ -1,6 +1,6 @@
 # Operations workspace audit
 
-This batch follows the released Agency month-handoff audit. It is a preview change set for Agency planning, Onboarding, Coaching, Communications, standalone Finance, and Settings. No schema migration, actual invoice issuance, payment, outbound message, or live role change is part of the code audit.
+This batch follows the released Agency month-handoff audit. It covers Agency planning, Onboarding, Coaching, Communications, standalone Finance, Settings, reporting corrections, and restored Creator Roster totals. The user authorized production release on November 10. It does not issue invoices, make payments, send outbound messages, or change live roles. Private report-draft storage and the roster performance aggregate are documented separately.
 
 ## Corrections
 
@@ -31,6 +31,6 @@ See `messages-inbox-access.md` for the legacy history attribution limitation and
 
 ## Client report correctness follow-up
 
-The newest Lemme custom-period report was checked against its saved snapshot, public downloads, and read-only source aggregates. Core sales and published-video evidence reconcile. This preview also corrects activity wording that implied lifetime first sales, PDF active-person counts, ambiguous export-account denominators, end-of-period rate-history labels, unidentified-product labels and share denominators, and sub-cent residual display. Comparable retainer return now requires aligned saved agreement terms for every retained creator rather than treating dated rates alone as proof.
+The newest Lemme custom-period report was checked against its saved snapshot, public downloads, and read-only source aggregates. Core sales and published-video evidence reconcile. This batch also corrects activity wording that implied lifetime first sales, PDF active-person counts, ambiguous export-account denominators, end-of-period rate-history labels, unidentified-product labels and share denominators, and sub-cent residual display. Comparable retainer return now requires aligned saved agreement terms for every retained creator rather than treating dated rates alone as proof.
 
-Generator and actual Studio-render regressions are part of `test:report-workspace`; actual PDF-render tests run locally. Existing frozen report notes and source figures remain unchanged. Top-video units absent from saved snapshots, unidentified product names/grouping, missing agreement snapshots, and absent forward plans are separate unresolved data issues. Authenticated preview smoke testing remains pending because the browser-control kernel could not attach to the user's signed-in session; this is not a request for another sign-in.
+Generator and actual Studio-render regressions are part of `test:report-workspace`; actual PDF-render tests run locally. Existing frozen report notes and source figures remain unchanged. Lemme's private corrected draft restores source-backed top-video units and dated product identities, with corrected commentary and proposed next steps. Missing agreement snapshots remain unresolved. See `lemme-private-revision-2026-11-10.md`. Authenticated hosted smoke testing remains unverified because the browser-control kernel could not attach to the user's signed-in session; this is not a request for another sign-in.

@@ -10,6 +10,9 @@ let scope = original;
 let failure = '';
 let truncated = false;
 let calls = 0;
+let financeCalls = 0;
+let financeDenied = false;
+let reads = [];
 let writes = [];
 let storageWrites = [];
 const tables = {
@@ -23,6 +26,7 @@ const tables = {
 };
 const client = {
   from(table) {
+    reads.push(table);
     assert.ok(table in tables, table);
     let op = 'read', patch, columns = '*'; const filters = [];
     const q = {
@@ -67,7 +71,7 @@ const guards = { ...base, './workspace-scope': workspace, './permissions': permi
 const brandAccess = load('src/lib/auth/brand-settings-access.ts', guards);
 const billingAccess = load('src/lib/auth/billing-identity-access.ts', guards);
 const financeAccess = load('src/lib/finance/access.ts', base);
-const deps = { ...base, '@/lib/auth/brand-settings-access': brandAccess, '@/lib/auth/billing-identity-access': billingAccess, '@/lib/finance/access': financeAccess };
+const deps = { ...base, '@/lib/auth/brand-settings-access': brandAccess, '@/lib/auth/billing-identity-access': billingAccess, '@/lib/finance/access': { ...financeAccess, getFinanceAccess: (...args) => { financeCalls++; return financeDenied ? NextResponse.json({ error: 'Finance unavailable' }, { status: 403 }) : financeAccess.getFinanceAccess(...args); } } };
 const brands = load('src/app/api/brands/route.ts', deps);
 const brand = load('src/app/api/brands/[id]/route.ts', deps);
 const logo = load('src/app/api/brands/[id]/logo/route.ts', deps);
@@ -75,6 +79,42 @@ const payees = load('src/app/api/team-members/route.ts', deps);
 const payee = load('src/app/api/team-members/[id]/route.ts', deps);
 const req = (method, body) => new NextRequest('https://fixture.invalid/api/brands', { method, ...(body ? { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } } : {}) });
 const ctx = id => ({ params: Promise.resolve({ id }) });
+const metadataRequest = () => new NextRequest('https://fixture.invalid/api/brands?metadata=1');
+
+// Metadata mode keeps the same workspace/brand/completeness boundary, while
+// remaining independent of optional finance eligibility and billing reads.
+for (const invalid of [null, { ...original, tenantId: null }]) {
+  scope = invalid; calls = 0;
+  assert.equal((await brands.GET(metadataRequest())).status, 403);
+  assert.equal(calls, 0);
+}
+scope = original; failure = 'brand_settings'; financeCalls = 0; reads = [];
+let metadata = await (await brands.GET(metadataRequest())).json();
+assert.deepEqual(metadata.brands.map(row => row.id), ['local', 'second']);
+assert.ok(metadata.brands.every(row => row.settings === null));
+assert.equal(metadata.financeAvailable, false);
+assert.equal(financeCalls, 0); assert.deepEqual(reads, ['brands_v2']);
+assert.equal((await brands.GET()).status, 503, 'Default billing read still reports failed settings');
+failure = ''; financeDenied = true; financeCalls = 0;
+assert.equal((await brands.GET(metadataRequest())).status, 200);
+assert.equal(financeCalls, 0);
+assert.equal((await brands.GET()).status, 403, 'Metadata opt-in cannot weaken default finance access');
+financeDenied = false;
+tables.brands_v2.push({ id: 'metadata-ambiguous', tenant_id: 'tenant-b', slug: 'alpha' });
+metadata = await (await brands.GET(metadataRequest())).json();
+assert.deepEqual(metadata.brands.map(row => row.id), ['local', 'second'], 'Other tenant legacy slug cannot block authorized metadata');
+assert.equal((await brands.GET()).status, 503, 'Ambiguous finance slug remains protected in default mode');
+tables.brands_v2.pop();
+scope = { ...original, role: 'manager', brandScope: { kind: 'scoped', brandIds: ['local'], brandSlugs: ['alpha'] } };
+metadata = await (await brands.GET(metadataRequest())).json();
+assert.deepEqual(metadata.brands.map(row => row.id), ['local']); assert.equal(metadata.scoped, true);
+scope = { ...original, brandScope: { kind: 'scoped', brandIds: [], brandSlugs: [] } };
+metadata = await (await brands.GET(metadataRequest())).json(); assert.equal(metadata.brands.length, 0);
+scope = original; truncated = true;
+assert.equal((await brands.GET(metadataRequest())).status, 503, 'Metadata cannot silently return a truncated brand list');
+truncated = false; failure = 'brands_v2';
+assert.equal((await brands.GET(metadataRequest())).status, 500);
+failure = '';
 
 for (const invalid of [null, { ...original, tenantId: null }, { ...original, permissions: new Set() }, { ...original, role: 'manager' }, { ...original, impersonating: { userId: 'view-as' } }]) {
   scope = invalid; calls = 0; writes = []; storageWrites = [];
