@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { AgencyFinanceWorkspace } from '../../src/app/(admin)/agency/finance/workspace';
+import { AgencyInvoiceDocument } from '../../src/app/(admin)/agency/finance/invoice/[id]/document';
 import { buildInvoice, emptyFinanceSettings } from '../../src/lib/agency/finance-model';
 import type { ClientRecord } from '../../src/lib/agency/model';
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -27,4 +28,4 @@ window.fetch = async (url, init) => {
   if (init?.method === 'POST') { const body = JSON.parse(String(init.body)); if (body.action === 'settings') { const target = body.clientId === creatorClient.id ? creatorRecord : body.clientId === periodClient.id ? periodRecord : record; target.settings = body.settings; target.revision++; return Response.json(target); } return Response.json({ error: 'Fixture: this action is disabled.' }, { status: 400 }); }
   return Response.json(data);
 };
-createRoot(document.getElementById('root')!).render(<AgencyFinanceWorkspace />);
+createRoot(document.getElementById('root')!).render(fixtureMode === 'invoice' ? <AgencyInvoiceDocument invoice={data.invoices[0]} /> : fixtureMode === 'creator-invoice' ? <AgencyInvoiceDocument invoice={{ id: id(7), month: '2026-09', status: 'draft', snapshot: buildInvoice(creatorClient, creatorRecord, '2026-09', null, '2026-10-01') }} /> : <AgencyFinanceWorkspace />);

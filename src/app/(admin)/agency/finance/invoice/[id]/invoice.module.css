@@ -1,0 +1,10 @@
+.document { box-sizing: border-box; width: 100%; max-width: 800px; min-width: 0; margin: 24px auto; padding: clamp(16px, 5vw, 40px); border: 1px solid #dfe4e8; border-radius: 12px; background: #fff; color: #172329; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.title { margin-bottom: 24px; font-size: clamp(24px, 5vw, 32px); font-weight: 600; line-height: 1.2; letter-spacing: -.025em; }
+.total { margin-top: 20px; font-size: clamp(22px, 5vw, 28px); font-weight: 600; line-height: 1.35; }
+.document table { table-layout: fixed; }
+.document th, .document td { overflow-wrap: anywhere; vertical-align: top; }
+.printButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; margin-bottom: 24px; padding: 10px 14px; border: 1px solid #cbd2da; border-radius: 8px; background: #fff; color: #172329; font-size: 13px; font-weight: 500; line-height: 1.4; cursor: pointer; }
+.printButton:hover { background: #f3f5f8; border-color: #9ba7b5; }
+.printButton:focus-visible { outline: 2px solid var(--ring, #6558d3); outline-offset: 3px; }
+@media (max-width: 480px) { .document { margin-block: 12px; border-radius: 9px; }.document th, .document td { padding-inline: 5px !important; } }
+@media print { .document { max-width: none; border: 0; border-radius: 0; padding: 16px; }.document tr { break-inside: avoid; }.document thead { display: table-header-group; } }

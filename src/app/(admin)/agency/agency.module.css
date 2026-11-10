@@ -95,7 +95,7 @@
 .emptyIcon { width: 54px; height: 54px; border-radius: 14px; display: grid; place-items: center; color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--card)); margin-bottom: 18px; }
 .empty h2 { font-size: 18px; font-weight: 600; letter-spacing: -.035em; }
 .empty p { max-width: 440px; font-size: 13px; line-height: 1.8; color: var(--muted-foreground); margin: 10px 0 22px; }
-.unassigned { margin-top: 26px; }
+.unassigned { margin-top: 26px; scroll-margin-top: 80px; }
 .unassignedList { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 13px; }
 .unassignedBrand { display: flex; align-items: center; gap: 9px; padding: 10px 11px; min-width: 0; border-radius: var(--workspace-control-radius, 8px); border: 1px solid var(--agency-line); background: var(--card); }
 .unassignedBrand .brandIdentity { flex: 1; }

@@ -119,6 +119,12 @@ export function AgencyWorkspace({ view, initialMonth, initialClientFilter = 'con
   const openEditor = (client: ClientRecord | null, brandId?: string) => { setEditing({ client, brandId, returnFocus: document.activeElement as HTMLElement, contextEpoch: contextEpoch.current }); };
   const renderEpoch = contextEpoch.current;
   const displayedData = data?.month === month ? data : null;
+  const anchorHandled = useRef(false);
+  useEffect(() => {
+    if (!displayedData || anchorHandled.current || window.location.hash !== '#unlinked-brands') return;
+    const target = document.getElementById('unlinked-brands');
+    if (target) { anchorHandled.current = true; target.scrollIntoView({ block: 'start' }); target.focus({ preventScroll: true }); }
+  }, [displayedData]);
   return <>
     {displayedData ? <AgencyWorkspaceView initialClientFilter={initialClientFilter} view={view} data={displayedData} month={month} onMonthChange={value => { setMonth(value); setLoading(true); setError(null); setNotice(null); }} onEdit={client => openEditor(client)} onAdd={brandId => openEditor(null, brandId)} loading={loading} notice={notice} onClientSaved={saved => { if (renderEpoch !== contextEpoch.current) return; setData(previous => previous ? { ...previous, clients: previous.clients.map(client => client.id === saved.id ? saved : client) } : previous); setNotice(`${saved.name} saved.`); }} /> : <div className={styles.workspace}>
       <WorkspaceHeading view={view} month={month} onMonthChange={value => { setMonth(value); setLoading(true); setError(null); }} />
@@ -180,7 +186,7 @@ export function AgencyWorkspaceView({ initialClientFilter = 'configured', view, 
         {view === 'revenue' && <div className={styles.tableNote}><CircleAlert size={14} /><span>Calculated service revenue is not invoiced or collected cash. Manager payees and creator retainers are excluded. Partial service months and refund adjustments require review. Historical views use the current client-to-brand links and saved terms; they are not frozen invoices.</span></div>}
       </section>}
     </>}
-    {!!unassigned.length && (view === 'clients' || !data.clients.length) && <section id="unlinked-brands" className={styles.unassigned}><div><h2>Brands without a client agreement<span className={styles.count}>{unassigned.length}</span></h2><p>Link these brands when you set up a client. They are not included in client or retention counts.</p></div><div className={styles.unassignedList}>{unassigned.map(brand => <div className={styles.unassignedBrand} key={brand.id}><BrandIdentity brand={brand} /><span className={styles.status}>Needs setup</span>{data.canEdit && data.storageReady && <button type="button" className={styles.iconButton} aria-label={`Set up ${brand.name}`} onClick={() => onAdd(brand.id)}><Plus size={16} /></button>}</div>)}</div></section>}
+    {!!unassigned.length && (view === 'clients' || !data.clients.length) && <section id="unlinked-brands" tabIndex={-1} className={styles.unassigned}><div><h2>Brands without a client agreement<span className={styles.count}>{unassigned.length}</span></h2><p>Link these brands when you set up a client. They are not included in client or retention counts.</p></div><div className={styles.unassignedList}>{unassigned.map(brand => <div className={styles.unassignedBrand} key={brand.id}><BrandIdentity brand={brand} /><span className={styles.status}>Needs setup</span>{data.canEdit && data.storageReady && <button type="button" className={styles.iconButton} aria-label={`Set up ${brand.name}`} onClick={() => onAdd(brand.id)}><Plus size={16} /></button>}</div>)}</div></section>}
     <p className={styles.scopeNote}><Building2 size={14} />Completed months only. Agency agreements are separate from individual team earnings and creator payouts.</p>
   </div>;
 }

@@ -21,4 +21,5 @@ const workspace = readFileSync('src/app/(admin)/agency/workspace.tsx', 'utf8');
 assert.match(workspace, /agencyHref\('\/agency\/revenue', month\)/, 'Overview revenue action carries the reviewed period');
 assert.match(workspace, /window\.history\.replaceState\(null/, 'Month selection notifies Next navigation');
 assert.match(readFileSync('src/components/layout/sidebar.tsx', 'utf8'), /agencyHref\(href, searchParams\.get\('month'\)\)/, 'Desktop and mobile share period-aware links');
+assert.match(workspace, /target\.scrollIntoView/, 'Async unlinked-brand destination restores the hash handoff after loading');
 console.log('Agency navigation: month handoffs, malformed values, and year rollover passed');

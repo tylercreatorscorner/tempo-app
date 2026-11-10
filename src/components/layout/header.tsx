@@ -130,6 +130,8 @@ export function Header({ onMenuClick, navigationOpen = false, tenantName, userNa
       ? fallbackDetailLabel(pathname.split('/creators/')[1] ?? '')
       : isBrandDetail
       ? decodeURIComponent(pathname.split('/brands/')[1] ?? '')
+      : pathname.startsWith('/agency/finance/invoice/')
+      ? 'Agency · Invoice'
       : (BREADCRUMB_MAP[pathname] ?? labelFromPath(pathname)));
 
   async function handleLogout() {
