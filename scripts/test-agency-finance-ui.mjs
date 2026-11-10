@@ -33,6 +33,12 @@ pending = request('/api/agency/finance'); await new Promise(resolve => setImmedi
 await assert.rejects(pending, /Finance took too long/, 'The deadline also covers response decoding');
 
 const ui = readFileSync('src/app/(admin)/agency/finance/workspace.tsx', 'utf8');
+assert.doesNotMatch(ui, /<select\b/, 'Finance uses themed menus instead of native OS option lists');
+for (const label of ['Automatic renewal', 'Client to invoice', 'Forecast client', 'Collection scenario']) assert.ok(ui.includes(`ChoiceMenu compact label="${label}"`), `${label} retains an explicit accessible label`);
+assert.match(ui, /disabled: c.historical/, 'Past agreements stay disabled in the invoice menu');
+assert.match(ui, /c.id === value && !c.historical/, 'Invoice selection rejects a past agreement');
+assert.match(ui, /value: '', label: 'All clients'/, 'Forecast can return to the unfiltered client view');
+assert.match(ui, /value === '0' \|\| value === '14' \|\| value === '30'/, 'Forecast scenarios retain their numeric timing semantics');
 assert.match(ui, /if \(busyRef.current\) return/);
 assert.match(ui, /run\(load, false\)/, 'Reload does not issue another automatic reload');
 assert.match(ui, /completedAgencyMonth\(reviewMonth/);

@@ -106,8 +106,11 @@ export function buildInvoice(client: ClientRecord, record: FinanceRecord, month:
     expectedDate: addDays(dueDate, record.settings.collectionDelayDays) };
 }
 export type CashEvent = { clientId: string; clientName: string; month: string; source: 'Invoice' | 'Draft' | 'Estimate'; receiptDate: string | null; payoutDate: string | null; receiptCents: number; payoutCents: number; overdue: boolean };
+export type ForecastGap = { clientId: string; clientName: string; month: string; message: string };
 export function forecast(clients: ClientRecord[], records: FinanceRecord[], invoices: AgencyInvoice[], today: string, delay = 0) {
   const events: CashEvent[] = [], missing: string[] = [];
+  const missingDetails: ForecastGap[] = [];
+  const addMissing = (client: ClientRecord, month: string, message: string) => { missing.push(`${client.name} · ${month}: ${message}`); missingDetails.push({ clientId: client.id, clientName: client.name, month, message }); };
   const historicalIds = new Set(clients.filter(client => client.historical).map(client => client.id));
   // Issued/collected obligations survive archiving. Unissued drafts remain historical records.
   for (const invoice of invoices.filter(i => i.status !== 'void' && !(i.status === 'draft' && historicalIds.has(i.client_id)))) {
@@ -136,14 +139,14 @@ export function forecast(clients: ClientRecord[], records: FinanceRecord[], invo
         const expectedReceipt = addDays(scheduledInvoice, record.settings.netDays + record.settings.collectionDelayDays + delay);
         if (expectedReceipt > addDays(today, 90)) continue;
       }
-      if (!record) { missing.push(`${client.name} · ${month}: ${creatorFee ? 'add finance settings and confirm the actual creator roster' : 'add a GMV estimate'}`); continue; }
-      if (creatorFee && !ledger?.rosterConfirmed) { missing.push(`${client.name} · ${month}: confirm the actual creator roster for this service month`); continue; }
-      if (needsGmv && !gmv) { missing.push(`${client.name} · ${month}: add a GMV estimate${creatorFee ? ' for manager pay' : ''}`); continue; }
+      if (!record) { addMissing(client, month, creatorFee ? 'add finance settings and confirm the actual creator roster' : 'add a GMV estimate'); continue; }
+      if (creatorFee && !ledger?.rosterConfirmed) { addMissing(client, month, 'confirm the actual creator roster for this service month'); continue; }
+      if (needsGmv && !gmv) { addMissing(client, month, `add a GMV estimate${creatorFee ? ' for manager pay' : ''}`); continue; }
       try {
         const s = buildInvoice(client, record, month, needsGmv && gmv ? Math.round(gmv.amount * 100) : null, `${shiftMonth(month, 1)}-${String(record.settings.invoiceDay).padStart(2, '0')}`);
         const expected = addDays(s.expectedDate, delay), receiptDate = expected < today ? today : expected;
         events.push({ clientId: client.id, clientName: client.name, month, source: 'Estimate', receiptDate, payoutDate: addDays(receiptDate, 7), receiptCents: s.feeCents, payoutCents: s.managerCents, overdue: expected < today });
-      } catch (error) { missing.push(`${client.name} · ${month}: ${(error as Error).message}`); }
+      } catch (error) { addMissing(client, month, (error as Error).message); }
     }
   }
   const weeks = Array.from({ length: 13 }, (_, i) => {
@@ -152,5 +155,5 @@ export function forecast(clients: ClientRecord[], records: FinanceRecord[], invo
     const payoutCents = events.reduce((sum, e) => sum + (e.payoutDate && (e.payoutDate < today ? today : e.payoutDate) >= start && (e.payoutDate < today ? today : e.payoutDate) <= end ? e.payoutCents : 0), 0);
     return { start, end, receiptCents, payoutCents, retainedCents: receiptCents - payoutCents };
   });
-  return { weeks, events, missing };
+  return { weeks, events, missing, missingDetails };
 }

@@ -110,6 +110,7 @@
 .forecastGrid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; gap: 16px; }
 .page summary { cursor: pointer; font-size: 13px; font-weight: 550; }
 .page details > p { margin-top: 10px; }
+.setupLink { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
 .heading > div { min-width: 0; overflow-wrap: anywhere; }
 .table td { overflow-wrap: anywhere; }
 .panel > .toolbar > input[type=file] { max-width: 100%; }

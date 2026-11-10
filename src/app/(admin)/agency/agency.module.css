@@ -22,6 +22,10 @@
 .metricLabel { font-size: 13px; color: var(--muted-foreground); }
 .metric strong { font-size: clamp(23px, 2.3vw, 28px); line-height: 1.1; font-weight: 580; letter-spacing: -.035em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .metricAccent strong { color: var(--primary); }
+.metricAction { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 17px; line-height: 1.35; letter-spacing: -.015em; text-decoration: none; }
+.metricAction:hover { text-decoration: underline; text-underline-offset: 3px; }
+.metricAction:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.metricAction svg { flex-shrink: 0; }
 .metricDetail { font-size: 12px; color: var(--muted-foreground); line-height: 1.5; }
 .overviewGrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr); align-items: start; gap: 16px; margin-bottom: 16px; }
 .panel { box-shadow: var(--workspace-surface-shadow, none); background: var(--card); border: 1px solid var(--agency-line); border-radius: var(--workspace-surface-radius, 14px); min-width: 0; overflow: hidden; }
