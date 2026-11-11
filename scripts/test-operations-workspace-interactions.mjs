@@ -129,17 +129,21 @@ assert.match(text(invites.render()), /Copied/);
 invites.close();
 
 // Brand selection hands off through the actual URL, preserving unrelated
-// query values. A server rerender retains generated links (keyed by tenant)
-// and gives the roster navigation the selected brand.
+// query values. Roster navigation uses the immediate local selection while the
+// URL/server props still contain the previous brand; server rerenders retain
+// generated links (keyed by tenant).
 const inviteBrands = [
   { slug: 'example', name: 'Example', display_name: 'Example Brand' },
   { slug: 'second', name: 'Second', display_name: 'Second Brand' },
 ];
-query = 'keep=fixture';
+query = 'keep=fixture&page=9';
 const scopedInviteProps = { tenantId: 'fixture', brands: inviteBrands };
 const scopedInvites = harness(CreatorInvitesSection, scopedInviteProps);
 tree = scopedInvites.render();
 assert.equal(button(tree, 'Generate link').props.disabled, true, 'Multiple brands require an explicit selection');
+const invitationRosterLink = tree => find(tree, node => node.type === 'NavigationLink' && text(node).trim() === 'Open creator roster');
+assert.equal(invitationRosterLink(tree).props.href, '/roster');
+assert.equal(nodes(tree).filter(node => node.type === 'NavigationLink' && text(node).trim() === 'Open creator roster').length, 1);
 const invitationChoice = () => find(scopedInvites.render(), node => node.type === 'ChoiceMenu');
 const choiceBeforeSelection = invitationChoice();
 choiceBeforeSelection.props.onChange('not-in-workspace');
@@ -147,6 +151,9 @@ assert.equal(invitationChoice().props.value, '', 'Unlisted brand values are igno
 choiceBeforeSelection.props.onChange('second');
 assert.equal(lastUrl, '/roster/invitations?keep=fixture&brand=second');
 assert.equal(invitationChoice().props.value, 'second');
+assert.equal(query, 'keep=fixture&page=9', 'The simulated router has not supplied a new URL yet');
+assert.equal(scopedInviteProps.initialBrand, undefined, 'The server has not supplied a new brand yet');
+assert.equal(invitationRosterLink(scopedInvites.render()).props.href, '/roster?brand=second', 'An immediate roster click follows the local selection without awaiting RSC');
 query = new URL(lastUrl, 'https://fixture.invalid').searchParams.toString();
 scopedInviteProps.initialBrand = 'second';
 scopedInvites.render(); // Effect applies server-selected brand after navigation.
@@ -161,7 +168,7 @@ dependencies['@/lib/auth/require-screen'] = { requireScreen: async () => ({ tena
 dependencies['@/lib/auth/permissions'] = { can: () => true };
 dependencies['@/lib/supabase/server'] = { createAdminClient: async () => ({ from: table => { assert.equal(table, 'brands_v2'); return brandRead; } }) };
 const onboardingPage = await load('src/app/(admin)/roster/invitations/page.tsx').default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(query))) });
-assert.equal(find(onboardingPage, node => node.type === 'PageHeader').props.actions.props.href, '/roster?brand=second');
+assert.equal(find(onboardingPage, node => node.type === 'PageHeader').props.actions, undefined, 'The server header cannot expose a second, stale roster destination');
 const serverInviteSection = find(onboardingPage, node => node.type === 'CreatorInvitesSection');
 assert.equal(serverInviteSection.props.initialBrand, 'second');
 assert.equal(serverInviteSection.key, 'fixture', 'Brand changes preserve the current session links');
@@ -185,6 +192,7 @@ tree = scopedInvites.render();
 assert.equal(createCount, 1);
 assert.deepEqual(generatedPayload, { brand: 'second', tenant_id: 'fixture' });
 assert.equal(invitationChoice().props.value, 'second');
+assert.equal(invitationRosterLink(tree).props.href, '/roster?brand=second', 'A rejected pending scope change cannot change the roster destination');
 assert.equal(invitationChoice().props.disabled, true);
 assert.equal(button(tree, 'Generating…').props.disabled, true);
 assert.equal(lastUrl, '/roster/invitations?keep=fixture&brand=second');
@@ -206,6 +214,9 @@ tree = scopedInvites.render();
 assert.match(text(find(tree, node => node.props.role === 'status')), /Invitation created for Second Brand/);
 assert.ok(button(tree, 'Copy invitation link for Second Brand'));
 invitationChoice().props.onChange('example');
+assert.equal(scopedInviteProps.initialBrand, 'second');
+assert.equal(new URLSearchParams(query).get('brand'), 'second');
+assert.equal(invitationRosterLink(scopedInvites.render()).props.href, '/roster?brand=example', 'A second immediate switch cannot follow the previous server brand');
 query = new URL(lastUrl, 'https://fixture.invalid').searchParams.toString();
 scopedInviteProps.initialBrand = 'example';
 scopedInvites.render();
