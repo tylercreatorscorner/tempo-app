@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { CreatorInvitesSection } from '../../src/components/settings/creator-invites-section';
+import JoinPage from '../../src/app/join/[code]/page';
 import { ChatThread } from '../../src/components/messages/chat-thread';
 import LegacyHub from '../../src/app/(admin)/messages/legacy-hub';
 import { CoachingRecords } from '../../src/app/(admin)/reporting/coaching/records';
@@ -9,6 +10,8 @@ import { usePathname, useSearchParams } from './workspace-system-navigation';
 import { brands } from './operations-hooks';
 import { StandaloneFinanceFixture, financeFixtureResponse } from './standalone-finance';
 import './operations-controls.css';
+import workspaceTheme from '../../src/components/layout/workspace-theme.module.css';
+import studioTheme from '../../src/components/layout/dashboard-studio-shell.module.css';
 
 let threadFailed = false;
 let inviteCount = 0;
@@ -27,7 +30,15 @@ window.fetch = async (input, init) => {
   await new Promise(resolve => setTimeout(resolve, 180));
   const financeResponse = financeFixtureResponse(url, init, scenario);
   if (financeResponse) return financeResponse;
-  if (url.pathname === '/api/invites/generate') return Response.json({ invite: { id: `invite-${++inviteCount}`, code: 'aabbccdd', brand: 'northstar', expires_at: '2026-11-17', max_uses: 100, current_uses: 0, active: true } });
+  if (url.pathname === '/api/invites/generate') return scenario === 'generate-error'
+    ? Response.json({ error: 'Fixture: could not generate the link. Please retry.' }, { status: 503 })
+    : Response.json({ invite: { id: `invite-${++inviteCount}`, code: '0123456789abcdef0123456789abcdef', brand: JSON.parse(String(init?.body)).brand, expires_at: '2026-11-17', max_uses: 100, current_uses: 0, active: true } });
+  if (url.pathname.startsWith('/api/invites/')) return scenario === 'invalid'
+    ? Response.json({ error: 'This invite has expired' }, { status: 410 })
+    : Response.json({ brand: 'northstar', brand_display_name: 'Northstar Example Brand' });
+  if (url.pathname === '/api/join') return scenario === 'join-error'
+    ? Response.json({ error: 'This information needs to be verified by your brand manager. No existing creator account was changed.' }, { status: 409 })
+    : Response.json({ success: true, creator_id: 'fictional-creator', verified: false });
   if (url.pathname === '/api/messages/conversations') return Response.json({ conversations });
   if (/\/api\/messages\/[^/]+\/mark-read$/.test(url.pathname)) return Response.json({ ok: true });
   if (/\/api\/messages\/[^/]+\/send$/.test(url.pathname)) return Response.json({ error: 'Fixture: delivery is disabled. Draft should remain available.' }, { status: 503 });
@@ -54,12 +65,13 @@ function App() {
   let content;
   if (path === '/invoicing-fixture' || params.get('fixture') === 'invoice') content = <StandaloneFinanceFixture mode="invoice" readOnly={params.get('readonly') === 'yes'} />;
   else if (path === '/finance-settings' || params.get('fixture') === 'settings') content = <StandaloneFinanceFixture mode="settings" readOnly={params.get('readonly') === 'yes'} />;
-  else if (path === '/onboarding') content = <CreatorInvitesSection tenantId="fixture" brands={brands} />;
+  else if (path === '/onboarding' || path === '/roster/invitations') content = <CreatorInvitesSection tenantId="fixture" initialBrand={params.get('brand') ?? undefined} brands={params.get('scenario') === 'empty' ? [] : [...brands, { slug: 'other', name: 'Another Example Brand With A Long Name', display_name: null }]} />;
+  else if (path.startsWith('/join/')) content = <JoinPage />;
   else if (path === '/chat') content = <div className="fixtureChat"><ChatThread creatorId={1} creatorName="Example Creator With A Long Display Name" discordUserId="discord-one" brandName={brands[0].name} /></div>;
   else if (path === '/coaching' || path === '/reporting/coaching') content = <CoachingRecords />;
   else if (path === '/reporting/coaching/elite') content = <EliteView canManageGroups={params.get('groups') === 'yes'} />;
   else if (path === '/messages' && ['templates', 'inbox', 'broadcasts'].includes(params.get('tab') ?? '')) content = <LegacyHub />;
   else content = <div className="fixtureLanding">Operations landing fixture. Use an explicit Broadcasts, Inbox, or Templates tab to open Communications.</div>;
-  return <><nav className="fixtureNav"><strong>Local fixture · fictional data · sends disabled</strong><a href="/onboarding?scenario=copy-failure">Copy failure</a><a href="/chat?scenario=thread-error">Chat error + retry</a><a href="/chat?scenario=long-thread">Long thread</a><a href="/messages?tab=inbox&scenario=thread-error">Inbox</a><a href="/messages?tab=templates&brand=northstar">Templates</a><a href="/coaching">Coaching</a><a href="/reporting/coaching/elite">Elite read-only</a></nav><main className="fixtureMain">{content}</main></>;
+  return <div className={`fixtureWorkspace ${workspaceTheme.workspace} ${studioTheme.workspace}`} data-workspace="tempo" data-dashboard-studio><nav className="fixtureNav"><strong>Local fixture · fictional data · sends disabled</strong><a href="/onboarding?scenario=copy-failure">Copy failure</a><a href="/chat?scenario=thread-error">Chat error + retry</a><a href="/chat?scenario=long-thread">Long thread</a><a href="/messages?tab=inbox&scenario=thread-error">Inbox</a><a href="/messages?tab=templates&brand=northstar">Templates</a><a href="/coaching">Coaching</a><a href="/reporting/coaching/elite">Elite read-only</a></nav><main className="fixtureMain">{content}</main></div>;
 }
 createRoot(document.getElementById('root')!).render(<App />);

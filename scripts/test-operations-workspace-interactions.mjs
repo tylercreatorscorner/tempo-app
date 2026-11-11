@@ -110,7 +110,8 @@ assert.equal(find(tree, node => node.type === 'BroadcastsTab').props.visible, tr
 hub.close();
 
 const { CreatorInvitesSection } = load('src/components/settings/creator-invites-section.tsx');
-fetchImpl = async () => response({ invite: { id: 'one', brand: 'example', code: 'aabbccdd', current_uses: 0, max_uses: 100, expires_at: '2026-11-17' } });
+const inviteFixture = (overrides = {}) => ({ id: 'one', brand: 'example', code: 'aabbccdd', current_uses: 0, max_uses: 100, expires_at: '2026-11-17T12:00:00Z', active: true, created_at: '2026-11-10T12:00:00Z', ...overrides });
+fetchImpl = async () => response({ invite: inviteFixture() });
 const invites = harness(CreatorInvitesSection, { tenantId: 'fixture', brands: [{ slug: 'example', name: 'Example', display_name: null }] });
 await button(invites.render(), 'Generate link').props.onClick();
 clipboardImpl = async () => { throw new Error('Denied'); };
@@ -126,6 +127,130 @@ assert.doesNotMatch(text(invites.render()), /Copied/);
 resolveCopy(); await copying;
 assert.match(text(invites.render()), /Copied/);
 invites.close();
+
+// Brand selection hands off through the actual URL, preserving unrelated
+// query values. A server rerender retains generated links (keyed by tenant)
+// and gives the roster navigation the selected brand.
+const inviteBrands = [
+  { slug: 'example', name: 'Example', display_name: 'Example Brand' },
+  { slug: 'second', name: 'Second', display_name: 'Second Brand' },
+];
+query = 'keep=fixture';
+const scopedInviteProps = { tenantId: 'fixture', brands: inviteBrands };
+const scopedInvites = harness(CreatorInvitesSection, scopedInviteProps);
+tree = scopedInvites.render();
+assert.equal(button(tree, 'Generate link').props.disabled, true, 'Multiple brands require an explicit selection');
+const invitationChoice = () => find(scopedInvites.render(), node => node.type === 'ChoiceMenu');
+const choiceBeforeSelection = invitationChoice();
+choiceBeforeSelection.props.onChange('not-in-workspace');
+assert.equal(invitationChoice().props.value, '', 'Unlisted brand values are ignored');
+choiceBeforeSelection.props.onChange('second');
+assert.equal(lastUrl, '/roster/invitations?keep=fixture&brand=second');
+assert.equal(invitationChoice().props.value, 'second');
+query = new URL(lastUrl, 'https://fixture.invalid').searchParams.toString();
+scopedInviteProps.initialBrand = 'second';
+scopedInvites.render(); // Effect applies server-selected brand after navigation.
+assert.equal(invitationChoice().props.value, 'second');
+
+const brandRead = {
+  select() { return this; },
+  eq() { return this; },
+  async order() { return { data: inviteBrands, error: null }; },
+};
+dependencies['@/lib/auth/require-screen'] = { requireScreen: async () => ({ tenantId: 'fixture', role: 'admin', brandScope: { kind: 'all' }, impersonating: false }) };
+dependencies['@/lib/auth/permissions'] = { can: () => true };
+dependencies['@/lib/supabase/server'] = { createAdminClient: async () => ({ from: table => { assert.equal(table, 'brands_v2'); return brandRead; } }) };
+const onboardingPage = await load('src/app/(admin)/roster/invitations/page.tsx').default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(query))) });
+assert.equal(find(onboardingPage, node => node.type === 'PageHeader').props.actions.props.href, '/roster?brand=second');
+const serverInviteSection = find(onboardingPage, node => node.type === 'CreatorInvitesSection');
+assert.equal(serverInviteSection.props.initialBrand, 'second');
+assert.equal(serverInviteSection.key, 'fixture', 'Brand changes preserve the current session links');
+
+// A synchronous lock prevents duplicate mutations and scope changes even before
+// React paints the disabled controls. The request payload retains the brand.
+let createCount = 0, resolveCreate, generatedPayload;
+fetchImpl = async (url, options) => {
+  assert.equal(url, '/api/invites/generate');
+  createCount++;
+  generatedPayload = JSON.parse(options.body);
+  return new Promise(resolve => { resolveCreate = resolve; });
+};
+tree = scopedInvites.render();
+const generateBeforePaint = button(tree, 'Generate link');
+const choiceBeforePaint = find(tree, node => node.type === 'ChoiceMenu');
+const generating = generateBeforePaint.props.onClick();
+await generateBeforePaint.props.onClick();
+choiceBeforePaint.props.onChange('example');
+tree = scopedInvites.render();
+assert.equal(createCount, 1);
+assert.deepEqual(generatedPayload, { brand: 'second', tenant_id: 'fixture' });
+assert.equal(invitationChoice().props.value, 'second');
+assert.equal(invitationChoice().props.disabled, true);
+assert.equal(button(tree, 'Generating…').props.disabled, true);
+assert.equal(lastUrl, '/roster/invitations?keep=fixture&brand=second');
+resolveCreate(response({ error: 'Fixture service unavailable' }, false));
+await generating;
+tree = scopedInvites.render();
+assert.match(text(find(tree, node => node.props.role === 'alert')), /Fixture service unavailable/);
+assert.equal(invitationChoice().props.disabled, false);
+assert.equal(button(tree, 'Generate link').props.disabled, false);
+
+// Retrying clears the previous error while awaiting the response. A confirmed
+// result announces the display name and remains visible after another brand
+// choice/server handoff, so its only copy opportunity is not lost.
+const generateRetry = button(tree, 'Generate link').props.onClick();
+assert.equal(nodes(scopedInvites.render()).filter(node => node.props.role === 'alert').length, 0);
+resolveCreate(response({ invite: inviteFixture({ id: 'second-one', brand: 'second', code: '1122334455667788' }) }));
+await generateRetry;
+tree = scopedInvites.render();
+assert.match(text(find(tree, node => node.props.role === 'status')), /Invitation created for Second Brand/);
+assert.ok(button(tree, 'Copy invitation link for Second Brand'));
+invitationChoice().props.onChange('example');
+query = new URL(lastUrl, 'https://fixture.invalid').searchParams.toString();
+scopedInviteProps.initialBrand = 'example';
+scopedInvites.render();
+tree = scopedInvites.render();
+assert.equal(invitationChoice().props.value, 'example');
+assert.ok(button(tree, 'Copy invitation link for Second Brand'));
+scopedInvites.close();
+
+// Missing, mismatched and unusable responses must not expose a copyable link
+// or announce success. Each case uses a fresh session to avoid prior results.
+for (const malformed of [
+  {},
+  { invite: inviteFixture({ brand: 'different' }) },
+  { invite: inviteFixture({ code: '' }) },
+  { invite: inviteFixture({ expires_at: 'not-a-date' }) },
+  { invite: inviteFixture({ max_uses: null }) },
+]) {
+  fetchImpl = async () => response(malformed);
+  const invalidInvite = harness(CreatorInvitesSection, { tenantId: 'fixture', brands: [inviteBrands[0]] });
+  await button(invalidInvite.render(), 'Generate link').props.onClick();
+  tree = invalidInvite.render();
+  assert.ok(find(tree, node => node.props.role === 'alert'), 'Malformed invitation is an actionable error');
+  assert.doesNotMatch(text(tree), /Invitation created for/);
+  assert.equal(nodes(tree).filter(node => node.type === 'Button' && text(node).trim() === 'Copy link').length, 0);
+  invalidInvite.close();
+}
+
+// HTTP failures cannot be converted into successful results, and the no-brand
+// disabled state is backed by the handler rather than styling alone.
+fetchImpl = async () => response({ invite: inviteFixture() }, false);
+const failedInvite = harness(CreatorInvitesSection, { tenantId: 'fixture', brands: [inviteBrands[0]] });
+await button(failedInvite.render(), 'Generate link').props.onClick();
+assert.doesNotMatch(text(failedInvite.render()), /Invitation created for/);
+assert.ok(find(failedInvite.render(), node => node.props.role === 'alert'));
+failedInvite.close();
+let emptyInviteFetches = 0;
+fetchImpl = async () => { emptyInviteFetches++; return response({}); };
+const emptyInvites = harness(CreatorInvitesSection, { tenantId: 'fixture', brands: [] });
+tree = emptyInvites.render();
+assert.match(text(tree), /No active brands are available/);
+assert.equal(find(tree, node => node.type === 'ChoiceMenu').props.disabled, true);
+assert.equal(button(tree, 'Generate link').props.disabled, true);
+await button(tree, 'Generate link').props.onClick();
+assert.equal(emptyInviteFetches, 0);
+emptyInvites.close();
 
 const { InboxTab } = load('src/components/messages/inbox-tab.tsx');
 const inbox = harness(InboxTab, { conversations: [], loading: true, loadFailed: false, onMarkReadLocal() {} });
@@ -270,4 +395,4 @@ for (const canManageGroups of [false, true]) {
   assert.equal(Boolean(actions), canManageGroups, 'Only users with roster access get the Discord groups action');
   eliteView.close();
 }
-console.log('PASS Operations UI: legacy template handoff, honest clipboard feedback, Discord thread identity, thread failure/retry and draft preservation, loaded history polling, Coaching discard guard');
+console.log('PASS Operations UI: legacy template handoff, onboarding brand URL handoff, generate locking/retry/response integrity, no-brand state, honest clipboard feedback, Discord thread identity, thread failure/retry and draft preservation, loaded history polling, Coaching discard guard');

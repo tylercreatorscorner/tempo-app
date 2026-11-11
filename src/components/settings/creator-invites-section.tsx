@@ -10,8 +10,11 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Copy, Plus, Check, UserPlus } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Copy, Plus, Check, UserPlus, Loader2 } from 'lucide-react';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { Button } from '@/components/ui/button';
+import styles from './creator-invites-section.module.css';
 
 interface BrandOption {
   slug: string;
@@ -37,23 +40,35 @@ interface Props {
 }
 
 export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedBrand = initialBrand && brands.some(item => item.slug === initialBrand) ? initialBrand : brands.length === 1 ? brands[0].slug : '';
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [brand, setBrand] = useState(initialBrand && brands.some(item => item.slug === initialBrand) ? initialBrand : brands[0]?.slug ?? '');
+  const [brand, setBrand] = useState(selectedBrand);
   const [creating, setCreating] = useState(false);
+  const creatingRef = useRef(false);
+  const createRequest = useRef(0);
+  const [notice, setNotice] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const copyRequest = useRef(0);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => { setBrand(selectedBrand); }, [selectedBrand]);
   useEffect(() => () => {
+    createRequest.current++;
     copyRequest.current++;
     if (copyTimer.current) clearTimeout(copyTimer.current);
   }, []);
 
   const createInvite = async () => {
-    if (!brand) return;
+    if (!brand || creatingRef.current) return;
+    creatingRef.current = true;
+    const request = ++createRequest.current;
+    const requestedBrand = brand;
     setCreating(true);
     setError(null);
+    setNotice('');
     try {
       const res = await fetch('/api/invites/generate', {
         method: 'POST',
@@ -61,16 +76,37 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
         body: JSON.stringify({ brand, tenant_id: tenantId }),
       });
       const data = await res.json();
+      if (request !== createRequest.current) return;
       if (!res.ok) {
         setError(data.error || 'Failed to generate invite');
-      } else if (data.invite) {
+      } else if (typeof data.invite?.id === 'string' && data.invite.id
+        && typeof data.invite.code === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(data.invite.code)
+        && data.invite.brand === requestedBrand && Number.isFinite(Date.parse(data.invite.expires_at))
+        && Number.isInteger(data.invite.current_uses) && data.invite.current_uses >= 0
+        && Number.isInteger(data.invite.max_uses) && data.invite.max_uses > data.invite.current_uses) {
         setInvites((prev) => [data.invite, ...prev]);
+        setNotice(`Invitation created for ${brands.find(item => item.slug === requestedBrand)?.display_name || brands.find(item => item.slug === requestedBrand)?.name || requestedBrand}. Copy the link below to share it.`);
+      } else {
+        setError('The new link could not be confirmed. Refresh the page before trying again.');
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Network error');
+    } catch {
+      if (request === createRequest.current) setError('Could not create the invitation. Check your connection and try again.');
     } finally {
-      setCreating(false);
+      creatingRef.current = false;
+      if (request === createRequest.current) setCreating(false);
     }
+  };
+
+  const changeBrand = (next: string) => {
+    if (creatingRef.current || !brands.some(item => item.slug === next)) return;
+    setBrand(next);
+    setError(null);
+    setCopyError(null);
+    setNotice('');
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('brand', next);
+    params.delete('page');
+    router.replace(`/roster/invitations?${params.toString()}`, { scroll: false });
   };
 
   const copyLink = async (code: string) => {
@@ -90,86 +126,88 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
   };
 
   return (
-    <div id="invites" className="rounded-xl border border-border bg-card overflow-hidden scroll-mt-20">
-      <div className="px-4 py-3.5 border-b border-border flex items-center gap-3">
-        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-          <UserPlus className="h-4 w-4 text-primary" />
+    <section id="invites" className={styles.panel} aria-labelledby="creator-invites-heading">
+      <div className={styles.heading}>
+        <div className={styles.icon}>
+          <UserPlus size={18} aria-hidden="true" />
         </div>
         <div>
-          <h2 className="font-semibold text-base">Invite creators</h2>
-          <p className="text-sm text-muted-foreground">
-            Generate a link for the brand they are joining.
-          </p>
+          <h2 id="creator-invites-heading">Invite creators</h2>
+          <p>A direct link to collect their details.</p>
         </div>
       </div>
 
-      <div className="p-4 space-y-3">
+      <div className={styles.body}>
         {/* Generate form */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="w-full sm:w-60 [&>button]:w-full">
-            <ChoiceMenu compact label="Direct invitation brand" value={brand}
+        <div className={styles.controls}>
+          <div className={styles.brand}>
+            <label htmlFor="invitation-brand">Brand</label>
+            <ChoiceMenu id="invitation-brand" compact label="Direct invitation brand" value={brand}
               options={brands.map(b => ({ value: b.slug, label: b.display_name || b.name }))}
-              onChange={setBrand} disabled={brands.length === 0} placeholder="Choose a brand" />
+              onChange={changeBrand} disabled={creating || brands.length === 0} placeholder="Choose a brand" />
           </div>
-          <button
+          <Button
             onClick={createInvite}
             disabled={creating || !brand}
-            className="flex items-center justify-center gap-2 px-5 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+            aria-busy={creating}
+            className="bg-foreground text-background"
           >
-            <Plus className="h-4 w-4" />
+            {creating ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Plus aria-hidden="true" />}
             {creating ? 'Generating…' : 'Generate link'}
-          </button>
+          </Button>
         </div>
+        {brands.length === 0 ? <p className={styles.empty}>No active brands are available in this workspace. Add or reactivate a brand before creating an invitation.</p>
+          : !brand && <p className={styles.hint}>Choose a brand to create its invitation link.</p>}
 
         {error && (
-          <p role="alert" className="text-sm text-red-600">{error}</p>
+          <p role="alert" className={styles.error}>{error}</p>
         )}
-        {copyError && <p role="alert" className="text-sm text-red-600">{copyError}</p>}
+        {copyError && <p role="alert" className={styles.error}>{copyError}</p>}
+        <p role="status" aria-live="polite" className={notice || copied ? styles.notice : 'sr-only'}>{copied ? 'Invitation link copied.' : notice}</p>
 
         {/* Just-generated invites (session-only — page reload clears) */}
         {invites.length > 0 && (
-          <div className="space-y-2 pt-2">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
-              Newly generated this session
-            </p>
+          <section className={styles.results} aria-label="Generated invitation links">
+            <h3>Created in this session</h3>
             {invites.map((inv) => (
               <div
                 key={inv.id}
-                className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-border/50"
+                className={styles.invite}
               >
-                <div className="min-w-0">
-                  <p className="font-medium text-sm capitalize truncate">{inv.brand.replace(/_/g, ' ')}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 font-mono">
-                    /join/{inv.code} · {inv.current_uses}/{inv.max_uses} used · expires{' '}
-                    {new Date(inv.expires_at).toLocaleDateString()}
-                  </p>
-                  {copyError && <p className="select-all break-all text-xs mt-1">{`${window.location.origin}/join/${inv.code}`}</p>}
+                <div className={styles.details}>
+                  <h4>{brands.find(item => item.slug === inv.brand)?.display_name || brands.find(item => item.slug === inv.brand)?.name || inv.brand.replace(/_/g, ' ')}</h4>
+                  <p className={styles.url}>/join/{inv.code}</p>
+                  <p className={styles.hint}>{inv.current_uses}/{inv.max_uses} uses · Expires {new Date(inv.expires_at).toLocaleDateString()}</p>
+                  {copyError && <p className={styles.manualCopy}>{`${window.location.origin}/join/${inv.code}`}</p>}
                 </div>
-                <button
+                <Button
+                  variant="outline"
                   onClick={() => copyLink(inv.code)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted/40 transition-colors flex-shrink-0"
+                  className="shrink-0"
+                  aria-label={`Copy invitation link for ${brands.find(item => item.slug === inv.brand)?.display_name || brands.find(item => item.slug === inv.brand)?.name || inv.brand}`}
                 >
                   {copied === inv.code ? (
                     <>
-                      <Check className="h-3.5 w-3.5 text-emerald-500" />
-                      <span className="text-emerald-600">Copied</span>
+                      <Check aria-hidden="true" />
+                      <span>Copied</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Copy aria-hidden="true" />
                       <span>Copy link</span>
                     </>
                   )}
-                </button>
+                </Button>
               </div>
             ))}
-          </div>
+            <p className={styles.hint}>Copy these links before leaving. They stay valid until expiry but are not listed again after a page reload.</p>
+          </section>
         )}
 
-        <p className="text-xs text-muted-foreground">
-          Links default to 100 uses and expire in 7 days.
+        <p className={styles.hint}>
+          Each link allows 100 submissions and expires in 7 days. Generating a link does not send a message.
         </p>
       </div>
-    </div>
+    </section>
   );
 }

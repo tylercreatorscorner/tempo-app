@@ -1,5 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeaderSkeleton } from '@/components/ui/page-skeletons';
+import layout from '@/components/ui/workspace-layout.module.css';
 export default function OnboardingLoading() {
-  return <div className="max-w-5xl space-y-4" aria-busy="true"><PageHeaderSkeleton withControls={false} /><div className="grid gap-3 md:grid-cols-2"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-28 rounded-xl" /></div><Skeleton className="h-40 rounded-xl" /></div>;
+  return <div className={layout.page} aria-busy="true" aria-label="Loading onboarding"><PageHeaderSkeleton withControls={false} /><div className={layout.columns}><Skeleton className="h-60 rounded-xl" /><div className={layout.stack}><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-36 rounded-xl" /></div></div></div>;
 }

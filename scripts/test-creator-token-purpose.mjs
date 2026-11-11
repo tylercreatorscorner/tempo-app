@@ -96,6 +96,14 @@ if (process.argv.includes('--reproduce')) {
   console.log('PASS purpose matrix, legacy compatibility, malformed/expired/forged tokens and metadata stripping');
 
   let accesses = 0;
+  let mintSigns = 0;
+  const claimWrites = [];
+  const tenantId = '00000000-0000-4000-8000-000000000001';
+  const foreignCreatorId = '00000000-0000-4000-8000-000000000002';
+  const creatorRows = [
+    { id: identity.creatorId, tenant_id: tenantId, real_name: 'Fixture', contact_onboarding_at: '2026-01-01' },
+    { id: foreignCreatorId, tenant_id: '00000000-0000-4000-8000-000000000003', real_name: 'Foreign fixture' },
+  ];
   const usedMagic = new Set();
   const claimRows = new Map([[claim.jti, { creator_id: identity.creatorId, consumed_at: null,
     expires_at: claim.expiresAt.toISOString() }]]);
@@ -106,15 +114,29 @@ if (process.argv.includes('--reproduce')) {
       usedMagic.add(jti);
       return { error: null };
     } };
-    if (table === 'creators_v2') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({
-      data: { real_name: 'Fixture', contact_onboarding_at: '2026-01-01' },
-    }) }) }) };
+    if (table === 'creators_v2') {
+      const filters = [];
+      const query = {
+        select: () => query,
+        eq: (column, value) => { filters.push([column, value]); return query; },
+        maybeSingle: async () => ({
+          data: creatorRows.find(row => filters.every(([column, value]) => row[column] === value)) ?? null,
+          error: null,
+        }),
+      };
+      return query;
+    }
     assert.equal(table, 'creator_claim_tokens');
     let selectedJti;
     let update;
     let unconsumed = false;
     let after;
     const query = {
+      insert: async row => {
+        claimWrites.push(row);
+        claimRows.set(row.jti, { ...row, consumed_at: null });
+        return { error: null };
+      },
       select: () => query,
       eq: (column, value) => { assert.equal(column, 'jti'); selectedJti = value; return query; },
       update: value => { update = value; return query; },
@@ -136,9 +158,47 @@ if (process.argv.includes('--reproduce')) {
     'next/server': { NextResponse }, '@/lib/auth/creator-auth': auth,
     '@/lib/supabase/server': database,
   });
-  const claims = load('src/lib/auth/creator-claim.ts', {
-    './creator-auth': auth, '@/lib/supabase/server': database,
+  const inviteAccess = load('src/lib/auth/creator-invite-access.ts', {
+    '@/lib/auth/permissions': load('src/lib/auth/permissions.ts', {}),
+    '@/lib/supabase/server': database,
   });
+  const claims = load('src/lib/auth/creator-claim.ts', {
+    './creator-auth': { ...auth, generateClaimToken: async payload => {
+      mintSigns++;
+      return auth.generateClaimToken(payload);
+    } },
+    './creator-invite-access': inviteAccess,
+    '@/lib/supabase/server': database,
+  });
+  const inviteScope = {
+    userId: '00000000-0000-4000-8000-000000000004', tenantId, role: 'admin', canViewFinance: true,
+    brandScope: { kind: 'all' }, permissions: new Set(['roster:read', 'roster:write']),
+  };
+  for (const deniedScope of [null, { ...inviteScope, permissions: new Set(['roster:read']) },
+    { ...inviteScope, brandScope: { kind: 'scoped', brandIds: [], brandSlugs: [] } },
+    { ...inviteScope, impersonating: { userId: 'fixture-target' } }]) {
+    const before = accesses;
+    await assert.rejects(claims.mintClaimLink(deniedScope, identity.creatorId, 'https://tempo.example'),
+      error => error.status === (deniedScope ? 403 : 401));
+    assert.equal(accesses, before, 'Denied mint scope cannot reach creator or token records');
+    assert.equal(mintSigns, 0, 'Denied mint scope cannot sign a credential');
+    assert.equal(claimWrites.length, 0);
+  }
+  await assert.rejects(claims.mintClaimLink(inviteScope, foreignCreatorId, 'https://tempo.example'), error => error.status === 404);
+  assert.equal(mintSigns, 0, 'A foreign creator cannot be issued a credential');
+  assert.equal(claimWrites.length, 0);
+  const minted = await claims.mintClaimLink(inviteScope, identity.creatorId, 'https://tempo.example/', 'offline-fixture');
+  const mintedToken = new URL(minted.url).searchParams.get('token');
+  assert.equal(mintSigns, 1);
+  assert.equal(claimWrites.length, 1);
+  assert.equal(claimWrites[0].creator_id, identity.creatorId);
+  assert.equal(claimWrites[0].created_by, 'offline-fixture');
+  assert.equal((await auth.verifyClaimToken(mintedToken)).creatorId, identity.creatorId);
+  assert.equal(await cookie(mintedToken), null, 'An authorized minted claim is still not a session');
+  assert.ok(await claims.peekClaimToken(mintedToken));
+  assert.ok(await claims.consumeClaimToken(mintedToken));
+  assert.equal(await claims.consumeClaimToken(mintedToken), null);
+  console.log('PASS real scope authorization before claim signing, tenant ownership and authorized one-use minting');
   const verifyRoute = token => GET(new NextRequest(`https://tempo.example/api/auth/creator/verify?token=${token}`));
   for (const token of [claim.token, session, legacySession]) {
     const before = accesses;

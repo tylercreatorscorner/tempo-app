@@ -5,4 +5,5 @@ export function navigate(href: string) { window.history.pushState({}, '', href);
 const router = { push: navigate, replace: navigate, refresh: () => window.location.reload(), back: () => window.history.back(), prefetch: () => undefined };
 export function useRouter() { return router; }
 export function usePathname() { return useSyncExternalStore(subscribe, snapshot).split('?')[0]; }
+export function useParams<T>() { const path = usePathname(); return { code: decodeURIComponent(path.split('/').pop() ?? '') } as T; }
 export function useSearchParams() { const search = useSyncExternalStore(subscribe, snapshot).split('?')[1] ?? ''; return useMemo(() => new URLSearchParams(search), [search]); }
