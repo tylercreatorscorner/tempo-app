@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { generateClaimToken, verifyClaimToken } from './creator-auth';
+import type { WorkspaceScope } from './workspace-scope';
+import { requireInviteCreator } from './creator-invite-access';
 
 /**
  * Claim-link helpers for Discord-first creator onboarding.
@@ -26,10 +28,12 @@ export interface MintedClaimLink {
  * https://app.tempoapp.ai.
  */
 export async function mintClaimLink(
+  scope: WorkspaceScope,
   creatorId: string,
   baseUrl: string,
   createdBy = 'bulk-invite',
 ): Promise<MintedClaimLink> {
+  await requireInviteCreator(scope, creatorId);
   const { token, jti, expiresAt } = await generateClaimToken({
     creatorId: creatorId as unknown as number,
     email: '',

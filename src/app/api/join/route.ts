@@ -1,120 +1,48 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { inviteReply, isInviteCode } from '@/lib/auth/public-invite';
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, name, email, tiktok_usernames } = await request.json();
-
-    if (!code || !name || !email || !tiktok_usernames?.length) {
-      return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+    if (request.headers.get('origin') !== request.nextUrl.origin) return inviteReply({ error: 'Invalid request origin' }, 403);
+    if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+      return inviteReply({ error: 'Send JSON onboarding details' }, 415);
     }
-
-    const supabase = await createAdminClient();
-
-    // Validate invite
-    const { data: invite } = await supabase
-      .from('invites')
-      .select('*')
-      .eq('code', code)
-      .eq('active', true)
-      .single();
-
-    if (!invite || new Date(invite.expires_at) < new Date() || invite.current_uses >= invite.max_uses) {
-      return NextResponse.json({ error: 'Invalid or expired invite' }, { status: 400 });
+    const raw = await request.text();
+    if (raw.length > 10000) return inviteReply({ error: 'Onboarding details are too large' }, 413);
+    let body: unknown;
+    try { body = JSON.parse(raw); } catch { return inviteReply({ error: 'Invalid onboarding details' }, 400); }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return inviteReply({ error: 'Invalid onboarding details' }, 400);
+    const input = body as Record<string, unknown>;
+    const name = typeof input.name === 'string' ? input.name.trim() : '';
+    const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
+    const handles = Array.isArray(input.tiktok_usernames)
+      ? input.tiktok_usernames.map(value => typeof value === 'string' ? value.trim().replace(/^@/, '').toLowerCase() : '') : [];
+    if (!isInviteCode(input.code) || !name || name.length > 100 || /[\u0000-\u001f\u007f]/.test(name)
+      || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /[\u0000-\u001f\u007f]/.test(email)
+      || handles.length < 1 || handles.length > 10 || new Set(handles).size !== handles.length
+      || handles.some(handle => !/^[a-z0-9_.]{1,24}$/.test(handle) || handle.endsWith('.'))) {
+      return inviteReply({ error: 'Enter your name, a valid email, and 1–10 different TikTok usernames.' }, 400);
     }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    const brand = invite.brand;
-    const tenant_id = invite.tenant_id;
-
-    // Check if any TikTok username matches an existing creator
-    const usernamesToCheck = tiktok_usernames.map((u: string) => u.toLowerCase().trim().replace(/^@/, ''));
-
-    const { getBrandRegistry, slugToUuid } = await import('@/lib/data/brand-registry');
-    const reg = await getBrandRegistry();
-    const brandUuid = slugToUuid(reg, brand) ?? brand;
-
-    // Check tiktok_accounts table first
-    const { data: existingAccounts } = await supabase
-      .from('tiktok_accounts')
-      .select('creator_id, tiktok_username')
-      .in('tiktok_username', usernamesToCheck)
-      .eq('brand_id', brandUuid);
-
-    let matchedCreatorId: string | null = null;
-    const verifiedUsernames: string[] = [];
-
-    if (existingAccounts && existingAccounts.length > 0) {
-      matchedCreatorId = existingAccounts[0].creator_id;
-      verifiedUsernames.push(...existingAccounts.map((a) => a.tiktok_username));
-    }
-
-    let creatorId: string;
-
-    if (matchedCreatorId) {
-      // Update existing creator with email and name
-      await supabase
-        .from('creators_v2')
-        .update({ email: normalizedEmail, real_name: name })
-        .eq('id', matchedCreatorId);
-      creatorId = matchedCreatorId;
-    } else {
-      // Create new creators_v2 record
-      const { data: newCreator, error: createError } = await supabase
-        .from('creators_v2')
-        .insert({
-          real_name: name,
-          email: normalizedEmail,
-        })
-        .select('id')
-        .single();
-
-      if (createError || !newCreator) {
-        return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
-      }
-      creatorId = newCreator.id;
-
-      // Create creator_brands entry
-      await supabase
-        .from('creator_brands')
-        .insert({
-          creator_id: creatorId,
-          brand_id: brandUuid,
-          status: 'Applied',
-        });
-    }
-
-    // Create tiktok_accounts entries
-    for (const username of usernamesToCheck) {
-      const isVerified = verifiedUsernames.includes(username);
-      await supabase
-        .from('tiktok_accounts')
-        .upsert(
-          {
-            creator_id: creatorId,
-            tiktok_username: username,
-            brand_id: brandUuid,
-            is_primary: username === usernamesToCheck[0],
-            verified: isVerified,
-            verified_at: isVerified ? new Date().toISOString() : null,
-          },
-          { onConflict: 'tiktok_username,brand_id' }
-        );
-    }
-
-    // Increment invite usage
-    await supabase
-      .from('invites')
-      .update({ current_uses: invite.current_uses + 1 })
-      .eq('id', invite.id);
-
-    return NextResponse.json({
-      success: true,
-      creator_id: creatorId,
-      verified: verifiedUsernames.length > 0,
-      verified_usernames: verifiedUsernames,
+    // The transaction resolves brand and tenant exclusively from the locked
+    // invite. It never updates an existing identity or verifies a claimed handle.
+    const db = await createAdminClient();
+    const result = await db.rpc('register_creator_invite', {
+      p_code: input.code, p_name: name, p_email: email, p_tiktok_usernames: handles,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    if (result.error) {
+      if (result.error.code === '22023') return inviteReply({ error: 'Invalid onboarding details' }, 400);
+      if (result.error.code === 'P0001' && result.error.message === 'Invite unavailable') {
+        return inviteReply({ error: 'This invitation is no longer available. Ask your brand manager for a new link.' }, 410);
+      }
+      if ((result.error.code === 'P0001' && result.error.message === 'Creator identity requires review') || result.error.code === '23505') {
+        return inviteReply({ error: 'This information needs to be verified by your brand manager. No existing creator account was changed.' }, 409);
+      }
+      return inviteReply({ error: 'Could not save your details. Please retry or contact your brand manager.' }, 503);
+    }
+    if (typeof result.data !== 'string') return inviteReply({ error: 'Could not confirm your registration. Contact your brand manager before retrying.' }, 503);
+    return inviteReply({ success: true, creator_id: result.data, verified: false, verified_usernames: [] });
+  } catch {
+    return inviteReply({ error: 'Could not save your details. Please retry or contact your brand manager.' }, 503);
   }
 }

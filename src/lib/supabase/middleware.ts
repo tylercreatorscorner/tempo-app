@@ -124,7 +124,13 @@ export async function updateSession(request: NextRequest) {
   );
 
   const path = request.nextUrl.pathname;
-  const isPublicPath = PUBLIC_PATHS.some((p) => path.startsWith(p));
+  // The public invitation page needs its validation and redemption APIs before
+  // the recipient has an account. Match these exactly: invite generation and
+  // every other admin invitation route must remain authenticated.
+  const isPublicInviteApi =
+    (request.method === 'POST' && path === '/api/join') ||
+    (request.method === 'GET' && /^\/api\/invites\/[a-zA-Z0-9_-]{8,128}$/.test(path) && path !== '/api/invites/generate');
+  const isPublicPath = isPublicInviteApi || PUBLIC_PATHS.some((p) => path.startsWith(p));
   const isLanding = path === '/';
   const isApi = path.startsWith('/api/');
 
@@ -171,7 +177,7 @@ export async function updateSession(request: NextRequest) {
   // mutating API calls so a preview can't change data. Exiting/switching is a
   // server action (a page POST, not /api/*), so it stays allowed.
   if (
-    user && isApi && !isPublicPath &&
+    user && isApi && (!isPublicPath || isPublicInviteApi) &&
     request.cookies.get('platform_active_manager')?.value &&
     ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
   ) {

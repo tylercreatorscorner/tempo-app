@@ -1,0 +1,22 @@
+.panel { min-width: 0; border: 1px solid var(--border); border-radius: var(--workspace-surface-radius, 14px); background: var(--card); scroll-margin-top: 80px; }
+.heading { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.heading h2 { font-size: 15px; font-weight: 650; }
+.heading p { margin-top: 3px; font-size: 13px; color: var(--muted-foreground); }
+.icon { display: grid; place-items: center; flex: 0 0 36px; height: 36px; border-radius: 10px; color: var(--primary); background: var(--accent); }
+.body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; padding: 20px; }
+.controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; min-width: 0; }
+.brand { display: grid; gap: 6px; flex: 1 1 220px; min-width: 0; max-width: 340px; }
+.brand label { font-size: 12px; font-weight: 550; color: var(--muted-foreground); }
+.brand > button { width: 100%; min-width: 0; max-width: 100%; }
+.hint { font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
+.empty { border-radius: 8px; background: var(--muted); padding: 12px; font-size: 13px; line-height: 1.6; color: var(--muted-foreground); }
+.error { color: var(--destructive); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.notice { font-size: 13px; line-height: 1.6; color: var(--foreground); }
+.results { display: grid; gap: 10px; min-width: 0; padding-top: 6px; }
+.results h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); }
+.invite { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--background); }
+.details { min-width: 0; flex: 1 1 240px; }
+.details h4 { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.url { margin: 5px 0; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; user-select: all; }
+.manualCopy { margin-top: 8px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; user-select: all; }
+@media (max-width: 600px) { .heading { padding: 16px; } .body { padding: 16px; } .brand { max-width: none; flex-basis: 100%; } .controls > button { width: 100%; min-height: 44px; } .invite { padding: 12px; } .invite > button { min-height: 44px; } }
