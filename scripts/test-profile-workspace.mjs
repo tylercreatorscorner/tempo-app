@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 const creatorId = '11111111-1111-4111-8111-111111111111';
 const start = '2026-09-05', end = '2026-09-11';
-let rosterRead, canViewCreatorCost, canWrite, impersonating, contractMode, editProps, capturedContracts, summaryCalls, changeIds, agreementProps, relationshipBrand, identityReads;
+let rosterRead, canViewCreatorCost, canWrite, impersonating, contractMode, editProps, removalProps, capturedContracts, summaryCalls, changeIds, agreementProps, relationshipBrand, identityReads;
 const profile = {
   id: creatorId, real_name: 'Fixture Creator', status: 'Active', email: null, phone: null, notes: null,
   accounts: [{ tiktok_username: 'fixture', is_primary: true }], brands: ['alpha', 'beta'], brandsWithData: ['alpha', 'beta'],
@@ -86,6 +86,7 @@ const modules = {
   'lucide-react': { ArrowLeft: nil, ExternalLink: nil },
   '@/components/creators/creator-portrait': { CreatorPortrait: nil },
   '@/components/creators/creator-edit-panel': { CreatorEditButton: props => { editProps = props.creator; return null; } },
+  '@/components/roster/creator-removal-button': { CreatorRemovalButton: props => { removalProps = props; return React.createElement('button', null, 'Remove creator'); } },
   '@/components/creators/creator-change-history': { CreatorChangeHistory: nil },
   '@/components/creators/relationship-history': { RelationshipHistory: nil },
   '@/components/creators/performance/profile-history': { ProfilePerformanceHistory: nil },
@@ -109,7 +110,7 @@ runInNewContext(ts.transpileModule(source, {
 }).outputText, { exports, process: { env: { CREATOR_AGREEMENTS_ENABLED: 'true', CREATOR_AGREEMENTS_WRITES_ENABLED: 'true' } }, URLSearchParams,
   require: name => { assert.ok(name in modules, name); return modules[name]; } });
 function reset() {
-  rosterRead = true; canViewCreatorCost = true; canWrite = true; impersonating = false; contractMode = 'normal'; editProps = undefined;
+  rosterRead = true; canViewCreatorCost = true; canWrite = true; impersonating = false; contractMode = 'normal'; editProps = undefined; removalProps = undefined;
   capturedContracts = []; summaryCalls = []; changeIds = []; agreementProps = undefined; relationshipBrand = undefined;
   identityReads = { profile: 0, handle: 0 };
 }
@@ -124,6 +125,9 @@ assert.ok(html.includes('Beta manager') && !html.includes('Alpha manager'));
 assert.ok(html.includes('3 recorded publications in September') && html.includes('have not been verified') && html.includes('never projected backward'));
 assert.ok(html.includes('$123') && html.includes('8 orders') && html.includes('9 units'));
 assert.equal(agreementProps.canWrite, true); assert.equal(agreementProps.canSave, true);
+assert.equal(removalProps.managedId, 2, 'Removal uses the selected brand roster row, never the canonical creator identity');
+assert.equal(removalProps.brand, 'beta'); assert.equal(removalProps.brandLabel, 'beta'); assert.equal(removalProps.name, 'Fixture Creator');
+assert.ok(html.includes('Remove creator'), 'Authorized profile view exposes the removal control');
 
 reset(); canViewCreatorCost = false; html = await render();
 assert.ok(!html.includes('$4019') && !html.includes('$7419') && !html.includes('Fee unavailable'), 'Cost-blind output omits fees across all rendered tabs and aside');
@@ -139,9 +143,12 @@ reset(); contractMode = 'duplicate'; html = await render();
 assert.deepEqual(changeIds, [2, 3]); assert.equal(editProps.brandId, null, 'Duplicate brand records cannot arbitrarily select a brand-scoped edit target');
 assert.equal(editProps.brandNotes, null); assert.ok(html.includes('Multiple roster records exist') && html.includes('Tags by roster record'));
 assert.ok(!html.includes('Beta manager') && !html.includes('Other recorded manager') && !html.includes('3 recorded publications in September'), 'An ambiguous relationship cannot borrow one record’s owner or delivery');
+assert.equal(removalProps, undefined, 'Duplicate records cannot silently select a destructive target');
 
-reset(); impersonating = true; html = await render(); assert.equal(editProps, undefined, 'Read-only view-as cannot open editing'); assert.equal(agreementProps.canWrite, false);
-reset(); contractMode = 'unavailable'; html = await render(); assert.ok(html.includes('Agreement context could not be loaded') && !html.includes('$0'), 'Source failures remain visibly unavailable');
+reset(); impersonating = true; html = await render(); assert.equal(editProps, undefined, 'Read-only view-as cannot open editing'); assert.equal(agreementProps.canWrite, false); assert.equal(removalProps, undefined, 'View-as cannot mount removal');
+reset(); canWrite = false; html = await render(); assert.equal(removalProps, undefined, 'Read-only members cannot mount removal'); assert.ok(!html.includes('Remove creator'));
+reset(); html = await render('all'); assert.equal(removalProps, undefined, 'All-brands profile cannot expose ambiguous multi-brand removal');
+reset(); contractMode = 'unavailable'; html = await render(); assert.ok(html.includes('Agreement context could not be loaded') && !html.includes('$0'), 'Source failures remain visibly unavailable'); assert.equal(removalProps, undefined, 'Missing relationship data cannot establish a removal target');
 reset(); html = await render('outside'); assert.ok(html.includes('Brand view unavailable')); assert.equal(capturedContracts.length, 0); assert.equal(summaryCalls.length, 0, 'Invalid brand cannot broaden a performance query');
 for (const name of [creatorId, 'fixture']) {
   reset(); rosterRead = false; html = await render('beta', name);

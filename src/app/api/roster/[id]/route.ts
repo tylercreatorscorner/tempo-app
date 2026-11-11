@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 
 /**
  * Loads the managed_creators row and confirms the caller may act on it.
@@ -11,10 +12,10 @@ async function authorizeRosterRow(
   scope: WorkspaceScope,
   admin: Awaited<ReturnType<typeof createAdminClient>>,
   id: string,
-): Promise<{ brand: string | null } | NextResponse> {
+): Promise<{ brand: string | null; archivedAt: string | null; realName: string | null } | NextResponse> {
   const { data: row } = await admin
     .from('managed_creators')
-    .select('brand')
+    .select('brand, archived_at, real_name')
     .eq('id', id)
     .eq('tenant_id', scope.tenantId)
     .maybeSingle();
@@ -26,7 +27,7 @@ async function authorizeRosterRow(
     return NextResponse.json(
       { error: 'Forbidden: brand not in your access' }, { status: 403 });
   }
-  return { brand: row.brand };
+  return { brand: row.brand, archivedAt: row.archived_at ?? null, realName: row.real_name ?? null };
 }
 
 // PATCH /api/roster/[id] — update a managed creator.
@@ -215,29 +216,51 @@ export async function PATCH(
 //   - keep all their performance / messaging / audit data intact
 //   - can be restored by setting archived_at = NULL
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (scope.impersonating || !can(scope, 'roster', 'write')) {
+    return NextResponse.json({ error: 'You do not have permission to remove creators.' }, { status: 403 });
+  }
   const tenantId = scope.tenantId;
 
   const { id } = await params;
+  if (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(id)) || Number(id) <= 0) {
+    return NextResponse.json({ error: 'Choose a valid managed creator.' }, { status: 400 });
+  }
+  const expectedBrand = request.nextUrl.searchParams.get('brand');
+  if (expectedBrand !== null && (!expectedBrand.trim() || expectedBrand === 'all')) {
+    return NextResponse.json({ error: 'Choose the creator\'s brand before removing them.' }, { status: 400 });
+  }
   const supabase = await createAdminClient();
 
   const authz = await authorizeRosterRow(scope, supabase, id);
   if (authz instanceof NextResponse) return authz;
+  if (expectedBrand !== null && expectedBrand !== authz.brand) {
+    return NextResponse.json({ error: 'This creator\'s brand changed. Refresh the roster and try again.' }, { status: 409 });
+  }
+  // A retry must not move the archive boundary and rewrite later calculations.
+  if (authz.archivedAt) {
+    return NextResponse.json({ ok: true, archived: { id: Number(id), real_name: authz.realName }, alreadyArchived: true });
+  }
 
-  const { data, error } = await supabase
+  let removal = supabase
     .from('managed_creators')
     .update({ archived_at: new Date().toISOString(), updated_by: scope.email })
     .eq('id', id)
     .eq('tenant_id', tenantId)
+    .is('archived_at', null);
+  // Pin the authorized brand at write time: a concurrent edit must not let a
+  // scoped manager archive a creator who was moved to another brand.
+  removal = authz.brand === null ? removal.is('brand', null) : removal.eq('brand', authz.brand);
+  const { data, error } = await removal
     .select('id, real_name')
-    .single();
+    .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data)  return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+  if (error) return NextResponse.json({ error: 'Could not remove the creator. Please try again.' }, { status: 500 });
+  if (!data) return NextResponse.json({ error: 'This creator changed while you were reviewing them. Refresh the roster and try again.' }, { status: 409 });
 
   return NextResponse.json({ ok: true, archived: data });
 }

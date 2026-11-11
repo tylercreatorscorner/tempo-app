@@ -38,7 +38,8 @@
 .context p { margin:6px 0 0; font-size:12px; line-height:18px; }
 .context p.owner { opacity:.82; }
 .context p.contextNote { color:#e6f79a; }
-.footer { display:flex; flex:0 0 auto; align-items:center; gap:12px; min-height:60px; padding:12px 24px; border-top:1px solid var(--studio-line,var(--border)); background:var(--studio-surface,var(--card)); }
+.footer { display:flex; flex-wrap:wrap; flex:0 0 auto; align-items:center; gap:12px; min-height:60px; padding:12px 24px; border-top:1px solid var(--studio-line,var(--border)); background:var(--studio-surface,var(--card)); }
+.removeAction { flex-basis:100%; }
 .primaryAction { display:inline-flex; flex:1; min-width:0; min-height:34px; align-items:center; justify-content:center; padding:7px 12px; border:1px solid transparent; border-radius:8px; background:var(--studio-deep,#1d1c21); color:var(--studio-on-deep,#fff); font-size:12px; line-height:18px; font-weight:600; text-decoration:none; }
 .primaryAction:hover { filter:brightness(1.12); }
 .footerClose { min-width:120px; min-height:34px; border-color:var(--studio-line,var(--border)); color:var(--studio-ink,var(--foreground)); }

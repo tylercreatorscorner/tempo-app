@@ -7,6 +7,7 @@ class Response {constructor(data,status=200){this.data=data;this.status=status;}
 const deps={
  'next/server':{NextResponse:Response},
  '@/lib/auth/workspace-scope':{getWorkspaceScope:async()=>scope},
+ '@/lib/auth/permissions':{can:()=>false},
  '@/lib/supabase/server':{createAdminClient:async()=>({from:table=>{
   assert.equal(table,'managed_creators');let values=null,filters={};
   const q={select(){return q;},eq(k,v){filters[k]=v;return q;},update(v){values=v;return q;},
