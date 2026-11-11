@@ -34,7 +34,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
       <PageHeader
         title="Onboarding"
         subtitle="Create a brand invitation, collect creator details, and review new submissions."
-        actions={<NavigationLink href={selectedBrand ? `/roster?brand=${encodeURIComponent(selectedBrand)}` : '/roster'}>Open creator roster</NavigationLink>}
       />
       <div className={layout.columns}>
       <CreatorInvitesSection key={scope.tenantId} tenantId={scope.tenantId} initialBrand={selectedBrand} brands={data ?? []} />

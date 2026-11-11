@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Copy, Plus, Check, UserPlus, Loader2 } from 'lucide-react';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { Button } from '@/components/ui/button';
+import { NavigationLink } from '@/components/ui/navigation-link';
 import styles from './creator-invites-section.module.css';
 
 interface BrandOption {
@@ -128,6 +129,7 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
   return (
     <section id="invites" className={styles.panel} aria-labelledby="creator-invites-heading">
       <div className={styles.heading}>
+        <div className={styles.headingTitle}>
         <div className={styles.icon}>
           <UserPlus size={18} aria-hidden="true" />
         </div>
@@ -135,6 +137,8 @@ export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props)
           <h2 id="creator-invites-heading">Invite creators</h2>
           <p>A direct link to collect their details.</p>
         </div>
+        </div>
+        <NavigationLink href={brand ? `/roster?brand=${encodeURIComponent(brand)}` : '/roster'} className={styles.rosterLink}>Open creator roster</NavigationLink>
       </div>
 
       <div className={styles.body}>

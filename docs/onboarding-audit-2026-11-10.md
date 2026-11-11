@@ -6,6 +6,7 @@ Audits the shipped direct invitation workflow at `/roster/invitations` and `/joi
 
 - Onboarding uses the shared Studio shell, compact controls, responsive cards, and its own loading/error views.
 - Brand selection updates the URL, resets pending-list pagination, and carries through to the creator roster link. Creating a link locks its brand and rejects duplicate clicks or malformed success responses.
+- The roster link is driven by the current local selection, so an immediate click cannot follow the previous brand while the server refresh is in flight. This race was caught during the live release walkthrough and reproduced in controlled tests.
 - Copy failures show a selectable URL. Generated links are explicitly session-only in the UI; expiry and usage limits remain enforced on the server.
 - Pending creator details are tenant-scoped, brand-filtered, and paginated. They include any Applied/non-managed record, not only invite submissions. Review links open existing creator profiles; this list does not approve identities or establish managed roster membership.
 - The public form resets between invite codes, ignores stale validation, locks pending submissions, preserves input on errors, and states review is pending. It does not claim an email was sent or access was granted.
