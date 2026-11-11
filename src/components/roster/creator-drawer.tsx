@@ -10,6 +10,7 @@ import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { formatCurrency } from '@/lib/utils/format';
 import type { Creator } from './types';
 import styles from './creator-drawer.module.css';
+import { CreatorRemovalButton } from './creator-removal-button';
 
 interface Props {
   creator: Creator;
@@ -20,6 +21,7 @@ interface Props {
   onClose: () => void;
   onEdit?: () => void;
   onEditTags?: () => void;
+  onRemoved?: () => void;
 }
 
 const number = (value?: number | null) => typeof value === 'number' && Number.isFinite(value)
@@ -43,7 +45,7 @@ function Metric({ label, value, detail, large = false }: { label: string; value:
 }
 
 /** Source-backed overview. Existing edit and tag workflows are handed back to the roster. */
-export function CreatorOverviewDrawer({ creator, periodLabel, start, end, range, onClose, onEdit, onEditTags }: Props) {
+export function CreatorOverviewDrawer({ creator, periodLabel, start, end, range, onClose, onEdit, onEditTags, onRemoved }: Props) {
   const [open, setOpen] = useState(true);
   const closeButton = useRef<HTMLButtonElement>(null);
   const handoff = useRef(false);
@@ -157,6 +159,7 @@ export function CreatorOverviewDrawer({ creator, periodLabel, start, end, range,
             : onEdit ? <Button onClick={() => transfer(onEdit)} className={styles.primaryAction}>Edit creator details</Button>
               : <span className={styles.missingProfile}>Creator profile not linked</span>}
           <Dialog.Close asChild><Button size="sm" variant="outline" className={styles.footerClose}>Close</Button></Dialog.Close>
+          {creator.brand && onRemoved && <CreatorRemovalButton managedId={creator.id} name={name} brand={creator.brand} brandLabel={brandMeta.label(creator.brand) ?? creator.brand} className={styles.removeAction} onRemoved={onRemoved} />}
         </footer>
       </Dialog.Content>
     </Dialog.Portal>

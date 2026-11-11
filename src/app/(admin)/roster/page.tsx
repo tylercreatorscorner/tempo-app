@@ -35,6 +35,7 @@ import { DropdownMenu, Popover } from 'radix-ui';
 import { RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CreatorOverviewDrawer } from '@/components/roster/creator-drawer';
+import { CreatorRemovalButton } from '@/components/roster/creator-removal-button';
 import { StudioRosterTable } from '@/components/roster/studio-roster-table';
 import { RosterTagsProvider, RosterTagFilter, RosterTagEditor } from '@/components/roster/studio-tag-controls';
 import type { Creator, BrandChild } from '@/components/roster/types';
@@ -117,26 +118,6 @@ function CreatorPanel({
   const [saveError, setSaveError] = useState('');
   const [removing, setRemoving] = useState(false);
   const writePending = useRef(false);
-  // Inline confirm — replaces native confirm() which Chrome silently blocks
-  // after a couple of dialogs from the same origin.
-  const [confirmRemove, setConfirmRemove] = useState(false);
-
-  const doRemove = async () => {
-    if (writePending.current) return;
-    writePending.current = true;
-    setConfirmRemove(false);
-    setRemoving(true);
-    setSaveError('');
-    try {
-      const res = await fetch(`/api/roster/${creator.id}`, { method: 'DELETE' });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || `Remove failed (${res.status})`);
-      onRemoved(creator.id);
-    } catch (err: unknown) {
-      setSaveError(err instanceof Error ? err.message : 'Something went wrong');
-      setRemoving(false);
-    } finally { writePending.current = false; }
-  };
 
   // Initial handle list: prefer canonical `handles`, fall back to legacy cols.
   const initialHandles = (() => {
@@ -212,7 +193,7 @@ function CreatorPanel({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex flex-wrap gap-3 items-center justify-between z-10">
           <div>
             <div className={rosterLayout.panelHeader}><CreatorAvatar creator={creator} /><h2>{displayName}</h2></div>
             {creator.brand && !editing && (
@@ -221,20 +202,13 @@ function CreatorPanel({
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {creator.brand && <CreatorRemovalButton managedId={creator.id} name={displayName} brand={creator.brand} brandLabel={brandMeta.label(creator.brand) ?? creator.brand} disabled={saving} dirty={dirty} onRemoved={() => onRemoved(creator.id)} onBusyChange={busy => { writePending.current = busy; setRemoving(busy); }} />}
             {!editing ? (
               <>
                 <button
-                  onClick={() => { setSaveError(''); setConfirmRemove(true); }}
-                  disabled={removing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/20 text-red-600 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
-                  title="Remove from managed roster (reversible)"
-                >
-                  {removing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  {removing ? 'Removing…' : 'Remove'}
-                </button>
-                <button
                   onClick={() => setEditing(true)}
+                  disabled={removing}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <Pencil className="h-3.5 w-3.5" /> Edit
@@ -247,14 +221,14 @@ function CreatorPanel({
               <>
                 <RosterFormClose
 
-                  disabled={saving}
+                  disabled={saving || removing}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
                 >
                   Cancel
                 </RosterFormClose>
                 <button
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || removing}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-primary-foreground hover:brightness-[1.07] disabled:opacity-60 transition-colors"
                 >
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
@@ -269,37 +243,6 @@ function CreatorPanel({
         <fieldset disabled={saving || removing} className="m-0 min-w-0 border-0 p-6 space-y-5 flex-1">
           {saveError && (
             <p role="alert" className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2">{saveError}</p>
-          )}
-
-          {confirmRemove && (
-            <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-4 space-y-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  Remove {creator.real_name || primaryHandle(creator) || 'this creator'}?
-                </p>
-                <p className="text-xs text-red-500 mt-1 leading-relaxed">
-                  They&apos;ll stop appearing in the roster, rev share, and renewals.
-                  Their GMV history and audit trail stay intact — this is reversible.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={doRemove}
-                  disabled={removing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
-                >
-                  {removing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  {removing ? 'Removing…' : 'Yes, remove'}
-                </button>
-                <button
-                  onClick={() => setConfirmRemove(false)}
-                  disabled={removing}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
           )}
 
           {editing ? (
@@ -1310,7 +1253,7 @@ function RosterContent() {
           <RosterMetric label="Managed share" value={summaryLoading?'Loading…':summaryMatches&&summary?.gmv_complete===true&&affiliateGmv!=null&&affiliateGmv>0&&totalGmvPeriod!=null?`${((totalGmvPeriod/affiliateGmv)*100).toFixed(0)}%`:'Unavailable'}/>
         </dl><div className={rosterLayout.videoSummary}><NewVideoGmvCard compact brand={brand} range={preset} start={customStart} end={customEnd} showCreators/></div>
       </div>}</details>
-      {overviewCreator&&<CreatorOverviewDrawer key={overviewCreator.id} creator={overviewCreator} periodLabel={periodLabel} start={coreMatches?resolvedPeriod?.start:null} end={coreMatches?resolvedPeriod?.end:null} range={preset} onClose={()=>setSelectedCreator(null)} onEdit={roster.some(c=>!c.grouped&&c.id===overviewCreator.id)?()=>{setEditingCreator(overviewCreator);setSelectedCreator(null);}:undefined} onEditTags={brand!=='all'&&overviewCreator.brand===brand?()=>{setTagIds([overviewCreator.id]);setSelectedCreator(null);}:undefined}/>}
+      {overviewCreator&&<CreatorOverviewDrawer key={overviewCreator.id} creator={overviewCreator} periodLabel={periodLabel} start={coreMatches?resolvedPeriod?.start:null} end={coreMatches?resolvedPeriod?.end:null} range={preset} onClose={()=>setSelectedCreator(null)} onRemoved={()=>{setSelectedCreator(null);invalidateDetails();}} onEdit={roster.some(c=>!c.grouped&&c.id===overviewCreator.id)?()=>{setEditingCreator(overviewCreator);setSelectedCreator(null);}:undefined} onEditTags={brand!=='all'&&overviewCreator.brand===brand?()=>{setTagIds([overviewCreator.id]);setSelectedCreator(null);}:undefined}/>}
       {editingCreator&&<CreatorPanel key={editingCreator.id} creator={editingCreator} onClose={()=>setEditingCreator(null)} onSaved={updated=>{setEditingCreator(updated);invalidateDetails();}} onRemoved={()=>{setEditingCreator(null);invalidateDetails();}}/>}
       <RosterTagEditor ids={tagIds} open={tagIds.length>0} onOpenChange={open=>{if(!open)setTagIds([]);}} onChanged={invalidateDetails} onSaved={()=>{setTagIds([]);setManagedSelection(new Set());}}/>
 

@@ -17,6 +17,7 @@ import {
 } from '@/lib/data/creator-profile';
 import { getCreatorStudioContracts, getCreatorPublicationEvidence, type CreatorStudioContract } from '@/lib/data/creator-profile-studio';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
+import { CreatorRemovalButton } from '@/components/roster/creator-removal-button';
 import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
 import { CreatorChangeHistory } from '@/components/creators/creator-change-history';
 import { ReportingStartDate } from '@/components/creators/reporting-start-date';
@@ -147,6 +148,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     </div>
     <div className={styles.connections}><span className={styles.eyebrow}>Connected accounts</span><ul className={styles.accountList}>{accounts.map(account => <li key={account.tiktok_username}><a href={`https://www.tiktok.com/@${encodeURIComponent(account.tiktok_username)}`} target="_blank" rel="noopener noreferrer">@{account.tiktok_username}<ExternalLink size={11} aria-hidden="true" /></a></li>)}</ul><p>{accounts.length} linked TikTok {accounts.length === 1 ? 'account' : 'accounts'}</p></div>
     <div className={styles.identityActions}>{canEdit && <CreatorEditButton key={`${creatorId}:${selectedBrand??"all"}`} creator={{ id: profile.id, real_name: profile.real_name, email: profile.email, phone: profile.phone, role: relationship.role, status: relationship.status, notes: profile.notes, accounts: profile.accounts.map(account => ({ tiktok_username: account.tiktok_username, is_primary: account.is_primary })), brandId: visibleContracts.length > 1 && selectedBrand ? null : brandId, brandLabel: selectedBrand ? label : null, brandNotes: currentContract?.notes ?? null }} />}
+      {canEdit && currentContract && <CreatorRemovalButton key={`remove:${currentContract.managedId}:${currentContract.brand}`} managedId={currentContract.managedId} name={profile.real_name} brand={currentContract.brand} brandLabel={label} />}
       {['owner', 'admin'].includes(scope.role) && !scope.impersonating && <a href={`/api/admin/view-as-creator?creatorId=${profile.id}`} target="_blank" rel="noopener noreferrer">Creator portal<ExternalLink size={12} aria-hidden="true" /></a>}
     </div>
   </section>;
