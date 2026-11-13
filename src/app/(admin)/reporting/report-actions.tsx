@@ -46,20 +46,20 @@ export function ReportActions({
   }
   const [busy, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [revisionLink, setRevisionLink] = useState<string | null>(null);
+  const [revisionResult, setRevisionResult] = useState<{ url: string; reused: boolean } | null>(null);
 
   async function call(path: string, init?: RequestInit) {
     const res = await fetch(`/api/client-reports/${target.id}${path}`, init);
-    const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string };
+    const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string; reused?: boolean };
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    if (typeof data.token === 'string' && data.token) setRevisionLink(`/r/${encodeURIComponent(data.token)}?preview=1`);
+    if (typeof data.token === 'string' && data.token) setRevisionResult({ url: `/r/${encodeURIComponent(data.token)}?preview=1`, reused: data.reused === true });
     return data;
   }
 
   const run = (fn: () => Promise<void>) =>
     startTransition(async () => {
       setError(null);
-      setRevisionLink(null);
+      setRevisionResult(null);
       try {
         await fn();
       } catch (e) {
@@ -105,7 +105,10 @@ export function ReportActions({
       </button>
 
       {!open && error && <span role="alert" className="max-w-64 text-xs text-destructive">{error}</span>}
-      {revisionLink && <span role="status"><a href={revisionLink} target="_blank" rel="noopener noreferrer" title="The previous report link is unchanged" className="whitespace-nowrap rounded-md bg-primary/5 px-2 py-1.5 text-xs font-semibold text-primary">Open new revision <InterfaceIcon name="external" /></a></span>}
+      {revisionResult && <span role="status" className="flex flex-wrap items-center gap-2 text-xs">
+        {revisionResult.reused && <span>The approved report is current. No new revision was created.</span>}
+        <a href={revisionResult.url} target="_blank" rel="noopener noreferrer" title={revisionResult.reused ? 'Open the current approved report' : 'The previous report link is unchanged'} className="whitespace-nowrap rounded-md bg-primary/5 px-2 py-1.5 text-xs font-semibold text-primary">{revisionResult.reused ? 'Open current report' : 'Open new revision'} <InterfaceIcon name="external" /></a>
+      </span>}
 
       {open && (
         <ModalOverlay onClose={() => { if (!busy) setOpen(null); }} closeOnBackdropClick={false} closeOnEsc={!busy}>
