@@ -96,7 +96,7 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
   const [nonce, setNonce] = useState(0);
 
   const [actionError, setActionError] = useState<string | null>(null);
-  const [revisionLink, setRevisionLink] = useState<string | null>(null);
+  const [revisionResult, setRevisionResult] = useState<{ url: string; reused: boolean } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<ClientReportRow | null>(null);
@@ -145,17 +145,17 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-  /** Create a separate snapshot and link; the original remains unchanged. */
+  /** Create a revision, or return the current approved report when one exists. */
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const handleRefresh = async (r: ClientReportRow) => {
     setRefreshingId(r.id);
     setActionError(null);
-    setRevisionLink(null);
+    setRevisionResult(null);
     try {
       const res = await fetch(`/api/client-reports/${r.id}/refresh`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      if (typeof data.token === 'string' && data.token) setRevisionLink(`/r/${encodeURIComponent(data.token)}`);
+      if (typeof data.token === 'string' && data.token) setRevisionResult({ url: `/r/${encodeURIComponent(data.token)}`, reused: data.reused === true });
       // load() takes a cancellation predicate; this call is not racing a
       // component unmount the way the mount effect is, so it never cancels.
       await load(() => false);
@@ -200,10 +200,10 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
         <SearchInput aria-label="Search report library" placeholder="Search brand or period" onClear={() => setQuery('')} value={query} onChange={e => setQuery(e.target.value)} />
 
       </div>
-      {revisionLink && (
+      {revisionResult && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
-          <span>New revision created. The previous link is unchanged.</span>
-          <a href={`${revisionLink}?preview=1`} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">Open new revision <InterfaceIcon name="forward" /></a>
+          <span>{revisionResult.reused ? 'The approved report is current. No new revision was created.' : 'New revision created. The previous link is unchanged.'}</span>
+          <a href={`${revisionResult.url}?preview=1`} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">{revisionResult.reused ? 'Open current report' : 'Open new revision'} <InterfaceIcon name="forward" /></a>
         </div>
       )}
 
