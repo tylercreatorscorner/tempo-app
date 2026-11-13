@@ -35,6 +35,19 @@ import { getPublishedVideoCounts } from '@/lib/data/published-videos';
 export type ReportPeriod = '7d' | '30d';
 
 export interface BrandClientReportData {
+  /** Audited source bridge: creator financial rows use the same basis as headlines. */
+  sourceReconciliation?: {
+    creatorGmv: number; videoGmv: number; videoExportGmv: number;
+    liveGmv: number; productCardGmv: number; videoDifference: number;
+    productExportGmv: number; productDifference: number;
+    creatorDetailBasis: 'creator-sales'; videoDetailBasis: 'video-sales';
+    recovery?: {
+      managedVideoGmv: number; creatorDays: number;
+      shopSource: 'product-sales'; shopCreatorGmv: number;
+      shopUnattributedGmv: number; shopUnattributedUnits: number;
+      productOrderCount: number;
+    };
+  };
   reportingExclusions?: import('./reporting-exclusions').ReportingExclusions;
   brandName: string;
   brandSlug: string;

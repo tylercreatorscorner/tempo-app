@@ -5,6 +5,11 @@ import ts from 'typescript';
 
 const jsx = (type, props) => ({ type, props });
 const runtime = { jsx, jsxs: jsx, Fragment: 'fragment' };
+function redirect(location) {
+  const error = new Error('NEXT_REDIRECT');
+  error.location = location;
+  throw error;
+}
 let currentUrl = '', timerId = 0, state = [], cursor = 0;
 const timers = new Map();
 function load(path, dependencies) {
@@ -69,13 +74,20 @@ const fixture = {
 };
 let loadedLibrary = fixture;
 const page = load('src/app/r/[token]/videos/page.tsx', {
-  'next/navigation': { notFound: () => { throw new Error('NOT_FOUND'); } },
+  'next/navigation': { notFound: () => { throw new Error('NOT_FOUND'); }, redirect },
   '@/lib/data/client-report-videos': { getClientReportVideoLibrary: async token => { assert.equal(token, 'public-token'); return loadedLibrary; } },
   '@/lib/data/published-video-evidence-types': shared,
   './video-library': { VideoLibrary: 'video-library' },
 });
 const propsFor = async query => (await page.default({ params: Promise.resolve({ token: 'public-token' }), searchParams: Promise.resolve(query) })).props;
 const navigate = async () => propsFor(Object.fromEntries(new URL(currentUrl, 'https://tempo.invalid').searchParams));
+loadedLibrary = { ...fixture, token: 'approved-corrected-token' };
+await assert.rejects(propsFor({ preview: '1', creator: 'id:jake', q: 'saved video', sort: 'oldest', page: '1' }),
+  error => error.location === '/r/approved-corrected-token/videos?preview=1&creator=id%3Ajake&q=saved+video&sort=oldest&page=1',
+  'An approved replacement redirects before rendering and preserves preview, filters and pagination');
+await assert.rejects(propsFor({}), error => error.location === '/r/approved-corrected-token/videos',
+  'Unfiltered replacement links do not acquire an empty query string');
+loadedLibrary = fixture;
 const alias = video(0, { creatorHandle: 'other', qualifyingHandles: ['other', 'jake_alt'] });
 loadedLibrary = { ...fixture, evidence: { ...fixture.evidence, videos: [alias, video(1, { creatorHandle: 'other', qualifyingHandles: ['other'] })] } };
 let props = await propsFor({ creator: 'id:jake' });
@@ -199,7 +211,10 @@ const previewCsv = nodes(tree).find(node => node?.type === 'a' && textOf(node).i
 assert.equal(previewCsv.props.href, '/api/report-videos/public-token?creator=id%3Ajake&q=title+27', 'CSV does not need a preview flag');
 assert.equal((await propsFor({})).library.preview, false, 'Normal public report navigation stays normal');
 
+let canonicalReport = null;
 const reportPage = load('src/app/r/[token]/page.tsx', {
+  'next/navigation': { redirect },
+  '@/lib/data/client-report-canonical': { loadCanonicalForReport: async () => canonicalReport },
   '@/lib/supabase/server': { createAdminClient: async () => {
     const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: { token: 'public-token', tenant_id: null, snapshot: { report: {} } }, error: null }) };
     return { from: () => query };
@@ -215,6 +230,13 @@ for (const preview of [true, false]) {
   assert.equal(nodes(tree).find(node => node?.type === 'report-view').props.preview, preview, 'The report page passes its beacon preview mode into all report links');
   assert.equal(nodes(tree).find(node => node?.type === 'view-beacon').props.preview, preview);
 }
+canonicalReport = { token: 'approved-corrected-token' };
+for (const preview of [true, false]) {
+  await assert.rejects(reportPage.default({ params: Promise.resolve({ token: 'public-token' }), searchParams: Promise.resolve(preview ? { preview: '1' } : {}) }),
+    error => error.location === '/r/approved-corrected-token' + (preview ? '?preview=1' : ''),
+    'The main report also redirects to its approved revision without converting previews into viewed reports');
+}
+canonicalReport = null;
 
 assert.equal(page.metadata.robots.index, false);
 assert.equal(page.metadata.robots.follow, false);
@@ -235,4 +257,4 @@ assert.equal(nodes(tree).find(node => node?.type === 'a' && textOf(node).include
 nodes(tree).find(node => node?.type === 'choice-menu' && node.props.label === 'Sort published videos').props.onChange('oldest');
 assert.equal(currentUrl, draftRoutes.videoLibrary + '?creator=id%3Ajake&sort=oldest', 'Private filter navigation stays within the authenticated revision');
 assert.ok(textOf(tree).includes('Private corrected revision') && !textOf(tree).includes('report as sent'), 'A draft is not labeled as an issued report');
-console.log('PASS report video UI: server-only full packet, alias filters, canonical URLs, as-sent/reconstructed counts, debounced latest-query navigation, compact pagination, CSV scope, stable creator links and noindex/404');
+console.log('PASS report video UI: server-only full packet, alias filters, canonical URLs and correction redirects, as-sent/reconstructed counts, debounced latest-query navigation, compact pagination, CSV scope, stable creator links and noindex/404');

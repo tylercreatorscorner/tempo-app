@@ -29,8 +29,14 @@ const headers = lines[0]; const unitsIndex = headers.indexOf('Units sold'), orde
 assert.deepEqual(lines.slice(1).map(line => line[unitsIndex]), ['5', '', '0', '7', '11']);
 assert.deepEqual(lines.slice(1).map(line => line[ordersIndex]), ['2', '2', '2', '2', '2']);
 assert.equal(lines[1][headers.indexOf('Retainer rate')], '300.00');
-assert.equal(lines[1][headers.indexOf('Agreed posts')], '30');
-assert.equal(lines[1][headers.indexOf('Partnership start date')], '2026-08-01');
+assert.equal(lines[1][headers.indexOf('Recorded monthly target')], '30');
+assert.equal(lines[1][headers.indexOf('Roster start date')], '2026-08-01');
 assert.equal(JSON.stringify(snapshot), before, 'CSV may not mutate the frozen snapshot');
+creators[0].quota = null; creators[0].ccStartDate = '2026-11-11';
+response = await get();
+const revisedLines = (await response.text()).replace(/^\uFEFF/, '').trim().split('\r\n').map(line => line.split(','));
+assert.equal(revisedLines[1][headers.indexOf('Recorded partnership status')], 'Status to confirm', 'A rate without saved terms does not establish a retainer commitment');
+assert.equal(revisedLines[1][headers.indexOf('Recorded monthly target')], '', 'Unknown targets remain blank');
+assert.match(revisedLines[1][headers.indexOf('Report inclusion note')], /saved roster date is later/);
 revoked = true; response = await get(); assert.equal(response.status, 404);
 console.log('PASS report CSV units: frozen items/unitsSold fields, actual zero vs absent, order independence, agreement/date parity and revoked-link denial');

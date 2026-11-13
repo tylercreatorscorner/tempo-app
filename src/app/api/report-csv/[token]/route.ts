@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
+import { loadCanonicalForReport } from '@/lib/data/client-report-canonical';
 
 export const runtime = 'nodejs';
 
@@ -48,11 +49,21 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const supabase = await createAdminClient();
   const { data: row, error } = await supabase
     .from('client_reports')
-    .select('brand_name, period_start, period_end, snapshot, revoked_at')
+    .select('id,tenant_id,brand_slug,report_type,brand_name,period_start,period_end,snapshot,revoked_at')
     .eq('token', token)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!row || row.revoked_at) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  try {
+    const canonical = await loadCanonicalForReport(row, supabase);
+    if (canonical && canonical.token !== token) {
+      const destination = new URL(_req.url);
+      destination.pathname = `/api/report-csv/${encodeURIComponent(canonical.token)}`;
+      return NextResponse.redirect(destination, { status: 307, headers: { 'Cache-Control': 'private, no-store' } });
+    }
+  } catch {
+    return NextResponse.json({ error: 'The approved report revision could not be verified.' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
+  }
 
   const snapshot = row.snapshot as ClientReportSnapshot;
   if (snapshot.reconciliation) {
@@ -82,16 +93,17 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const header = [
     'Creator',
     'TikTok handles',
-    'Agreement',
+    'Recorded partnership status',
     // Unlike the report, the CSV carries this ALWAYS. A blank cell in a
     // spreadsheet is ordinary; a column of dashes on a client-facing page is
     // not, which is why the rendered table gates on coverage and this does not.
     'Level',
     'Retainer rate',
     'Retainer period',
-    'Agreed posts',
+    hasAgreements ? 'Agreed / recorded post target' : 'Recorded monthly target',
     'Post commitment period',
-    'Partnership start date',
+    'Roster start date',
+    'Report inclusion note',
     windowIsMonth ? 'Posts published' : 'Posts this period',
     'Videos earning',
     'Orders',
@@ -115,7 +127,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     return [
       c.realName?.trim() ? c.realName : c.name,
       handles,
-      c.departed ? 'Left during period' : c.isAffiliate ? 'Affiliate' : 'Retainer',
+      c.departed ? 'Left during period' : c.isAffiliate ? 'Affiliate' : !c.agreement && !(c.quota != null && c.quota > 0) ? 'Status to confirm' : c.agreement ? 'Retainer' : 'Recorded monthly rate / target',
       c.role?.trim() ? c.role : '',
       // Blank, never 0: affiliate-only creators have no agreed amount, and a
       // zero would read as a negotiated figure.
@@ -124,6 +136,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       !c.departed && !c.isAffiliate ? c.quota ?? '' : '',
       !c.departed && !c.isAffiliate && c.quota != null ? (c.agreement ? 'Agreement term' : 'Month') : '',
       c.ccStartDate ?? '',
+      c.ccStartDate && c.ccStartDate.slice(0, 10) > end.toISOString().slice(0, 10) ? 'Included in this report; saved roster date is later than the report window.' : '',
       c.postsPublished,
       c.videosEarning ?? '',
       c.orders,

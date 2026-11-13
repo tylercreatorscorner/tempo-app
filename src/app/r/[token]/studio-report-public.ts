@@ -46,6 +46,22 @@ export function publicStudioReport(row: BrandClientReportData): PublicStudioRepo
   return {
     brandName: row.brandName, brandSlug: row.brandSlug, startDate: row.startDate, endDate: row.endDate,
     periodLabel: row.periodLabel, periodLengthDays: row.periodLengthDays,
+    sourceReconciliation: row.sourceReconciliation ? {
+      creatorGmv: row.sourceReconciliation.creatorGmv, videoGmv: row.sourceReconciliation.videoGmv,
+      videoExportGmv: row.sourceReconciliation.videoExportGmv, liveGmv: row.sourceReconciliation.liveGmv,
+      productCardGmv: row.sourceReconciliation.productCardGmv, videoDifference: row.sourceReconciliation.videoDifference,
+      productExportGmv: row.sourceReconciliation.productExportGmv, productDifference: row.sourceReconciliation.productDifference,
+      creatorDetailBasis: row.sourceReconciliation.creatorDetailBasis, videoDetailBasis: row.sourceReconciliation.videoDetailBasis,
+      recovery: row.sourceReconciliation.recovery ? {
+        managedVideoGmv: row.sourceReconciliation.recovery.managedVideoGmv,
+        creatorDays: row.sourceReconciliation.recovery.creatorDays,
+        shopSource: row.sourceReconciliation.recovery.shopSource,
+        shopCreatorGmv: row.sourceReconciliation.recovery.shopCreatorGmv,
+        shopUnattributedGmv: row.sourceReconciliation.recovery.shopUnattributedGmv,
+        shopUnattributedUnits: row.sourceReconciliation.recovery.shopUnattributedUnits,
+        productOrderCount: row.sourceReconciliation.recovery.productOrderCount,
+      } : undefined,
+    } : undefined,
     totalGmv: row.totalGmv, totalOrders: row.totalOrders, totalItems: row.totalItems, totalVideos: row.totalVideos,
     activeCreators: row.activeCreators, avgOrderValue: row.avgOrderValue, avgGmvPerCreator: row.avgGmvPerCreator, estCommission: row.estCommission,
     priorTotalGmv: row.priorTotalGmv, priorTotalOrders: row.priorTotalOrders, priorTotalItems: row.priorTotalItems,

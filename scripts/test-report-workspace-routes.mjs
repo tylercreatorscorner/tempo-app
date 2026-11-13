@@ -20,15 +20,19 @@ function from(table){let filters=[],limit=null,offset=0,patch=null,insert=null;c
  contains:(k,v)=>{filters.push(r=>v.every(item=>(r[k]??[]).includes(item)));return q;},
  or:expression=>{const terms=expression.split(',').map(term=>{const [column,,...pattern]=term.split('.');return [column,pattern.join('.').replace(/^%|%$/g,'').toLowerCase()];});filters.push(row=>terms.some(([column,value])=>String(row[column]??'').toLowerCase().includes(value)));return q;},
  update:v=>{patch=v;return q;},insert:v=>{insert=v;return q;},like:()=>q,
- maybeSingle:()=>run(true),single:()=>run(true),then:(r,j)=>Promise.resolve(run(false)).then(r,j)};
+ abortSignal:()=>q,maybeSingle:()=>run(true),single:()=>run(true),then:(r,j)=>Promise.resolve(run(false)).then(r,j)};
  function run(single){if(insert){writes++;const row={id:'new-report',token:'new-token',...insert};(tables[table]??=[]).push(row);return {data:row,error:null};}
  let data=(tables[table]??[]).filter(r=>filters.every(f=>f(r)));const count=data.length;if(limit)data=data.slice(offset,offset+limit);
  if(patch){writes+=data.length;data.forEach(r=>Object.assign(r,patch));}return {data:single?data[0]??null:data,error:null,count};}return q;}
 const admin={from,rpc:async(name,args)=>{rpcCalls.push({name,args});return {data:name==='get_agency_portfolio_workspace'?agencyPortfolio:name==='get_brand_client_report_counts_workspace'?clientPublishedCounts:['get_brand_roster_weekly_workspace','get_agency_coverage_gaps_workspace','get_agency_roster_quality_workspace'].includes(name)?[]:name==='get_brand_client_report_granular_workspace'?null:{},error:null};},auth:{getUser:async()=>({data:{user:{email:'fixture@invalid'}}})}};
 const deps={'next/server':{NextRequest,NextResponse},'@/lib/supabase/server':{createAdminClient:async()=>admin,createClient:async()=>admin},
  '@/lib/auth/workspace-scope':{getWorkspaceScope:async()=>scope,isBrandInScope:(s,b)=>s.brandScope.kind==='all'||s.brandScope.brandIds.includes(b.id)||s.brandScope.brandSlugs.includes(b.slug)}};
-function load(file){const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,console,Set,Map,Date,URL,Uint8Array,process:{env:{}},require:name=>{let key=name;if(name.startsWith('./')&&file.includes('/auth/'))key='@/lib/auth/'+name.slice(2);assert.ok(key in deps,key);return deps[key];}});return exports;}
+deps['@/lib/data/client-report-canonical']={loadCanonicalForPeriod:async()=>null,loadCanonicalForReport:async()=>null,CanonicalReportUnavailableError:class extends Error{}};
+deps['next/navigation']={redirect:()=>{throw new Error('Unexpected redirect for ordinary report');}};
+function load(file){const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,console,Set,Map,Date,URL,Uint8Array,AbortSignal,process:{env:{}},require:name=>{let key=name;if(name.startsWith('./')&&file.includes('/auth/'))key='@/lib/auth/'+name.slice(2);assert.ok(key in deps,key);return deps[key];}});return exports;}
 deps['@/lib/auth/permissions']=load('src/lib/auth/permissions.ts');
+deps['./client-report-canonical']=deps['@/lib/data/client-report-canonical'];
+deps['@/lib/data/client-report-library']=load('src/lib/data/client-report-library.ts');
 deps['@/lib/data/brand-registry-core']=load('src/lib/data/brand-registry-core.ts');deps['@/lib/data/brand-registry']=deps['@/lib/data/brand-registry-core'];
 deps['@/lib/auth/client-report-access']=load('src/lib/auth/client-report-access.ts');
 deps['@/lib/agreements/renewals']={ensureAgreementPeriods:async()=>{}};
@@ -146,7 +150,7 @@ frozenRow.agreement={periodStart:'2026-07-24',periodEnd:'2026-08-31',quota:30,re
 frozenRow.quota=30;
 frozenRow.ccStartDate='2026-07-20';
 const agreementCsv=await (await csv.GET(req(null,'GET'),tokenCtx)).text();
-assert.ok(agreementCsv.includes('Retainer rate,Retainer period,Agreed posts,Post commitment period,Partnership start date'));
+assert.ok(agreementCsv.includes('Retainer rate,Retainer period,Agreed / recorded post target,Post commitment period,Roster start date,Report inclusion note'));
 assert.ok(agreementCsv.includes('10.00,Agreement term,30,Agreement term,2026-07-20'));
 assert.ok(agreementCsv.includes('Agreement period start,Agreement period end,Agreement revision,Review required'));
 assert.ok(agreementCsv.includes('2026-07-24,2026-08-31,2,Agreement period / payment rules'));

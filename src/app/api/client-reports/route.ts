@@ -14,6 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 import { buildClientReportSnapshot, parseReportPeriod } from '@/lib/data/client-reports';
+import { loadCanonicalForPeriod, CanonicalReportUnavailableError, type CanonicalClientReport } from '@/lib/data/client-report-canonical';
+import { currentReportLibrary, type ReportLibraryRow } from '@/lib/data/client-report-library';
 
 export const runtime = 'nodejs';
 // Snapshot build, measured on kitsch (the heaviest brand) 2026-08-20:
@@ -33,19 +35,6 @@ function appBaseUrl(req: NextRequest): string {
   return `${url.protocol}//${url.host}`;
 }
 
-interface ReportRow {
-  id: string;
-  token: string;
-  brand_slug: string;
-  brand_name: string;
-  period_label: string;
-  created_by: string | null;
-  created_at: string;
-  viewed_at: string | null;
-  revoked_at: string | null;
-  refreshed_at: string | null;
-  revision?: { previousReportId?: unknown } | null;
-}
 
 export async function GET(req: NextRequest) {
   const scope = await getWorkspaceScope();
@@ -67,23 +56,31 @@ export async function GET(req: NextRequest) {
   if (scope.brandScope.kind === 'scoped' && scope.brandScope.brandSlugs.length === 0) {
     return NextResponse.json({ reports: [], total: 0, page, pageSize });
   }
-  let query = supabase
-    .from('client_reports')
-    .select('id, token, brand_slug, brand_name, period_label, created_by, created_at, viewed_at, revoked_at, refreshed_at, revision:snapshot->revision', paginated ? { count: 'exact' } : undefined)
-    .eq('tenant_id', scope.tenantId)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false });
-  // Apply brand authorization BEFORE count and pagination, never only after LIMIT.
-  if (scope.brandScope.kind === 'scoped') query = query.in('brand_slug', scope.brandScope.brandSlugs);
-  if (paginated && search) query = query.or(`brand_name.ilike.%${search}%,brand_slug.ilike.%${search}%,period_label.ilike.%${search}%`);
-  const { data, error, count } = await (paginated ? query.range((page - 1) * pageSize, page * pageSize - 1) : query.limit(100));
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
+  const allRows = new Map<string, ReportLibraryRow>();
+  // Read only authorized metadata. Exact current-report totals require grouping
+  // before pagination; snapshots stay out of this library scan.
+  for (let offset = 0; ; offset += 500) {
+    let query = supabase.from('client_reports')
+      .select('id,token,tenant_id,brand_slug,brand_name,report_type,period_start,period_end,period_label,created_by,created_at,viewed_at,revoked_at,refreshed_at,revision:snapshot->revision,correction:snapshot->reportCorrection')
+      .eq('tenant_id', scope.tenantId).order('created_at', { ascending: false }).order('id', { ascending: false });
+    if (scope.brandScope.kind === 'scoped') query = query.in('brand_slug', scope.brandScope.brandSlugs);
+    const { data, error } = await query.range(offset, offset + 499).abortSignal(AbortSignal.timeout(8_000));
+    if (error) return NextResponse.json({ error: 'The report library could not be loaded.' }, { status: 503 });
+    for (const row of (data ?? []) as ReportLibraryRow[]) allRows.set(row.id, row);
+    if ((data?.length ?? 0) < 500) break;
+    if (offset >= 19_500) return NextResponse.json({ error: 'This report library exceeds the supported metadata window. Contact your agency to load its audit archive.' }, { status: 422 });
+  }
+  const authorized = [...allRows.values()].filter(row => row.brand_slug === 'all'
+    ? scope.brandScope.kind === 'all' : isBrandInScope(scope, { slug: row.brand_slug }));
+  let current: ReportLibraryRow[];
+  try { current = params.get('history') === '1' ? authorized : await currentReportLibrary(authorized, supabase); }
+  catch { return NextResponse.json({ error: 'The approved report revision could not be verified.' }, { status: 503 }); }
+  if (search) {
+    const needle = search.toLocaleLowerCase();
+    current = current.filter(row => [row.brand_name, row.brand_slug, row.period_label].some(value => value?.toLocaleLowerCase().includes(needle)));
+  }
+  const visible = paginated ? current.slice((page - 1) * pageSize, page * pageSize) : current.slice(0, 100);
   const base = appBaseUrl(req);
-  const visible = ((data ?? []) as ReportRow[])
-    .filter((r) =>
-      r.brand_slug === 'all' ? scope.brandScope.kind === 'all' : isBrandInScope(scope, { slug: r.brand_slug }),
-    );
   const reports = visible.map((r) => ({
       id: r.id,
       token: r.token,
@@ -100,11 +97,11 @@ export async function GET(req: NextRequest) {
       isRevision: typeof r.revision?.previousReportId === 'string',
       // Link only to a report independently authorized in this result set.
       // Do not expose arbitrary snapshot metadata or infer a complete version chain.
-      previousReportId: visible.find(previous => previous.id !== r.id &&
+      previousReportId: authorized.find(previous => previous.id !== r.id &&
         previous.id === r.revision?.previousReportId && previous.brand_slug === r.brand_slug)?.id ?? null,
     }));
 
-  return NextResponse.json({ reports, ...(paginated ? { total: count ?? 0, page, pageSize } : {}) });
+  return NextResponse.json({ reports, ...(paginated ? { total: current.length, page, pageSize } : {}) });
 }
 
 export async function POST(req: NextRequest) {
@@ -144,16 +141,30 @@ export async function POST(req: NextRequest) {
       : 'performance';
 
   try {
+    const context = await clientReportContext(scope, brand);
+    const supabase = await createAdminClient();
+    const canonicalResponse = (row: CanonicalClientReport) => {
+      if (('notes' in body && notes !== (row.notes ?? '')) || ('plan' in body && plan !== (row.plan ?? ''))) {
+        return NextResponse.json({ error: 'An approved correction already exists. Open it in the report library and use Revise notes to change its commentary.', id: row.id, token: row.token }, { status: 409 });
+      }
+      return NextResponse.json({ id: row.id, token: row.token, url: `${appBaseUrl(req)}/r/${row.token}`, periodLabel: row.period_label, reused: true });
+    };
+    if (typeof period === 'object') {
+      const canonical = await loadCanonicalForPeriod({ tenantId: scope.tenantId, brandSlug: brand, reportType, periodStart: period.start, periodEnd: period.end }, supabase);
+      if (canonical) return canonicalResponse(canonical);
+    }
     // reportType reaches the builder so a weekly report gets its movers block.
     // Nothing else about the snapshot differs by type.
-    const build = await buildClientReportSnapshot(brand, period, await clientReportContext(scope, brand), undefined, reportType);
+    const build = await buildClientReportSnapshot(brand, period, context, undefined, reportType);
+
+    const canonical = await loadCanonicalForPeriod({ tenantId: scope.tenantId, brandSlug: brand, reportType, periodStart: build.periodStart, periodEnd: build.periodEnd }, supabase);
+    if (canonical) return canonicalResponse(canonical);
 
     // created_by is internal outbox attribution only — never shown to clients.
     const session = await createClient();
     const { data: userData } = await session.auth.getUser();
     const createdBy = userData?.user?.email ?? null;
 
-    const supabase = await createAdminClient();
     const { data: row, error } = await supabase
       .from('client_reports')
       .insert({
@@ -184,6 +195,6 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error('[client-reports] create failed:', err);
     const message = err instanceof Error ? err.message : 'Failed to create report';
-    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : 500 });
+    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : err instanceof CanonicalReportUnavailableError ? 503 : 500 });
   }
 }

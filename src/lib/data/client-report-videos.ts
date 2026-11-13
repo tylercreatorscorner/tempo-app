@@ -4,16 +4,20 @@ import { buildRegistry, expandSlugs, type BrandRow } from './brand-registry-core
 import { getPublishedVideoEvidence, parsePublishedVideoEvidence } from './published-video-evidence';
 import { normalizeReportVideoHandle, reportVideoCreatorKey, type ReportVideoLibrary } from './published-video-evidence-types';
 import type { ClientReportSnapshot } from './client-reports';
+import { loadCanonicalForReport } from './client-report-canonical';
 
 /** Read a report by its existing bearer token. Public inputs never select scope or dates. */
 export async function getClientReportVideoLibrary(token: string): Promise<ReportVideoLibrary | null> {
   if (!/^[A-Za-z0-9_-]{8,200}$/.test(token)) return null;
   const db = await createAdminClient();
-  const { data: row, error } = await db.from('client_reports')
-    .select('tenant_id,brand_slug,brand_name,period_start,period_end,period_label,snapshot,revoked_at')
+  const { data: source, error } = await db.from('client_reports')
+    .select('id,tenant_id,brand_slug,brand_name,report_type,period_start,period_end,period_label,snapshot,revoked_at')
     .eq('token', token).maybeSingle();
   if (error) throw new Error('The report video library could not be loaded.');
-  if (!row || row.revoked_at) return null;
+  if (!source || source.revoked_at) return null;
+  const canonical = await loadCanonicalForReport(source, db);
+  const row = canonical ?? source;
+  const resolvedToken = canonical?.token ?? token;
   const snapshot = row.snapshot as ClientReportSnapshot | null;
   const report = snapshot?.report;
   const exclusions = report?.reportingExclusions;
@@ -42,7 +46,7 @@ export async function getClientReportVideoLibrary(token: string): Promise<Report
   }
   const reported = report?.creatorsCorner?.videos;
   const library: ReportVideoLibrary = {
-    token, brandName: row.brand_name, periodLabel: row.period_label,
+    token: resolvedToken, brandName: row.brand_name, periodLabel: row.period_label,
     reportCount: typeof reported === 'number' && Number.isSafeInteger(reported) && reported >= 0 ? reported : null,
     basis: 'unavailable', evidence: null,
     creators: [...creators.values()].sort((a, b) => a.name.localeCompare(b.name)),

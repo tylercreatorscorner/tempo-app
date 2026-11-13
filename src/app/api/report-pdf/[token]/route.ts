@@ -15,6 +15,7 @@ import { BrandClientReportPDF } from '@/lib/pdf/brand-client-report-pdf';
 import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
 import { brandLogoDataUri } from '@/lib/brand-logo';
 import { reportVideoCovers } from '@/lib/pdf/report-artwork';
+import { loadCanonicalForReport, CanonicalReportUnavailableError } from '@/lib/data/client-report-canonical';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -28,7 +29,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const supabase = await createAdminClient();
   const { data: row, error } = await supabase
     .from('client_reports')
-    .select('tenant_id, brand_slug, brand_name, period_end, snapshot, notes, plan, revoked_at, report_type')
+    .select('id,tenant_id,brand_slug,brand_name,period_start,period_end,snapshot,notes,plan,revoked_at,report_type')
     .eq('token', token)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -36,6 +37,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   if (!row || row.revoked_at) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   try {
+    const canonical = await loadCanonicalForReport(row, supabase);
+    if (canonical && canonical.token !== token) {
+      const destination = new URL(_req.url);
+      destination.pathname = `/api/report-pdf/${encodeURIComponent(canonical.token)}`;
+      return NextResponse.redirect(destination, { status: 307, headers: { 'Cache-Control': 'private, no-store' } });
+    }
     const snapshot = row.snapshot as ClientReportSnapshot;
     const data = reviveReportDates(snapshot.report);
     // The PDF must carry the same sections as the web view for the same link.
@@ -90,6 +97,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       },
     });
   } catch (err: unknown) {
+    if (err instanceof CanonicalReportUnavailableError) return NextResponse.json({ error: err.message }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
     console.error('[report-pdf] render failed:', err);
     return NextResponse.json({ error: 'Failed to render PDF' }, { status: 500 });
   }

@@ -28,7 +28,7 @@ const db = {
     const query = {
       select(columns) {
         read.columns = columns;
-        assert.equal(columns, 'revoked_at,period_start,period_end,top_videos:snapshot->report->topVideos,managed_top_videos:snapshot->report->creatorsCorner->topVideos,published_evidence:snapshot->publishedVideoEvidence');
+        assert.equal(columns, 'id,tenant_id,brand_slug,report_type,revoked_at,period_start,period_end,top_videos:snapshot->report->topVideos,managed_top_videos:snapshot->report->creatorsCorner->topVideos,published_evidence:snapshot->publishedVideoEvidence');
         return query;
       },
       eq(key, value) { read.filters.push([key, value]); return query; },
@@ -48,6 +48,7 @@ const db = {
 };
 const deps = {
   'server-only': {},
+  './client-report-canonical': { loadCanonicalForReport: async () => null },
   '@/lib/supabase/server': { createAdminClient: async () => { adminCalls++; return db; } },
 };
 function load(file) {

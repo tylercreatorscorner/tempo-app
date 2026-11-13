@@ -7,6 +7,8 @@ import { reportGuard, clientReportContext, ClientReportAccessError } from '@/lib
  * notes for editing. Nothing is persisted; Create rebuilds fresh.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import { loadCanonicalForPeriod, CanonicalReportUnavailableError } from '@/lib/data/client-report-canonical';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 import {
   buildClientReportSnapshot,
@@ -31,7 +33,7 @@ export async function POST(req: NextRequest) {
   const denied = reportGuard(scope, 'read');
   if (denied) return denied;
 
-  let body: { brand?: string; period?: unknown };
+  let body: { brand?: string; period?: unknown; reportType?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -45,8 +47,19 @@ export async function POST(req: NextRequest) {
   const period = parseReportPeriod(body.period);
   if (!period) return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
 
+  const reportType = body.reportType === 'monthly' || body.reportType === 'weekly' ? body.reportType : 'performance';
   try {
-    const build = await buildClientReportSnapshot(brand, period, await clientReportContext(scope, brand));
+    const context = await clientReportContext(scope, brand);
+    const db = await createAdminClient();
+    const exactScope = typeof period === 'object' ? { tenantId: scope.tenantId, brandSlug: brand, reportType, periodStart: period.start, periodEnd: period.end } as const : null;
+    let canonical = exactScope ? await loadCanonicalForPeriod(exactScope, db) : null;
+    const build = canonical ? null : await buildClientReportSnapshot(brand, period, context, undefined, reportType);
+    if (!canonical && build) canonical = await loadCanonicalForPeriod({ tenantId: scope.tenantId, brandSlug: brand, reportType, periodStart: build.periodStart, periodEnd: build.periodEnd }, db);
+    if (canonical) {
+      const r = canonical.snapshot.report;
+      return NextResponse.json({ periodLabel: canonical.period_label, headline: { gmv: r.totalGmv, activeCreators: r.activeCreators, managedPct: r.managedPct }, draftNotes: canonical.notes ?? '', draftPlan: canonical.plan ?? '', canonicalReportId: canonical.id });
+    }
+    if (!build) throw new CanonicalReportUnavailableError();
     const r = build.snapshot.report;
     return NextResponse.json({
       periodLabel: build.periodLabel,
@@ -60,6 +73,6 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error('[client-reports] preview failed:', err);
     const message = err instanceof Error ? err.message : 'Failed to prepare report';
-    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : 500 });
+    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : err instanceof CanonicalReportUnavailableError ? 503 : 500 });
   }
 }
