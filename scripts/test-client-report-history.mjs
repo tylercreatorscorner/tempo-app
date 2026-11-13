@@ -5,7 +5,10 @@ import ts from 'typescript';
 const exports = {};
 runInNewContext(ts.transpileModule(readFileSync('src/lib/data/client-report-history.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText, { exports, Date, Map, AbortSignal, require: name => { assert.equal(name, 'server-only'); return {}; } });
+}).outputText, { exports, Date, Map, Set, AbortSignal, require: name => {
+  if (name === './client-report-canonical') return { loadCanonicalForPeriod: async () => null };
+  assert.equal(name, 'server-only'); return {};
+} });
 const { selectClientReportHistory, loadClientReportHistory } = exports;
 const source = { token: 'source-token', tenant_id: 'tenant-a', brand_slug: 'alpha', report_type: 'monthly',
   period_start: '2026-09-01', period_end: '2026-09-30', period_label: 'September 2026', created_at: '2026-10-01T12:00:00Z' };

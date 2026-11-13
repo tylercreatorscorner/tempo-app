@@ -14,6 +14,8 @@ import { StudioReportView as ReportView } from './studio-report-view';
 import { ViewBeacon } from './view-beacon';
 import { loadClientReportHistoryResult } from '@/lib/data/client-report-history';
 import { LockKeyhole } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import { loadCanonicalForReport } from '@/lib/data/client-report-canonical';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +27,16 @@ interface Props {
 export async function generateMetadata({ params }: Props) {
   const { token } = await params;
   const supabase = await createAdminClient();
-  const { data } = await supabase
+  const { data: source } = await supabase
     .from('client_reports')
-    .select('brand_name, period_label, revoked_at, report_type')
+    .select('id,tenant_id,brand_slug,period_start,period_end,brand_name,period_label,revoked_at,report_type')
     .eq('token', token)
     .maybeSingle();
+  let data = source;
+  if (source && !source.revoked_at) {
+    try { data = await loadCanonicalForReport(source, supabase) ?? source; }
+    catch { data = null; }
+  }
   /**
    * ⚠️ THE TITLE SAID "Performance Report" WHATEVER THE REPORT WAS. This is
    * the browser tab, the bookmark, and the unfurl card in Slack or an email
@@ -83,6 +90,10 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
     .maybeSingle();
 
   if (!row || row.revoked_at) return <GonePage />;
+  const canonical = await loadCanonicalForReport(row, supabase);
+  if (canonical && canonical.token !== token) {
+    redirect(`/r/${encodeURIComponent(canonical.token)}${sp?.preview === '1' ? '?preview=1' : ''}`);
+  }
   const historyPromise = row.snapshot?.reconciliation
     ? Promise.resolve({ items: [], unavailable: false }) : loadClientReportHistoryResult(supabase, { ...row, token });
 

@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getClientReportVideoLibrary } from '@/lib/data/client-report-videos';
 import { filterReportVideos } from '@/lib/data/published-video-evidence-types';
 import { VideoLibrary } from './video-library';
@@ -16,6 +16,14 @@ export default async function ReportVideosPage({ params, searchParams }: {
   const [{ token }, query] = await Promise.all([params, searchParams]);
   const library = await getClientReportVideoLibrary(token);
   if (!library) notFound();
+  if (library.token !== token) {
+    const preserved = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (typeof value === 'string') preserved.set(key, value);
+      else if (Array.isArray(value)) value.forEach(item => preserved.append(key, item));
+    }
+    redirect(`/r/${encodeURIComponent(library.token)}/videos${preserved.size ? '?' + preserved.toString() : ''}`);
+  }
   const creator = typeof query.creator === 'string' ? query.creator.slice(0, 200) : '';
   const search = typeof query.q === 'string' ? query.q.slice(0, 120) : '';
   const sort = typeof query.sort === 'string' && ['newest', 'oldest', 'creator'].includes(query.sort) ? query.sort : 'newest';

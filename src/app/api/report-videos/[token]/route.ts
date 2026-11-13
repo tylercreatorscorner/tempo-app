@@ -20,6 +20,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
     const { token } = await ctx.params;
     const library = await getClientReportVideoLibrary(token);
     if (!library) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: PRIVATE });
+    if (library.token !== token) {
+      const destination = new URL(req.url);
+      destination.pathname = `/api/report-videos/${encodeURIComponent(library.token)}`;
+      return NextResponse.redirect(destination, { status: 307, headers: PRIVATE });
+    }
     if (!library.evidence) return NextResponse.json({ error: library.unavailableReason || 'Video records are unavailable.' }, { status: 503, headers: PRIVATE });
     const params = req.nextUrl.searchParams;
     const videos = filterReportVideos(library, { creator: params.get('creator') || undefined, q: params.get('q') || undefined });

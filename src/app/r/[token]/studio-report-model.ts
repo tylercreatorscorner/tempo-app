@@ -18,6 +18,35 @@ export type PublicStudioReport = Omit<BrandClientReportData, 'granular' | 'month
 };
 export const finiteNumber = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
 export const reportUnits = (row: { items?: number | null; units?: number | null; unitsSold?: number | null }) => finiteNumber(row.items) ?? finiteNumber(row.units) ?? finiteNumber(row.unitsSold);
+const sourceMoney = (value: number) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Describe the saved source bridge without treating separate exports as matched transactions. */
+export function reportSourceNotes(report: Pick<BrandClientReportData, 'sourceReconciliation' | 'totalGmv'>): string[] {
+  const source = report.sourceReconciliation;
+  if (!source) return [];
+  if (source.recovery) return [
+    `Reconciled managed sales: ${sourceMoney(source.creatorGmv)} = ${sourceMoney(source.videoGmv)} video + ${sourceMoney(source.liveGmv)} recorded live + ${sourceMoney(source.productCardGmv)} product cards. The creator table and headline include ${sourceMoney(source.recovery.managedVideoGmv)} recovered from saved video records for ${source.recovery.creatorDays} missing creator-days.`,
+    `Content and video-age detail total ${sourceMoney(source.videoExportGmv)}, matching managed video sales. Product-card sales are separate. No unrecorded live or product-card sales have been credited to a creator.`,
+    `Whole-shop sales and product detail use the product export: ${sourceMoney(source.productExportGmv)}. Of this, ${sourceMoney(source.recovery.shopUnattributedGmv)} cannot be attributed to a creator from the available exports and is included only in the store total, not in managed sales.`,
+    'Store orders are recorded creator orders. Product-level order counts can overlap and are not added together as unique shop orders. Store units use the product export.',
+  ];
+  const difference = (value: number) => Math.abs(value) < 0.005 ? 'equal to' : sourceMoney(Math.abs(value)) + (value > 0 ? ' above' : ' below');
+  return [
+    `Creator sales export: ${sourceMoney(source.creatorGmv)} managed GMV = ${sourceMoney(source.videoGmv)} video + ${sourceMoney(source.liveGmv)} live + ${sourceMoney(source.productCardGmv)} product cards. Creator-table GMV, orders and units use this export.`,
+    `Video sales export: ${sourceMoney(source.videoExportGmv)} for content and video-age detail, ${difference(source.videoDifference)} creator-export video GMV. These exports remain separate; the difference is not assigned to individual transactions.`,
+    `Product sales export: ${sourceMoney(source.productExportGmv)}, ${difference(source.productDifference)} total affiliate GMV of ${sourceMoney(report.totalGmv)}. Product detail retains its own source values.`,
+  ];
+}
+export function reportPriorWindow(report: Pick<BrandClientReportData, 'startDate' | 'endDate'>): string {
+  const days = Math.round((report.endDate.getTime() - report.startDate.getTime()) / 86_400_000) + 1;
+  const end = new Date(report.startDate); end.setUTCDate(end.getUTCDate() - 1);
+  const start = new Date(end); start.setUTCDate(start.getUTCDate() - days + 1);
+  const format = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  return `${format(start)} to ${format(end)}`;
+}
+export function rosterScopeNote(creator: Pick<ReportCreator, 'ccStartDate'>, report: Pick<BrandClientReportData, 'endDate'>): string | null {
+  return creator.ccStartDate && creator.ccStartDate.slice(0, 10) > report.endDate.toISOString().slice(0, 10)
+    ? 'Included in this report; saved roster date is later than the report window.' : null;
+}
 export const normalizeHandle = (handle: string | null | undefined) => (handle ?? '').trim().replace(/^@+/, '').toLowerCase();
 export function safeTikTokUrl(value: string | null | undefined): string | null {
   if (!value) return null;

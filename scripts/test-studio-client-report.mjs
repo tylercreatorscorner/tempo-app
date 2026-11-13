@@ -139,4 +139,85 @@ assert.equal(publicProps.report.granular.creators[0].agreement.revision, 3, 'Pub
 assert.equal(publicProps.report.granular.creators[0].agreement.ledgerId, undefined);
 const reconciliation = wrapper.StudioReportView({ token: 'saved-token', report, snapshot: { ...snapshot, reconciliation: { rows: [] } }, brandName: 'Alpha' });
 assert.ok(reconciliation.props.revision, 'Special reconciliation snapshots retain their dedicated renderer');
+
+const reconciled = make({ startDate: new Date('2026-10-01T12:00:00Z'), endDate: new Date('2026-10-31T12:00:00Z'), totalGmv: 1000,
+  sourceReconciliation: { creatorGmv: 120, videoGmv: 100, videoExportGmv: 105, liveGmv: 5, productCardGmv: 15, videoDifference: 5, productExportGmv: 998, productDifference: -2, creatorDetailBasis: 'creator-sales', videoDetailBasis: 'video-sales', privateAudit: 'PRIVATE-SOURCE-AUDIT' },
+});
+reconciled.granular.creators = [creator('Late roster addition', { agreement: null, quota: null, ccStartDate: '2026-11-11' }), creator('Recorded target', { agreement: null, quota: 20 })];
+assert.equal(model.reportPriorWindow(reconciled), 'Aug 31, 2026 to Sep 30, 2026');
+const sourceNotes = model.reportSourceNotes(reconciled).join(' ');
+assert.match(sourceNotes, /\$120.00 managed GMV = \$100.00 video \+ \$5.00 live \+ \$15.00 product cards/);
+assert.match(sourceNotes, /\$5.00 above creator-export video GMV/);
+assert.match(sourceNotes, /\$2.00 below total affiliate GMV/);
+assert.match(sourceNotes, /not assigned to individual transactions/);
+assert.deepEqual(Array.from(model.reportSourceNotes(make())), [], 'Legacy reports gain no invented source bridge');
+const reconciledPublic = publicModel.publicStudioReport(reconciled);
+assert.equal(reconciledPublic.sourceReconciliation.videoDifference, 5);
+assert.equal(reconciledPublic.sourceReconciliation.privateAudit, undefined, 'Only approved source measures cross the public boundary');
+html = renderToStaticMarkup(React.createElement(StudioReport, { token: 'reconciled-token', report: reconciledPublic, snapshot, brandName: 'Alpha', periodLabel: 'October 2026', notes: null, plan: null, reportType: 'monthly' }));
+assert.ok(html.includes('Recorded monthly progress'));
+assert.ok(html.includes('1 creator with a recorded rate is outside the target calculation'));
+assert.ok(html.includes('Agreement versions were not captured'));
+assert.ok(html.includes('saved roster date is later than the report window'));
+assert.ok(html.includes('Roster start / agreement dates'));
+assert.ok(html.includes('Sales sources and reconciliation'));
+assert.ok(html.includes('Aug 31, 2026 to Sep 30, 2026'));
+assert.ok(!html.includes('Monthly deliverables') && !html.includes('Partnership start'));
+
+
+// Audited October M3 recovery figures. Anonymous presentation fixtures retain
+// the real cent-level bridge without storing creator identities or raw exports.
+const recovered = make({
+  startDate: new Date('2026-10-01T12:00:00Z'), endDate: new Date('2026-10-31T12:00:00Z'),
+  totalGmv: 454170.32, totalOrders: 19460, totalItems: 19842,
+  sourceReconciliation: {
+    creatorGmv: 45782.15, videoGmv: 45750.81, videoExportGmv: 45750.81,
+    liveGmv: 0, productCardGmv: 31.34, videoDifference: 0,
+    productExportGmv: 454170.32, productDifference: 0,
+    creatorDetailBasis: 'creator-sales', videoDetailBasis: 'video-sales',
+    privateAudit: { query: 'PRIVATE-RAW-SOURCE-QUERY' },
+    recovery: {
+      managedVideoGmv: 542.39, creatorDays: 3, shopSource: 'product-sales',
+      shopCreatorGmv: 454012.95, shopUnattributedGmv: 157.37,
+      shopUnattributedUnits: 6, productOrderCount: 19479,
+      privateEvidence: { handles: ['PRIVATE-RECOVERY-HANDLE'], sourceRows: [{ internal: 'PRIVATE-RAW-RECORD' }] },
+      futureMetadata: 'PRIVATE-FUTURE-RECOVERY-FIELD',
+    },
+  },
+});
+recovered.creatorsCorner.gmv = recovered.sourceReconciliation.creatorGmv;
+const recoveredBefore = JSON.stringify(recovered);
+const recovery = recovered.sourceReconciliation;
+const cents = value => Math.round(value * 100);
+assert.equal(cents(45239.76 + recovery.recovery.managedVideoGmv), cents(recovery.creatorGmv), 'Only the three recovered creator-days increase managed sales');
+assert.equal(cents(recovery.videoGmv + recovery.liveGmv + recovery.productCardGmv), cents(recovery.creatorGmv), 'Managed headline equals the three recorded channel components');
+assert.equal(cents(recovery.recovery.shopCreatorGmv + recovery.recovery.shopUnattributedGmv), cents(recovered.totalGmv), 'Unattributed store sales remain in the store denominator');
+assert.notEqual(recovery.recovery.productOrderCount, recovered.totalOrders, 'Product order observations are not unique creator orders');
+const recoveryNotes = model.reportSourceNotes(recovered).join(' ');
+for (const expected of [
+  '$45,782.15 = $45,750.81 video + $0.00 recorded live + $31.34 product cards',
+  '$542.39 recovered from saved video records for 3 missing creator-days',
+  'Content and video-age detail total $45,750.81, matching managed video sales',
+  'No unrecorded live or product-card sales have been credited to a creator',
+  'Whole-shop sales and product detail use the product export: $454,170.32',
+  '$157.37 cannot be attributed to a creator',
+  'included only in the store total, not in managed sales',
+  'Product-level order counts can overlap and are not added together as unique shop orders',
+  'Store units use the product export',
+]) assert.ok(recoveryNotes.includes(expected), 'Recovery explanation omitted ' + expected);
+assert.ok(!recoveryNotes.includes('creator-export video GMV'), 'Verified recovery uses its own explanation rather than the unresolved-export branch');
+const recoveredPublic = publicModel.publicStudioReport(recovered);
+assert.deepEqual(JSON.parse(JSON.stringify(recoveredPublic.sourceReconciliation.recovery)), {
+  managedVideoGmv: 542.39, creatorDays: 3, shopSource: 'product-sales',
+  shopCreatorGmv: 454012.95, shopUnattributedGmv: 157.37, shopUnattributedUnits: 6, productOrderCount: 19479,
+});
+assert.ok(!JSON.stringify(recoveredPublic).includes('PRIVATE-'), 'Recovery serialization drops nested evidence, future metadata and source queries');
+assert.equal(recoveredPublic.totalOrders, 19460, 'Public store order total cannot be replaced by product-level order observations');
+assert.equal(recoveredPublic.creatorsCorner.gmv, 45782.15, 'Unattributed store residual cannot be credited to managed creators');
+assert.equal(recoveredPublic.totalItems, 19842, 'Audited product-export unit total remains available');
+assert.equal(JSON.stringify(recovered), recoveredBefore, 'Recovery explanations and public projection never mutate the frozen report');
+html = renderToStaticMarkup(React.createElement(StudioReport, { token: 'recovery-token', report: recoveredPublic, snapshot, brandName: 'Recovery fixture', periodLabel: 'October 2026', notes: null, plan: null, reportType: 'monthly' }));
+for (const expected of ['$542.39 recovered', '3 missing creator-days', '$157.37 cannot be attributed', 'not in managed sales', 'Product-level order counts can overlap']) assert.ok(html.includes(expected), 'Rendered recovery report omitted ' + expected);
+assert.ok(!html.includes('PRIVATE-'));
+
 console.log('PASS Studio client report: matched cost cohorts, completed-month comparison, historical coverage, capped delivery, optional units, canonical links, real React legacy rendering, snapshot projection and reconciliation preservation');

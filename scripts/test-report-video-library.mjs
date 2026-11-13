@@ -43,6 +43,7 @@ const db = {
   },
 };
 const deps = { 'server-only': {}, 'next/server': { NextRequest, NextResponse }, '@/lib/supabase/server': { createAdminClient: async () => { clientCreations++; return db; } } };
+deps['./client-report-canonical'] = { loadCanonicalForReport: async () => null };
 function load(file) {
   const exports = {};
   runInNewContext(ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, console, Date, URL, Error, Set, Map, AbortSignal, require: name => { assert.ok(name in deps, `Unexpected import ${name}`); return deps[name]; } });

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 import { buildClientReportSnapshot } from '@/lib/data/client-reports';
+import { loadCanonicalForReport, CanonicalReportUnavailableError } from '@/lib/data/client-report-canonical';
 
 export const runtime = 'nodejs';
 // The rebuild runs the same chain as a fresh Prepare, which measured ~13s on
@@ -21,7 +22,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { data: row, error: fetchErr } = await supabase
     .from('client_reports')
-    .select('id, token, brand_slug, period_start, period_end, revoked_at, report_type, snapshot, notes, plan')
+    .select('id, token, tenant_id, brand_slug, period_start, period_end, revoked_at, report_type, snapshot, notes, plan')
     .eq('id', id).eq('tenant_id', scope.tenantId)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
@@ -40,6 +41,12 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   try {
+    const canonicalResponse = async () => {
+      const canonical = await loadCanonicalForReport({ ...row, tenant_id: scope.tenantId }, supabase);
+      return canonical ? NextResponse.json({ ok: true, id: canonical.id, token: canonical.token, previousReportId: row.id, periodLabel: canonical.period_label, reused: true }) : null;
+    };
+    const approved = await canonicalResponse();
+    if (approved) return approved;
     // ⚠️ The TYPE comes from the stored row too, for the same reason the period
     // does: refresh means "this link, recomputed". Rebuilding a weekly report
     // as a performance one would silently drop its movers block.
@@ -51,6 +58,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       (row.report_type as 'performance' | 'weekly' | 'monthly' | null) ?? 'performance',
     );
 
+    // A correction approved during a long build must win over current-roster data.
+    const approvedAfterBuild = await canonicalResponse();
+    if (approvedAfterBuild) return approvedAfterBuild;
     const { data: revision, error } = await supabase
       .from('client_reports')
       .insert({
@@ -72,6 +82,6 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   } catch (err: unknown) {
     console.error('[client-reports] refresh failed:', err);
     const message = err instanceof Error ? err.message : 'Failed to refresh the report';
-    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : 500 });
+    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : err instanceof CanonicalReportUnavailableError ? 503 : 500 });
   }
 }

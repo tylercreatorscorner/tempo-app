@@ -26,6 +26,7 @@ import { reportGuard } from '@/lib/auth/client-report-access';
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { loadCanonicalForReport, CanonicalReportUnavailableError } from '@/lib/data/client-report-canonical';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 
 export const runtime = 'nodejs';
@@ -83,7 +84,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // brand-scoped manager must not be able to edit another brand's report by id.
   const { data: row, error: fetchErr } = await supabase
     .from('client_reports')
-    .select('id,brand_slug,brand_name,period_start,period_end,period_label,report_type,snapshot,notes,plan,revoked_at')
+    .select('id,tenant_id,brand_slug,brand_name,period_start,period_end,period_label,report_type,snapshot,notes,plan,revoked_at')
     .eq('id', id).eq('tenant_id', scope.tenantId)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
@@ -101,13 +102,33 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'That link is revoked. Generate a new report instead.' }, { status: 409 });
   }
 
-  const {data:revision,error} = await supabase.from('client_reports').insert({
-    tenant_id:scope.tenantId,brand_slug:row.brand_slug,brand_name:row.brand_name,
-    period_start:row.period_start,period_end:row.period_end,period_label:row.period_label,
-    report_type:row.report_type ?? 'performance',created_by:scope.email,
-    notes:row.notes,plan:row.plan,...patch,
-    snapshot:{...row.snapshot,revision:{previousReportId:row.id,createdAt:new Date().toISOString(),kind:'copy'}},
-  }).select('id,token').single();
-  if(error || !revision) return NextResponse.json({error:'Report revision could not be created.'},{status:500});
-  return NextResponse.json({ok:true,id:revision.id,token:revision.token,previousReportId:row.id,updated:Object.keys(patch)});
+  try {
+    const source = { ...row, tenant_id: scope.tenantId };
+    const canonical = await loadCanonicalForReport(source, supabase);
+    const base = canonical ?? row;
+    // Recheck immediately before copying; a newly approved figure revision must
+    // never be replaced by commentary copied from an older snapshot.
+    const latest = await loadCanonicalForReport(source, supabase);
+    if ((latest?.id ?? null) !== (canonical?.id ?? null)) {
+      return NextResponse.json({ error: 'The approved report changed while saving. Reload it and retry your notes.' }, { status: 409 });
+    }
+    // Notes inherit financial approval precedence. A late commentary insert
+    // cannot outrank a newer financial correction published concurrently.
+    const approval = canonical ? {
+      ...canonical.snapshot.reportCorrection,
+      approvedAt: 'approvedAt' in canonical.snapshot.reportCorrection && typeof canonical.snapshot.reportCorrection.approvedAt === 'string'
+        ? canonical.snapshot.reportCorrection.approvedAt : canonical.created_at,
+    } : null;
+    const { data: revision, error } = await supabase.from('client_reports').insert({
+      tenant_id: scope.tenantId, brand_slug: base.brand_slug, brand_name: base.brand_name,
+      period_start: base.period_start, period_end: base.period_end, period_label: base.period_label,
+      report_type: base.report_type ?? 'performance', created_by: scope.email,
+      notes: base.notes, plan: base.plan, ...patch,
+      snapshot: { ...base.snapshot, ...(approval ? { reportCorrection: approval } : {}), revision: { previousReportId: base.id, createdAt: new Date().toISOString(), kind: 'copy' } },
+    }).select('id,token').single();
+    if (error || !revision) return NextResponse.json({ error: 'Report revision could not be created.' }, { status: 500 });
+    return NextResponse.json({ ok: true, id: revision.id, token: revision.token, previousReportId: base.id, updated: Object.keys(patch) });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'The report revision could not be created.' }, { status: error instanceof CanonicalReportUnavailableError ? 503 : 500 });
+  }
 }

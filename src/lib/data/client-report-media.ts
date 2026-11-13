@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { parseTikTokVideoUrl } from '@/lib/media/tiktok-video-cover';
 import { parsePublishedVideoEvidence } from './published-video-evidence';
+import { loadCanonicalForReport } from './client-report-canonical';
 
 /** Only stored watch identities can authorize media. Never accept an export CDN URL. */
 function savedVideoIdentity(value: unknown): string | null {
@@ -32,11 +33,15 @@ export async function getClientReportMediaUrl(token: string, input: string, clie
   if (!video || video.url !== input) return null;
   const identity = video.url.toLowerCase();
   const db = clientOverride ?? await createAdminClient();
-  const { data, error } = await db.from('client_reports')
-    .select('revoked_at,period_start,period_end,top_videos:snapshot->report->topVideos,managed_top_videos:snapshot->report->creatorsCorner->topVideos,published_evidence:snapshot->publishedVideoEvidence')
+  const { data: source, error } = await db.from('client_reports')
+    .select('id,tenant_id,brand_slug,report_type,revoked_at,period_start,period_end,top_videos:snapshot->report->topVideos,managed_top_videos:snapshot->report->creatorsCorner->topVideos,published_evidence:snapshot->publishedVideoEvidence')
     .eq('token', token).is('revoked_at', null).abortSignal(AbortSignal.timeout(5_000)).maybeSingle();
   if (error) throw new Error('Report media authorization could not be checked.');
-  if (!data || data.revoked_at !== null) return null;
+  if (!source || source.revoked_at !== null) return null;
+  const canonical = await loadCanonicalForReport(source, db);
+  const data = canonical ? { ...canonical, top_videos: canonical.snapshot.report.topVideos,
+    managed_top_videos: canonical.snapshot.report.creatorsCorner.topVideos,
+    published_evidence: canonical.snapshot.publishedVideoEvidence } : source;
   if (containsVideo(data.top_videos, identity) || containsVideo(data.managed_top_videos, identity)) return video.url;
   if (data.published_evidence === undefined || data.published_evidence === null) return null;
   try {

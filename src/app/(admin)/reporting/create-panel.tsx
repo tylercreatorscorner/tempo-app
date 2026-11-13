@@ -225,7 +225,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
       const res = await fetch('/api/client-reports/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, period: periodPayload }),
+        body: JSON.stringify({ brand, period: periodPayload, reportType: reportKind }),
       });
       const data = await res.json().catch(() => ({}));
       if (seq !== prepareSeq.current) return; // selection changed mid-flight
@@ -236,6 +236,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
         draftNotes: typeof data.draftNotes === 'string' ? data.draftNotes : '',
       });
       setNotes(typeof data.draftNotes === 'string' ? data.draftNotes : '');
+      if (typeof data.canonicalReportId === 'string') setPlan(typeof data.draftPlan === 'string' ? data.draftPlan : '');
     } catch (err) {
       if (seq !== prepareSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to prepare the report');

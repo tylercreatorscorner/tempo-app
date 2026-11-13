@@ -124,7 +124,13 @@ try {
   rateOnly.granular.creators = rateOnly.granular.creators.map(c => ({ ...c, agreement: null }));
   rateOnly.topProducts[0].name = 'Unknown Product';
   rateOnly.productCreatorBreakdown[0].productName = 'Unknown Product';
+  rateOnly.sourceReconciliation = { creatorGmv: 11500, videoGmv: 9000, videoExportGmv: 9100, liveGmv: 1500, productCardGmv: 1000, videoDifference: 100, productExportGmv: 21998, productDifference: -2, creatorDetailBasis: 'creator-sales', videoDetailBasis: 'video-sales' };
+  rateOnly.granular.creators[0].ccStartDate = '2026-11-11';
   const rateOnlyBefore = JSON.stringify(rateOnly);
+  const pagination = make();
+  pagination.topProducts = Array.from({ length: 25 }, (_, index) => ({ name: `Pagination product ${index + 1}: ` + 'Complete source product name with all descriptive details preserved. '.repeat(4), gmv: 1000 + index, orders: 20 + index, pctOfTotal: 4 }));
+  pagination.topVideos = Array.from({ length: 10 }, (_, index) => ({ ...pagination.topVideos[0], title: `Pagination video ${index + 1}: ` + 'Complete saved video caption. '.repeat(6), videoUrl: `https://www.tiktok.com/@retained/video/${7689752945746889900n + BigInt(index)}` }));
+  const paginationBefore = JSON.stringify(pagination);
   const variants = [
     ['monthly', monthly, { notes: 'Saved client commentary. No invented conclusion. This \u2014 remains the saved wording.', plan: 'Saved next step: review delivery commitments.', reportType: 'monthly', logo: png, videoCovers: { [videoUrl]: png } }],
     ['weekly', weekly, { notes: 'Weekly saved commentary.', plan: 'Review next week.', reportType: 'weekly' }],
@@ -132,6 +138,7 @@ try {
     ['legacy', legacy, { reportType: 'performance' }],
     ['partial-coverage', partial, { reportType: 'monthly' }],
     ['rate-history-only', rateOnly, { reportType: 'monthly', notes: 'Frozen note: 13 creators made their first sale for you this period.' }],
+    ['long-product-pagination', pagination, { reportType: 'monthly' }],
   ];
   for (const [name, data, props] of variants) {
     const bytes = await renderer.renderToBuffer(BrandClientReportPDF({ data, generatedAt: '2026-10-02T12:00:00Z', weekly: [{ weekEnd: '2026-09-20', gmv: 10000, rosterGmv: 5000 }, { weekEnd: '2026-09-27', gmv: 12000, rosterGmv: 6500 }], ...props }));
@@ -149,18 +156,30 @@ try {
   // Inter kerning may appear as spaces inside words in PDF text extraction.
   // Ignore those layout spaces when checking that original content survives.
   const hasText = (text, expected) => text.replace(/\s/g, '').includes(expected.replace(/\s/g, ''));
-  const [monthlyText, weeklyText, unknownText, legacyText, partialText, rateOnlyText, reconciliationText] = texts;
+  const [monthlyText, weeklyText, unknownText, legacyText, partialText, rateOnlyText, paginationText, reconciliationText] = texts;
+  for (const expected of ['Sales sources and reconciliation', '$100.00 above creator-export video GMV', '$2.00 below total affiliate GMV', 'not assigned to individual transactions', 'Roster start: Nov 11, 2026', 'saved roster date is later than the report window', 'Content under 30 days old', 'Recorded monthly progress']) assert.ok(hasText(rateOnlyText, expected), 'Reconciled PDF omitted ' + expected);
+  assert.ok(!hasText(monthlyText, 'Sales sources and reconciliation'), 'Legacy PDF receives no invented source bridge');
   for (const [index, text] of texts.entries()) {
     assert.ok(!text.includes(privateCanary), 'Internal metadata must never enter the client PDF');
     assert.ok(!/\b(?:NaN|Infinity|undefined)\b/.test(text), 'Optional fields must render without invalid values');
     assert.ok(!/[\u2013\u2014]/.test(text), 'PDF copy uses ASCII hyphens rather than Unicode dashes');
     assert.ok(inspection[index].pages.every(page => page.trim().length > 80), 'There are no blank or nearly blank pages');
     if (index < variants.length) assert.ok(inspection[index].pages.every(page => /TEMPO\s+\d+\s*\/\s*\d+/.test(page)), 'Every performance page has a visible page number');
-    assert.ok(inspection[index].pages.length <= 16, 'A 42-creator fixture should remain compact');
+    assert.ok(inspection[index].pages.length <= (index === 6 ? 26 : 20), 'Explicitly headed sections should remain compact: ' + inspection[index].pages.length + ' pages');
   }
+  for (const product of pagination.topProducts) assert.ok(hasText(paginationText, product.name), 'Product pagination preserves each full source name');
+  for (const video of pagination.topVideos) assert.ok(hasText(paginationText, video.title), 'Video pagination preserves every full caption');
+  const productPages = inspection[6].pages.filter(page => hasText(page, 'Pagination product'));
+  assert.ok(productPages.length > 1, 'Long product names exercise explicit continuation pages');
+  for (const page of productPages) assert.ok(hasText(page, 'Product performance') && hasText(page, 'Product GMV Orders Share'), 'Every product page repeats the section and column headers');
+  const videoPages = inspection[6].pages.filter(page => hasText(page, 'Pagination video'));
+  assert.equal(videoPages.length, 2, 'Ten whole-shop video cards occupy two dedicated headed pages');
+  for (const page of videoPages) assert.ok(hasText(page, 'Top videos across the shop'), 'Video continuations keep their section heading');
+  for (const page of inspection[6].pages) assert.ok(['Your creator program', 'What drove managed performance', 'Managed leaders and performance change', 'The review and next steps', 'Creator performance', 'Matched retainer calculation', 'Store and program context', 'Whole-shop leaders', 'Top videos across the shop', 'Product performance', 'Creators behind product sales', 'Period and trend detail', 'Daily performance'].some(heading => hasText(page, heading)), 'No unheaded overflow page is allowed');
+  assert.equal(JSON.stringify(pagination), paginationBefore, 'Pagination must not mutate saved source rows');
   for (const expected of ['Studio PDF Test Brand', 'Your creator program, in focus.', '$22,000', '$11,500', '$1,500', '$5,000', '3.3x', 'Saved client commentary.', 'Saved next step:', 'Product One']) assert.ok(hasText(monthlyText, expected), 'Monthly PDF omitted ' + expected);
   for (let i = 1; i <= 36; i++) assert.ok(hasText(monthlyText, 'PaginationCreator' + String(i).padStart(2, '0')), 'Pagination must preserve every creator, including the final row');
-  for (const page of inspection[0].pages) if (hasText(page, 'PaginationCreator')) assert.ok(hasText(page, 'Creator performance') && hasText(page, 'Partnership / term'), 'Every creator appendix page repeats the section and column headers');
+  for (const page of inspection[0].pages) if (hasText(page, 'PaginationCreator')) assert.ok(hasText(page, 'Creator performance') && hasText(page, 'Roster start / term'), 'Every creator appendix page repeats the section and column headers');
   assert.ok(monthlyText.includes('Managed units') && monthlyText.includes('267'), 'Headline units remain distinct from the 230 managed orders');
   assert.ok(monthlyText.includes('Not recorded'), 'Absent row units/dates remain explicitly unavailable');
   assert.ok(!hasText(monthlyText, '-$0 unattributed'), 'Floating-point residue must not suggest a financial discrepancy');
