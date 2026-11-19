@@ -342,4 +342,95 @@ const excludedGran=(await db.query(`select get_brand_client_report_granular_work
 assert.ok(!JSON.stringify(excludedGran.creators).includes('excludedfixture'));
 assert.ok(JSON.stringify(excludedGran.creators).includes('keptfixture'));
 console.log('PASS month-specific report exclusions: creator scope, shop totals preserved, managed totals corrected and September retained');
+// Exercise the exact permanent-exclusion migration across all report readers,
+// including the separately implemented publication counter and evidence reader.
+{
+await db.exec(`CREATE TABLE ingestion_runs(id uuid DEFAULT gen_random_uuid(),brand_slug text,target_table text,report_date date,status text,
+ rows_expected int,rows_written int,started_at timestamptz,finished_at timestamptz,error text);`);
+await db.exec(readFileSync('supabase/migrations/20261029233148_published_video_scoped_coverage_counts.sql','utf8'));
+await db.exec(readFileSync('supabase/migrations/20261029234530_report_published_video_evidence.sql','utf8'));
+await db.exec(readFileSync('supabase/migrations/20261110181348_roster_summary_workspace.sql','utf8'));
+const permanentFunctions=['get_brand_client_report_agg_workspace','get_brand_client_report_counts_workspace',
+ 'get_brand_client_report_granular_workspace','get_brand_client_report_managed_split_workspace',
+ 'get_brand_client_report_movers_workspace','get_brand_report_signings_workspace','get_brand_roster_weekly_workspace',
+ 'get_published_video_counts_workspace','get_report_published_video_evidence_workspace','get_roster_summary_workspace'];
+const securityBefore=(await db.query('SELECT proname,proacl::text,proowner,prosecdef,proconfig FROM pg_proc WHERE proname=ANY($1) ORDER BY proname',[permanentFunctions])).rows;
+assert.equal(securityBefore.length,10);
+const savedReportsBefore=(await db.query('SELECT to_jsonb(r) data FROM client_reports r ORDER BY id')).rows;
+const permanentMigration=readFileSync('supabase/migrations/20261119003116_creator_permanent_reporting_exclusion.sql','utf8');
+await db.exec(permanentMigration);
+assert.deepEqual((await db.query('SELECT proname,proacl::text,proowner,prosecdef,proconfig FROM pg_proc WHERE proname=ANY($1) ORDER BY proname',[permanentFunctions])).rows,securityBefore,'Function ACLs, owners, invoker mode and config remain unchanged');
+assert.deepEqual((await db.query('SELECT to_jsonb(r) data FROM client_reports r ORDER BY id')).rows,savedReportsBefore,'Migration never rewrites issued reports');
+await assert.rejects(db.exec(permanentMigration),/Reporting exclusion predicate drift/,'A changed/already-patched function must stop the guarded migration');
+const invalidCreator='33333333-3333-4333-8333-333333333333';
+const correctedBrand='44444444-4444-4444-8444-444444444444';
+const unaffectedBrand='55555555-5555-4555-8555-555555555555';
+const foreignBrand='66666666-6666-4666-8666-666666666666';
+await db.exec(`INSERT INTO brands_v2(id,tenant_id,slug,name,is_archived,is_umbrella) VALUES
+ ('${correctedBrand}','${a}','exclusion-fixture','Corrected brand',false,false),
+ ('${unaffectedBrand}','${a}','unaffected-fixture','Unaffected brand',false,false),
+ ('${foreignBrand}','${b}','exclusion-fixture','Other workspace',false,false);
+ INSERT INTO creators_v2(id,tenant_id) VALUES('${invalidCreator}','${a}');
+ INSERT INTO managed_creators(id,tenant_id,creator_id,brand,real_name,account_1,employment_status,tags,reporting_start_date,archived_at) VALUES
+ (21001,'${a}','${invalidCreator}','exclusion-fixture','Jenn fixture','jennfixture','active',ARRAY['reporting-exclude:all'],'2026-09-01','2026-11-12'),
+ (21002,'${a}','${invalidCreator}','unaffected-fixture','Jenn fixture','jennfixture','active',null,null,null),
+ (21003,'${b}',null,'exclusion-fixture','Foreign Jenn','jennfixture','active',null,null,null);
+ INSERT INTO creator_performance(tenant_id,brand,creator_name,report_date,period_type,gmv,orders,videos) VALUES
+ ('${a}','exclusion-fixture','jennfixture','2026-11-09','daily',642.14,23,1),
+ ('${a}','exclusion-fixture','jennfixture','2026-10-15','daily',500,20,1),
+ ('${a}','exclusion-fixture','keptfixture','2026-11-09','daily',200,10,1),
+ ('${a}','exclusion-fixture','excludedfixture','2026-11-09','daily',99,4,1),
+ ('${a}','unaffected-fixture','jennfixture','2026-11-09','daily',300,12,1),
+ ('${a}','unaffected-fixture','jennfixture','2026-10-15','daily',400,16,1),
+ ('${b}','exclusion-fixture','jennfixture','2026-11-09','daily',999,30,1);
+ INSERT INTO video_performance(tenant_id,brand,creator_name,video_id,report_date,post_date,period_type,gmv) VALUES
+ ('${a}','exclusion-fixture','jennfixture','81001','2026-11-09','2026-11-09','daily',642.14),
+ ('${a}','exclusion-fixture','jennfixture','81002','2026-10-15','2026-10-15','daily',500),
+ ('${a}','exclusion-fixture','keptfixture','82001','2026-11-09','2026-11-09','daily',200),
+ ('${a}','exclusion-fixture','keptfixture','82002','2026-10-15','2026-10-15','daily',77),
+ ('${a}','exclusion-fixture','excludedfixture','83001','2026-11-09','2026-11-09','daily',99),
+ ('${a}','exclusion-fixture','excludedfixture','83002','2026-10-15','2026-10-15','daily',123),
+ ('${a}','unaffected-fixture','jennfixture','84001','2026-11-09','2026-11-09','daily',300),
+ ('${a}','unaffected-fixture','jennfixture','84002','2026-10-15','2026-10-15','daily',400),
+ ('${b}','exclusion-fixture','jennfixture','85001','2026-11-09','2026-11-09','daily',999);
+ INSERT INTO daily_video_product_stats(tenant_id,brand_id,report_date,tiktok_username,video_id,post_date,gmv,orders)
+ SELECT tenant_id,CASE WHEN brand='unaffected-fixture' THEN '${unaffectedBrand}'::uuid WHEN tenant_id='${b}' THEN '${foreignBrand}'::uuid ELSE '${correctedBrand}'::uuid END,
+ report_date,creator_name,video_id,post_date,gmv,1 FROM video_performance WHERE video_id IN ('81001','81002','82001','82002','83001','83002','84001','84002','85001');`);
+const fixtureCall=async(name,args,tenant=a)=>(await db.query(`SELECT ${name}('${tenant}',${args}) data`)).rows[0].data;
+const brandArgs="ARRAY['exclusion-fixture'],ARRAY['exclusion-fixture']";
+const dateArgs="'2026-11-01','2026-11-30','2026-10-01','2026-10-31'";
+const permanentAgg=await fixtureCall('get_brand_client_report_agg_workspace',`${brandArgs},${dateArgs}`);
+assert.equal(permanentAgg.totals.gmv,941.14,'Real shop sales retain invalid managed-assignment sales');
+assert.equal(permanentAgg.managed.gmv,299,'Invalid assignment contributes no current managed GMV');
+assert.equal(permanentAgg.managed_prior.gmv,200,'Permanent tag also excludes historical managed sales');
+const permanentSplit=await fixtureCall('get_brand_client_report_managed_split_workspace',`${brandArgs},${dateArgs}`);
+assert.equal(permanentSplit.managed.gmv,299);assert.equal(permanentSplit.managed_prior.gmv,200);
+const permanentGranular=await fixtureCall('get_brand_client_report_granular_workspace',`${brandArgs},'2026-11-01','2026-11-30'`);
+assert.ok(!JSON.stringify(permanentGranular.creators).includes('jennfixture'));
+assert.equal(permanentGranular.creators.reduce((sum,row)=>sum+row.gmv,0),299);
+for(const [name,args] of [
+ ['get_brand_client_report_counts_workspace',`${brandArgs},${dateArgs}`],
+ ['get_brand_client_report_movers_workspace',`${brandArgs},${dateArgs},20`],
+ ['get_brand_report_signings_workspace',"ARRAY['exclusion-fixture'],'2026-11-30'"],
+ ['get_brand_roster_weekly_workspace',`${brandArgs},'2026-11-30'`],
+]) {
+ const value=await fixtureCall(name,args);assert.ok(!JSON.stringify(value).includes('jennfixture'),`${name} excludes named appearances`);
+}
+const publications=await fixtureCall('get_published_video_counts_workspace',`ARRAY['exclusion-fixture'],${dateArgs},ARRAY['exclusion-fixture']`);
+assert.equal(publications.total,2);assert.equal(publications.priorTotal,1,'Prior month keeps its own monthly exclusion plus the permanent exclusion');
+assert.equal(publications.storeTotal,3);assert.equal(publications.priorStoreTotal,3);
+for(const [start,end,expected] of [['2026-11-01','2026-11-30',2],['2026-10-01','2026-10-31',1]]) {
+ const evidence=await fixtureCall('get_report_published_video_evidence_workspace',`${brandArgs},'${start}','${end}',NULL`);
+ assert.equal(evidence.total,expected);assert.ok(evidence.videos.every(video=>video.creatorHandle!=='jennfixture'));
+}
+const summary=await fixtureCall('get_roster_summary_workspace',`${brandArgs},'2026-11-01','2026-11-30'`);
+assert.equal(summary.managed_gmv,299);assert.equal(summary.affiliate_gmv,941.14);
+const unaffected=await fixtureCall('get_brand_client_report_managed_split_workspace',`ARRAY['unaffected-fixture'],ARRAY['unaffected-fixture'],${dateArgs}`);
+assert.equal(unaffected.managed.gmv,300);assert.equal(unaffected.managed_prior.gmv,400,'Same creator remains attributed to their other brand');
+assert.equal((await fixtureCall('get_report_published_video_evidence_workspace',"ARRAY['unaffected-fixture'],ARRAY['unaffected-fixture'],'2026-11-01','2026-11-30',NULL")).total,1);
+assert.equal((await fixtureCall('get_brand_client_report_managed_split_workspace',`${brandArgs},${dateArgs}`,b)).managed.gmv,999,'Other workspace membership remains unaffected');
+assert.equal((await db.query('SELECT archived_at::date::text archived FROM managed_creators WHERE id=21001')).rows[0].archived,'2026-11-12','No fictitious departure date is required');
+assert.deepEqual((await db.query('SELECT to_jsonb(r) data FROM client_reports r ORDER BY id')).rows,savedReportsBefore);
+console.log('PASS actual permanent-exclusion migration: all 10 functions, current/prior managed GMV, publication counts/evidence, true store sales, other-brand/workspace preservation, unchanged archive/history/security');
+}
 await db.close();

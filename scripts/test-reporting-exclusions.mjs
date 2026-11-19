@@ -9,12 +9,43 @@ const date=new Date();const original={totalGmv:1000,managed:{gmv:250},date,repor
 const filtered=exports.filterExcludedReportCreators(original,exclusion);
 assert.equal(filtered.creators.length,1);assert.equal(filtered.movers.list.length,1);assert.equal(filtered.topVideo,null);
 assert.equal(filtered.totalGmv,1000);assert.equal(filtered.managed.gmv,250);assert.equal(filtered.date,date);assert.equal(original.creators.length,3);
-let filters=[],readError=null;const q={select:()=>q,eq:(...v)=>{filters.push(v);return q;},in:(...v)=>{filters.push(v);return q;},contains:(...v)=>{filters.push(v);return Promise.resolve({data:[{creator_id:'id',real_name:'Candi',account_1:'@candi'}],error:readError});}};
-const resolved=await exports.getReportingExclusions({from:()=>q},'our-tenant',['lemme'],'2026-10-31');
-assert.equal(resolved.month,'2026-10');assert.equal(resolved.handles[0],'candi');
-assert.ok(filters.some(([k,v])=>k==='tenant_id'&&v==='our-tenant'));
-assert.ok(filters.some(([k,v])=>k==='brand'&&v[0]==='lemme'));
-assert.ok(filters.some(([k,v])=>k==='tags'&&v[0]==='reporting-exclude:2026-10'));
+const roster=[
+  {tenant_id:'our-tenant',brand:'m3',creator_id:'invalid-id',real_name:'Invalid assignment',account_1:'@invalid',tags:['reporting-exclude:all']},
+  {tenant_id:'our-tenant',brand:'m3',creator_id:'month-id',real_name:'October correction',account_1:'@october',tags:['reporting-exclude:2026-10']},
+  {tenant_id:'our-tenant',brand:'m3',creator_id:'november-id',real_name:'November correction',account_1:'@november',tags:['reporting-exclude:2026-11']},
+  {tenant_id:'our-tenant',brand:'m3',creator_id:'current-id',real_name:'Current creator',account_1:'@current',tags:null},
+  {tenant_id:'our-tenant',brand:'m3',creator_id:'ordinary-id',real_name:'Ordinary tag',account_1:'@ordinary',tags:['elite']},
+  {tenant_id:'our-tenant',brand:'other-brand',creator_id:'other-brand-id',real_name:'Other brand',account_1:'@otherbrand',tags:['reporting-exclude:all']},
+  {tenant_id:'other-tenant',brand:'m3',creator_id:'other-tenant-id',real_name:'Other tenant',account_1:'@othertenant',tags:['reporting-exclude:all']},
+];
+const beforeRoster=JSON.stringify(roster);
+let filters=[],readError=null;
+const db={from:table=>{
+  assert.equal(table,'managed_creators');let rows=[...roster];
+  const q={select:()=>q,
+    eq:(key,value)=>{filters.push([key,value]);rows=rows.filter(row=>row[key]===value);return q;},
+    in:(key,value)=>{filters.push([key,value]);rows=rows.filter(row=>value.includes(row[key]));return q;},
+    overlaps:(key,value)=>{filters.push([key,value]);rows=rows.filter(row=>(row[key]??[]).some(tag=>value.includes(tag)));return Promise.resolve({data:rows,error:readError});},
+  };return q;
+}};
+for(const [end,ids] of [
+  ['2026-10-31',['invalid-id','month-id']],
+  ['2026-11-15',['invalid-id','november-id']],
+  ['2026-09-30',['invalid-id']],
+  ['2030-01-01',['invalid-id']],
+]) {
+  filters=[];
+  const resolved=await exports.getReportingExclusions(db,'our-tenant',['m3'],end);
+  assert.equal(resolved.month,end.slice(0,7));assert.deepEqual([...resolved.creatorIds],ids);
+  assert.ok(resolved.handles.includes('invalid'));
+  assert.ok(filters.some(([key,value])=>key==='tenant_id'&&value==='our-tenant'));
+  assert.ok(filters.some(([key,value])=>key==='brand'&&value.length===1&&value[0]==='m3'));
+  assert.ok(filters.some(([key,value])=>key==='tags'&&value.length===2&&value.includes('reporting-exclude:all')&&value.includes('reporting-exclude:'+end.slice(0,7))));
+}
+assert.deepEqual([...(await exports.getReportingExclusions(db,'our-tenant',[],'2026-11-15')).creatorIds],[]);
+assert.deepEqual([...(await exports.getReportingExclusions(db,'our-tenant',['other-brand'],'2026-11-15')).creatorIds],['other-brand-id']);
+assert.equal(JSON.stringify(roster),beforeRoster,'Exclusion reads must not mutate roster history');
 readError={message:'failed'};
-await assert.rejects(exports.getReportingExclusions({from:()=>q},'our-tenant',['lemme'],'2026-10-31'),/Could not verify/);
-console.log('PASS report exclusion identity filtering, source immutability, preserved totals/dates, tenant/brand/month scope and failed reads');
+await assert.rejects(exports.getReportingExclusions(db,'our-tenant',['m3'],'2026-11-15'),/Could not verify/);
+console.log('PASS report exclusion identity filtering, source immutability and preserved totals/dates');
+console.log('PASS permanent/month-specific corrections across prior/current/future months, tenant/brand isolation, empty scopes, null tags and failed reads');

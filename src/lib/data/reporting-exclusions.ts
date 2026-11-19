@@ -3,12 +3,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export interface ReportingExclusions { month: string; handles: string[]; creatorIds: string[] }
 const normalize = (value: string) => value.trim().replace(/^@+/, '').toLowerCase();
 
-/** Roster tags are per brand. Never apply a single-brand exclusion to a multi-brand rollup. */
+/** Month corrections and invalid assignments are scoped to this tenant's brand roster. */
 export async function getReportingExclusions(client: SupabaseClient, tenantId: string, brands: string[], end: string): Promise<ReportingExclusions> {
   const month=end.slice(0,7);
   const {data,error}=await client.from('managed_creators')
     .select('creator_id,real_name,account_1,account_2,account_3,account_4,account_5,account_6,account_7,account_8,account_9,account_10')
-    .eq('tenant_id',tenantId).in('brand',brands).contains('tags',[`reporting-exclude:${month}`]);
+    .eq('tenant_id',tenantId).in('brand',brands).overlaps('tags',['reporting-exclude:all',`reporting-exclude:${month}`]);
   if(error) throw Error('Could not verify creator reporting exclusions.');
   const handles=new Set<string>();const creatorIds=new Set<string>();
   for(const row of data??[]) {
